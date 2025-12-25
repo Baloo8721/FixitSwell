@@ -8,7 +8,7 @@ const trustPoints = [
   },
   {
     icon: Wrench,
-    text: "40+ years of maintenance & handyman experience",
+    text: "Decades of hands-on maintenance experience",
     highlight: true,
   },
   {
