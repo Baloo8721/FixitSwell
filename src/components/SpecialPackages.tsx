@@ -1,4 +1,4 @@
-import { Star, Heart, Wrench, Wifi, Shield } from "lucide-react";
+import { Star, Heart, Wrench, Sun, Home, Users, Camera } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const packages = [
@@ -6,10 +6,10 @@ const packages = [
     icon: Heart,
     name: "Senior Assist Package",
     price: "$100",
-    description: "1 Hour of Helping Hands",
+    duration: "1 hour",
     features: [
       "Battery replacements throughout home",
-      "Medication cabinet organizing",
+      "Organizing help",
       "Light lifting & moving items",
       "Basic tech help",
     ],
@@ -17,40 +17,66 @@ const packages = [
   },
   {
     icon: Wrench,
-    name: "Basic Home Tune-Up",
+    name: "Basic Tune-Up",
     price: "$150",
-    description: "Keep Your Home Running Smooth",
+    duration: "2 hours",
     features: [
-      "Light bulb replacement (all rooms)",
-      "Air filter changes",
-      "Door & cabinet adjustments",
-      "Safety device checks",
+      "Light bulb replacement",
+      "Battery changes",
+      "Filter replacements",
+      "Door tweaks & adjustments",
     ],
     popular: false,
   },
   {
-    icon: Wifi,
-    name: "WiFi & Tech Boost",
-    price: "$150–$250",
-    description: "Get Connected & Stay Connected",
+    icon: Sun,
+    name: "Seasonal Prep",
+    price: "$200",
+    duration: "3 hours",
     features: [
-      "Internet speed optimization",
-      "TV streaming setup",
-      "Phone & tablet help",
-      "Smart device installation",
+      "Wash skirting",
+      "Gutter cleaning",
+      "Seals & caulking check",
+      "Screen repairs",
     ],
     popular: false,
   },
   {
-    icon: Shield,
-    name: "Security Starter Bundle",
-    price: "$200–$300",
-    description: "Peace of Mind for Your Home",
+    icon: Home,
+    name: "Quick Fix Bundle",
+    price: "$250",
+    duration: "4 hours",
     features: [
-      "Wireless camera setup",
-      "Motion sensor lights",
-      "Video doorbell installation",
-      "Basic monitoring walkthrough",
+      "Skirting touch-ups",
+      "Step & rail tweaks",
+      "Mailbox fixes",
+      "Decor hanging",
+    ],
+    popular: false,
+  },
+  {
+    icon: Users,
+    name: "Group Maintenance Day",
+    price: "$200–$500",
+    duration: "Full day",
+    features: [
+      "Discounted rates for 3-5 neighbors",
+      "Same-day service",
+      "Multiple homes, one visit",
+      "Great for mobile home parks",
+    ],
+    popular: false,
+  },
+  {
+    icon: Camera,
+    name: "Mobile Home Staging",
+    price: "$150–$300",
+    duration: "Varies",
+    features: [
+      "Cosmetic touch-ups",
+      "Organizing & decluttering",
+      "Quick home photos",
+      "Get your home sale-ready",
     ],
     popular: false,
   },
@@ -58,22 +84,22 @@ const packages = [
 
 const SpecialPackages = () => {
   return (
-    <section className="py-section px-4 bg-background">
+    <section id="packages" className="py-section px-4 bg-background">
       <div className="container max-w-5xl mx-auto">
         <div className="text-center mb-12">
           <span className="inline-flex items-center gap-2 text-accent font-semibold mb-2">
             <Star className="w-5 h-5" />
-            Popular Senior Specials
+            Value Packages
           </span>
           <h2 className="font-heading text-heading-md text-foreground">
-            Value Packages
+            Bundled Specials
           </h2>
           <p className="text-muted-foreground mt-3 max-w-xl mx-auto">
             Save time and money with our bundled services designed just for seniors.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {packages.map((pkg, index) => (
             <Card 
               key={index}
@@ -99,25 +125,27 @@ const SpecialPackages = () => {
                       }`} />
                     </div>
                     <div>
-                      <CardTitle className="font-heading text-xl">
+                      <CardTitle className="font-heading text-lg">
                         {pkg.name}
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        {pkg.description}
+                        {pkg.duration}
                       </p>
                     </div>
                   </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4">
                   <span className="font-heading text-2xl text-primary">
                     {pkg.price}
                   </span>
                 </div>
-              </CardHeader>
-              <CardContent>
                 <ul className="space-y-2">
                   {pkg.features.map((feature, featureIndex) => (
                     <li 
                       key={featureIndex}
-                      className="flex items-center gap-2 text-muted-foreground"
+                      className="flex items-center gap-2 text-muted-foreground text-sm"
                     >
                       <span className="text-primary">✓</span>
                       {feature}

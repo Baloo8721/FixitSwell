@@ -9,67 +9,72 @@ import {
 const serviceCategories = [
   {
     icon: Wrench,
-    title: "Everyday Home Help",
+    title: "Home Repairs & Maintenance",
     services: [
-      "Light bulb & battery changes",
-      "Door & window adjustments",
-      "Furniture assembly & minor fixes",
-      "Caulking & weather sealing",
-      "Small drywall patching",
-      "Smoke detector maintenance",
-      "Cabinet hardware installation",
+      "Furniture assembly (beds, desks, shelves, outdoor sets)",
+      "TV & wall mounting (smart TVs, shelves, mirrors, art)",
+      "Appliance hookup (washers/dryers – surface connections)",
+      "Blinds & curtain rod installation",
+      "Drywall patching (small holes, touch-ups)",
+      "Door & window adjustments (squeaks, screens, weather strips)",
+      "Caulking & sealing (windows, tubs, doors)",
+      "Interior touch-up painting (walls, trim, cabinets)",
+      "Minor furniture repair (glue, sand scratches, tighten wobbles)",
+      "Filter replacements (AC/water filters)",
+      "Light bulb & battery changes (hard-to-reach, smoke detectors)",
+      "Mailbox & sign fixes (tighten, paint, simple parts)",
+      "Pest barrier setup (door sweeps, window strips)",
+      "Storm kit assembly & install (ties, covers, window films)",
     ],
   },
   {
     icon: Tv,
     title: "Technology & WiFi Help",
     services: [
-      "TV & streaming setup (Roku, Fire Stick, etc.)",
-      "WiFi troubleshooting & optimization",
-      "Wireless camera & doorbell setup",
-      "Smart device configuration",
-      "Phone & tablet assistance",
-      "Remote control programming",
-      "Printer setup & troubleshooting",
+      "Wireless smart device setup (doorbells, lights, cameras)",
+      "Home network help (routers, WiFi extenders, troubleshooting)",
+      "TV remote & streaming setup (apps, troubleshooting)",
+      "Quick home photos & video tours (for rentals/sales)",
     ],
   },
   {
     icon: TreeDeciduous,
     title: "Outdoor & Porch Help",
     services: [
-      "Solar light & flood light installation",
-      "Light yard cleanup & debris removal",
-      "Gutter cleaning & inspection",
-      "Pressure washing walkways",
-      "Porch furniture assembly",
-      "Hanging plants & wind chimes",
-      "Screen door adjustments",
+      "Exterior pressure washing (siding, driveways, decks, skirting)",
+      "Fence & gate minor repairs (paint touch-ups, latch fixes)",
+      "Light yard cleanup (trim bushes, mulch beds, debris removal)",
+      "Gutter cleaning (ladder access)",
+      "Holiday light hanging & take-down",
+      "Window washing (interior/exterior)",
+      "Awning & canopy cleaning & tweaks",
+      "Skirting touch-ups (vinyl panels – repairs/replace sections)",
+      "Porch & step rail tweaks (tighten only)",
+      "Plant care service (water/trim porch plants)",
     ],
   },
   {
     icon: Heart,
-    title: "Senior Assistance Services",
+    title: "Senior Assistance & Extras",
     services: [
-      "Medication cabinet organizing",
-      "Emergency kit setup & review",
-      "Mobility aid assembly (walkers, rails)",
-      "Wheelchair & walker add-ons",
-      "Hearing aid battery changes",
-      "Lift chair & bed rail installation",
-      "Organizing & decluttering help",
+      "Interior organizing (closets, kitchens, sheds – sort/label)",
+      "Junk sorting & valuation (declutter, price for sales)",
+      "Basic pet gate & enclosure setup",
+      "Bicycle & scooter tune-ups (chain lube, tire inflation)",
+      "Errand add-on (pick up supplies/store runs)",
     ],
   },
 ];
 
 const ServicesSection = () => {
   return (
-    <section className="py-section px-4 bg-secondary">
+    <section id="services" className="py-section px-4 bg-secondary">
       <div className="container max-w-4xl mx-auto">
         <h2 className="font-heading text-heading-md text-center text-foreground mb-4">
           Services We Provide
         </h2>
         <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
-          From quick fixes to tech help, we handle the little things so you can enjoy your day.
+          All services are fully legal for unlicensed work in Florida. Minor and cosmetic jobs only — no structural, electrical, or plumbing work.
         </p>
 
         <Accordion type="single" collapsible className="space-y-4">
