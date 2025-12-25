@@ -7,11 +7,13 @@ import WhyTrustUs from "@/components/WhyTrustUs";
 import SafetyNote from "@/components/SafetyNote";
 import CallToAction from "@/components/CallToAction";
 import Footer from "@/components/Footer";
+import ServicesOverlay from "@/components/ServicesOverlay";
 
 const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
+      <ServicesOverlay />
       <main>
         <HeroSection />
         <HowItWorks />
