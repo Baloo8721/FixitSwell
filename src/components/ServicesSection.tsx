@@ -1,10 +1,11 @@
-import { Wrench, Tv, TreeDeciduous, Heart } from "lucide-react";
+import { Wrench, Tv, TreeDeciduous, Heart, List } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { useServicesOverlay } from "@/components/ServicesOverlay";
 
 const serviceCategories = [
   {
@@ -67,15 +68,25 @@ const serviceCategories = [
 ];
 
 const ServicesSection = () => {
+  const { setOpen } = useServicesOverlay();
+
   return (
     <section id="services" className="py-section px-4 bg-secondary">
       <div className="container max-w-4xl mx-auto">
         <h2 className="font-heading text-heading-md text-center text-foreground mb-4">
           Services We Provide
         </h2>
-        <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
+        <p className="text-center text-muted-foreground mb-6 max-w-2xl mx-auto">
           All services are fully legal for unlicensed work in Florida. Minor and cosmetic jobs only — no structural, electrical, or plumbing work.
         </p>
+        
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-2 mx-auto mb-10 text-primary hover:text-primary/80 transition-colors font-medium"
+        >
+          <List className="w-5 h-5" />
+          See full list of services
+        </button>
 
         <Accordion type="single" collapsible className="space-y-4">
           {serviceCategories.map((category, index) => (
