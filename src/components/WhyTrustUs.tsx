@@ -1,9 +1,14 @@
-import { Heart, Clock, MessageCircle, DollarSign, ShieldCheck, BadgeCheck } from "lucide-react";
+import { Heart, Clock, MessageCircle, DollarSign, ShieldCheck, BadgeCheck, Wrench } from "lucide-react";
 
 const trustPoints = [
   {
     icon: Heart,
     text: "Former paramedic — trained to care for people",
+    highlight: true,
+  },
+  {
+    icon: Wrench,
+    text: "40+ years of maintenance & handyman experience",
     highlight: true,
   },
   {
@@ -24,7 +29,7 @@ const trustPoints = [
   {
     icon: ShieldCheck,
     text: "Your safety is always my priority",
-    highlight: true,
+    highlight: false,
   },
   {
     icon: BadgeCheck,
