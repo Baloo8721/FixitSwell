@@ -1,4 +1,4 @@
-import { Wrench, Tv, TreeDeciduous, Heart, List } from "lucide-react";
+import { Wrench, Tv, Leaf, Heart, ShieldCheck, Sparkles, List } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -10,59 +10,60 @@ import { useServicesOverlay } from "@/components/ServicesOverlay";
 const serviceCategories = [
   {
     icon: Wrench,
-    title: "Home Repairs & Maintenance",
+    title: "Assembly, Mounting & Setup",
     services: [
-      "Furniture assembly (beds, desks, shelves, outdoor sets)",
-      "TV & wall mounting (smart TVs, shelves, mirrors, art)",
-      "Appliance hookup (washers/dryers – surface connections)",
-      "Blinds & curtain rod installation",
-      "Drywall patching (small holes, touch-ups)",
-      "Door & window adjustments (squeaks, screens, weather strips)",
-      "Caulking & sealing (windows, tubs, doors)",
-      "Interior touch-up painting (walls, trim, cabinets)",
-      "Minor furniture repair (glue, sand scratches, tighten wobbles)",
-      "Filter replacements (AC/water filters)",
-      "Light bulb & battery changes (hard-to-reach, smoke detectors)",
-      "Mailbox & sign fixes (tighten, paint, simple parts)",
-      "Pest barrier setup (door sweeps, window strips)",
-      "Storm kit assembly & install (ties, covers, window films)",
+      "Furniture Assembly — Beds, desks, shelves, outdoor sets, IKEA/Wayfair items ($50–$150)",
+      "TV & Wall Mounting — TVs, shelves, mirrors, soundbars (no wiring) ($75–$200)",
+      "Appliance Hookups — Washers, dryers, microwaves, dishwashers ($80–$200)",
     ],
   },
   {
     icon: Tv,
     title: "Technology & WiFi Help",
     services: [
-      "Wireless smart device setup (doorbells, lights, cameras)",
-      "Home network help (routers, WiFi extenders, troubleshooting)",
-      "TV remote & streaming setup (apps, troubleshooting)",
-      "Quick home photos & video tours (for rentals/sales)",
+      "Smart Device Setup — Doorbells, cameras, lights, Wi-Fi extenders ($75–$200)",
+      "Streaming & Remote Help — TV apps, phones, basic tech troubleshooting ($50–$150)",
+      "Scam Awareness Tips — We help you stay safe online",
     ],
   },
   {
-    icon: TreeDeciduous,
-    title: "Outdoor & Porch Help",
+    icon: ShieldCheck,
+    title: "Repairs & Honey-Do Fixes",
     services: [
-      "Exterior pressure washing (siding, driveways, decks, skirting)",
-      "Fence & gate minor repairs (paint touch-ups, latch fixes)",
-      "Light yard cleanup (trim bushes, mulch beds, debris removal)",
-      "Gutter cleaning (ladder access)",
-      "Holiday light hanging & take-down",
-      "Window washing (interior/exterior)",
-      "Awning & canopy cleaning & tweaks",
-      "Skirting touch-ups (vinyl panels – repairs/replace sections)",
-      "Porch & step rail tweaks (tighten only)",
-      "Plant care service (water/trim porch plants)",
+      "Door & Window Adjustments — Squeaks, alignment, weather strips, screens ($50–$200)",
+      "Minor Repairs — Tighten hinges/knobs, caulking, patch small holes ($50–$150)",
+      "Skirting & Exterior Fixes — Vinyl skirting, mailbox, porch rails ($80–$200)",
+      "Interior/Exterior Touch-Up Painting — Walls, trim, doors ($150–$500)",
     ],
   },
   {
     icon: Heart,
-    title: "Senior Assistance & Extras",
+    title: "Safety & Senior Support",
     services: [
-      "Interior organizing (closets, kitchens, sheds – sort/label)",
-      "Junk sorting & valuation (declutter, price for sales)",
-      "Basic pet gate & enclosure setup",
-      "Bicycle & scooter tune-ups (chain lube, tire inflation)",
-      "Errand add-on (pick up supplies/store runs)",
+      "Grab Bars & Fall Prevention — Install grab bars, non-slip mats, night lights ($100–$300)",
+      "Light Bulb, Battery & Filter Changes — Hard-to-reach, smoke detectors, AC filters ($40–$100)",
+      "Errands & Personal Assistance — Pharmacy/store runs, mail sorting ($30–$100/hr)",
+      "Wait-at-Home Help — Wait for contractors/deliveries, lift items ($50–$150)",
+    ],
+  },
+  {
+    icon: Leaf,
+    title: "Outdoor & Seasonal",
+    services: [
+      "Window & Pressure Washing — Windows, driveways, patios, skirting ($80–$300)",
+      "Gutter Cleaning & Awning Care — Single-story gutters, soft wash awnings ($100–$250)",
+      "Light Yard Cleanup — Trimming, weeding, mulch, porch plants ($100–$300)",
+      "Storm & Holiday Prep — Hurricane prep, window films, holiday lights ($100–$300)",
+    ],
+  },
+  {
+    icon: Sparkles,
+    title: "Organizing & Extras",
+    services: [
+      "Interior & Garage Organizing — Closets, kitchens, sheds, declutter ($75–$500)",
+      "Junk Sorting & Valuation — Help price items for sales",
+      "Bicycle & Scooter Tune-Ups — Basic lube, inflate, adjust ($40–$100)",
+      "Pet Gate & Enclosure Setup — Non-permanent installs ($80–$150)",
     ],
   },
 ];
@@ -73,9 +74,12 @@ const ServicesSection = () => {
   return (
     <section id="services" className="py-section px-4 bg-secondary">
       <div className="container max-w-4xl mx-auto">
-        <h2 className="font-heading text-heading-md text-center text-foreground mb-12">
+        <h2 className="font-heading text-heading-md text-center text-foreground mb-4">
           Services We Provide
         </h2>
+        <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
+          Clear pricing. No surprises. All work stays within safe, unlicensed limits — light repairs, cosmetic fixes, and helpful support.
+        </p>
 
         <Accordion type="single" collapsible className="space-y-4">
           {serviceCategories.map((category, index) => (
@@ -95,14 +99,14 @@ const ServicesSection = () => {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="px-6 pb-6">
-                <ul className="grid sm:grid-cols-2 gap-3 pt-2">
+                <ul className="space-y-3 pt-2">
                   {category.services.map((service, serviceIndex) => (
                     <li 
                       key={serviceIndex}
-                      className="flex items-start gap-2 text-muted-foreground"
+                      className="flex items-start gap-3 text-muted-foreground"
                     >
-                      <span className="text-primary mt-1">✓</span>
-                      <span>{service}</span>
+                      <span className="text-primary mt-1 text-lg">✓</span>
+                      <span className="text-base leading-relaxed">{service}</span>
                     </li>
                   ))}
                 </ul>
