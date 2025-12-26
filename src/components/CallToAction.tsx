@@ -1,4 +1,4 @@
-import { Phone, MessageCircle, Clock } from "lucide-react";
+import { Phone, MessageCircle, Mail, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const CallToAction = () => {
@@ -9,10 +9,10 @@ const CallToAction = () => {
           Need Help Today?
         </h2>
         <p className="text-primary-foreground/80 text-lg mb-8 max-w-xl mx-auto">
-          Give us a call or send a text. We&apos;re here to make your day easier.
+          Give us a call, send a text, or email us. We&apos;re here to make your day easier.
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-4">
           <Button 
             asChild
             size="lg" 
@@ -35,6 +35,14 @@ const CallToAction = () => {
             </a>
           </Button>
         </div>
+
+        <a 
+          href="mailto:help@yourhandyman.com" 
+          className="inline-flex items-center gap-2 text-primary-foreground/90 hover:text-primary-foreground transition-colors mb-8"
+        >
+          <Mail className="w-5 h-5" />
+          <span className="underline">Email us instead</span>
+        </a>
 
         <div className="flex items-center justify-center gap-2 text-primary-foreground/70">
           <Clock className="w-5 h-5" />
