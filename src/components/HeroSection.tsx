@@ -66,7 +66,7 @@ const HeroSection = () => {
         {/* Paramedic trust badge */}
         <div className="inline-flex items-center gap-2 bg-medic/10 text-medic px-4 py-2 rounded-full font-medium">
           <Heart className="w-5 h-5" />
-          <span>Ran & Operated by Former Paramedic — Your Safety Is My Priority</span>
+          <span>Ran & Operated by a Former Paramedic & Professional Maintenance Team — Your Safety Is Our Priority</span>
         </div>
       </div>
     </section>
