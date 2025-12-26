@@ -4,7 +4,7 @@ import HowItWorks from "@/components/HowItWorks";
 import ServicesSection from "@/components/ServicesSection";
 import SpecialPackages from "@/components/SpecialPackages";
 import WhyTrustUs from "@/components/WhyTrustUs";
-import SafetyNote from "@/components/SafetyNote";
+
 import CallToAction from "@/components/CallToAction";
 import Footer from "@/components/Footer";
 import { ServicesOverlayProvider } from "@/components/ServicesOverlay";
@@ -24,7 +24,7 @@ const Index = () => {
             <SpecialPackages />
           </section>
           <WhyTrustUs />
-          <SafetyNote />
+          
           <CallToAction />
         </main>
         <Footer />
