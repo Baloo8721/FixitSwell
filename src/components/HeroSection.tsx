@@ -9,12 +9,6 @@ const HeroSection = () => {
       <div className="absolute bottom-0 left-0 w-48 h-48 bg-primary/5 rounded-full translate-y-1/2 -translate-x-1/2" />
       
       <div className="container max-w-4xl mx-auto text-center relative z-10">
-        {/* Paramedic trust badge */}
-        <div className="inline-flex items-center gap-2 bg-medic/10 text-medic px-4 py-2 rounded-full mb-6 font-medium">
-          <Heart className="w-5 h-5" />
-          <span>Former Paramedic — Your Safety Is My Priority</span>
-        </div>
-
         <h1 className="font-heading text-heading-lg md:text-heading-xl text-foreground mb-6 text-balance">
           Friendly Help for Everyday Home Tasks
         </h1>
@@ -50,7 +44,7 @@ const HeroSection = () => {
         </div>
 
         {/* Trust badges */}
-        <div className="flex flex-wrap justify-center gap-4 md:gap-8 text-muted-foreground">
+        <div className="flex flex-wrap justify-center gap-4 md:gap-8 text-muted-foreground mb-6">
           <div className="flex items-center gap-2">
             <MapPin className="w-5 h-5 text-primary" />
             <span>Local Florida Service</span>
@@ -67,6 +61,12 @@ const HeroSection = () => {
             <Heart className="w-5 h-5 text-medic" />
             <span>No Pushy Sales</span>
           </div>
+        </div>
+
+        {/* Paramedic trust badge */}
+        <div className="inline-flex items-center gap-2 bg-medic/10 text-medic px-4 py-2 rounded-full font-medium">
+          <Heart className="w-5 h-5" />
+          <span>Ran & Operated by Former Paramedic — Your Safety Is My Priority</span>
         </div>
       </div>
     </section>
