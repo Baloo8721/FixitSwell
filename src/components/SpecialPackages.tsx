@@ -1,4 +1,4 @@
-import { Star, Heart, Wrench, Sun, Home, Users, Camera, Calendar, Smartphone, ShoppingBag } from "lucide-react";
+import { Star, Heart, Wrench, Sun, Home, Users, Camera, Calendar, Smartphone, ShoppingBag, Gift } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 // One-Time Bundled Packages
@@ -118,162 +118,201 @@ const monthlyPlans = [
 
 const SpecialPackages = () => {
   return (
-    <section id="packages" className="py-section px-4 bg-background">
-      <div className="container max-w-6xl mx-auto">
-        {/* One-Time Packages */}
-        <div className="text-center mb-12">
-          <span className="inline-flex items-center gap-2 text-accent font-semibold mb-2">
-            <Star className="w-5 h-5" />
-            Value Packages
-          </span>
-          <h2 className="font-heading text-heading-md text-foreground">
-            One-Time Bundled Specials
-          </h2>
-          <p className="text-muted-foreground mt-3 max-w-xl mx-auto">
-            Save time and money with our bundled services. Clear pricing, no surprises.
-          </p>
-        </div>
+    <section id="packages" className="py-section px-4">
+      {/* One-Time Packages - Light background */}
+      <div className="bg-background py-16">
+        <div className="container max-w-6xl mx-auto px-4">
+          <div className="text-center mb-12">
+            <span className="inline-flex items-center gap-2 text-accent font-semibold mb-2">
+              <Star className="w-5 h-5" />
+              Value Packages
+            </span>
+            <h2 className="font-heading text-heading-md text-foreground">
+              One-Time Bundled Specials
+            </h2>
+            <p className="text-muted-foreground mt-3 max-w-xl mx-auto">
+              Save time and money with our bundled services. Clear pricing, no surprises.
+            </p>
+          </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
-          {oneTimePackages.map((pkg, index) => (
-            <Card 
-              key={index}
-              className={`relative border-2 transition-shadow hover:shadow-lg ${
-                pkg.popular 
-                  ? 'border-accent shadow-md' 
-                  : 'border-border'
-              }`}
-            >
-              {pkg.popular && (
-                <span className="absolute -top-3 left-6 bg-accent text-accent-foreground px-3 py-1 rounded-full text-sm font-medium">
-                  Most Popular
-                </span>
-              )}
-              <CardHeader className="pb-4">
-                <div className="flex items-start justify-between">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {oneTimePackages.map((pkg, index) => (
+              <Card 
+                key={index}
+                className={`relative border-2 transition-shadow hover:shadow-lg ${
+                  pkg.popular 
+                    ? 'border-accent shadow-md' 
+                    : 'border-border'
+                }`}
+              >
+                {pkg.popular && (
+                  <span className="absolute -top-3 left-6 bg-accent text-accent-foreground px-3 py-1 rounded-full text-sm font-medium">
+                    Most Popular
+                  </span>
+                )}
+                <CardHeader className="pb-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                        pkg.popular ? 'bg-accent/10' : 'bg-secondary'
+                      }`}>
+                        <pkg.icon className={`w-6 h-6 ${
+                          pkg.popular ? 'text-accent' : 'text-primary'
+                        }`} />
+                      </div>
+                      <div>
+                        <CardTitle className="font-heading text-lg">
+                          {pkg.name}
+                        </CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                          {pkg.duration}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-4">
+                    <span className="font-heading text-2xl text-primary">
+                      {pkg.price}
+                    </span>
+                  </div>
+                  <ul className="space-y-2">
+                    {pkg.features.map((feature, featureIndex) => (
+                      <li 
+                        key={featureIndex}
+                        className="flex items-center gap-2 text-muted-foreground text-sm"
+                      >
+                        <span className="text-primary">✓</span>
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Monthly Plans - Distinct secondary background with border */}
+      <div className="bg-secondary/40 border-y-2 border-primary/20 py-16">
+        <div className="container max-w-6xl mx-auto px-4">
+          <div className="text-center mb-12">
+            <span className="inline-flex items-center gap-2 text-primary font-semibold mb-2">
+              <Calendar className="w-5 h-5" />
+              Monthly Plans
+            </span>
+            <h2 className="font-heading text-heading-md text-foreground">
+              Ongoing Support & Peace of Mind
+            </h2>
+            <p className="text-muted-foreground mt-3 max-w-xl mx-auto">
+              One visit per month. Priority scheduling. Cancel anytime.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {monthlyPlans.map((plan, index) => (
+              <Card 
+                key={index}
+                className={`relative border-2 transition-shadow hover:shadow-lg bg-card ${
+                  plan.popular 
+                    ? 'border-primary shadow-md' 
+                    : 'border-border'
+                }`}
+              >
+                {plan.popular && (
+                  <span className="absolute -top-3 left-6 bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm font-medium">
+                    Recommended
+                  </span>
+                )}
+                <CardHeader className="pb-4">
                   <div className="flex items-center gap-3">
                     <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                      pkg.popular ? 'bg-accent/10' : 'bg-secondary'
+                      plan.popular ? 'bg-primary/10' : 'bg-secondary'
                     }`}>
-                      <pkg.icon className={`w-6 h-6 ${
-                        pkg.popular ? 'text-accent' : 'text-primary'
+                      <plan.icon className={`w-6 h-6 ${
+                        plan.popular ? 'text-primary' : 'text-primary'
                       }`} />
                     </div>
                     <div>
                       <CardTitle className="font-heading text-lg">
-                        {pkg.name}
+                        {plan.name}
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        {pkg.duration}
+                        {plan.duration}
                       </p>
                     </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-4">
-                  <span className="font-heading text-2xl text-primary">
-                    {pkg.price}
-                  </span>
-                </div>
-                <ul className="space-y-2">
-                  {pkg.features.map((feature, featureIndex) => (
-                    <li 
-                      key={featureIndex}
-                      className="flex items-center gap-2 text-muted-foreground text-sm"
-                    >
-                      <span className="text-primary">✓</span>
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Monthly Plans */}
-        <div className="text-center mb-12">
-          <span className="inline-flex items-center gap-2 text-primary font-semibold mb-2">
-            <Calendar className="w-5 h-5" />
-            Monthly Plans
-          </span>
-          <h2 className="font-heading text-heading-md text-foreground">
-            Ongoing Support & Peace of Mind
-          </h2>
-          <p className="text-muted-foreground mt-3 max-w-xl mx-auto">
-            One visit per month. Priority scheduling. Cancel anytime.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-6">
-          {monthlyPlans.map((plan, index) => (
-            <Card 
-              key={index}
-              className={`relative border-2 transition-shadow hover:shadow-lg ${
-                plan.popular 
-                  ? 'border-primary shadow-md' 
-                  : 'border-border'
-              }`}
-            >
-              {plan.popular && (
-                <span className="absolute -top-3 left-6 bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm font-medium">
-                  Recommended
-                </span>
-              )}
-              <CardHeader className="pb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                    plan.popular ? 'bg-primary/10' : 'bg-secondary'
-                  }`}>
-                    <plan.icon className={`w-6 h-6 ${
-                      plan.popular ? 'text-primary' : 'text-primary'
-                    }`} />
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-2">
+                    <span className="font-heading text-2xl text-primary">
+                      {plan.price}
+                    </span>
                   </div>
-                  <div>
-                    <CardTitle className="font-heading text-lg">
-                      {plan.name}
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      {plan.duration}
-                    </p>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-2">
-                  <span className="font-heading text-2xl text-primary">
-                    {plan.price}
-                  </span>
-                </div>
-                <p className="text-xs text-accent font-medium mb-4">
-                  Best for: {plan.bestFor}
-                </p>
-                <ul className="space-y-2">
-                  {plan.features.map((feature, featureIndex) => (
-                    <li 
-                      key={featureIndex}
-                      className="flex items-center gap-2 text-muted-foreground text-sm"
-                    >
-                      <span className="text-primary">✓</span>
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  <p className="text-xs text-accent font-medium mb-4">
+                    Best for: {plan.bestFor}
+                  </p>
+                  <ul className="space-y-2">
+                    {plan.features.map((feature, featureIndex) => (
+                      <li 
+                        key={featureIndex}
+                        className="flex items-center gap-2 text-muted-foreground text-sm"
+                      >
+                        <span className="text-primary">✓</span>
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
-        {/* Add-ons note */}
-        <div className="mt-12 text-center bg-secondary/50 rounded-xl p-6 max-w-2xl mx-auto">
-          <h3 className="font-heading text-lg text-foreground mb-3">Add-Ons Available</h3>
-          <ul className="text-muted-foreground space-y-1 text-sm">
-            <li>Extra hour: $50–$100</li>
-            <li>Emergency/same-day visit: +$50–$100</li>
-            <li>Batteries & parts supplied at cost + small markup</li>
-            <li>Senior & military discount: 10% off</li>
-          </ul>
+          {/* Add-ons note */}
+          <div className="mt-12 text-center bg-card rounded-xl p-6 max-w-2xl mx-auto border border-border">
+            <h3 className="font-heading text-lg text-foreground mb-3">Add-Ons Available</h3>
+            <ul className="text-muted-foreground space-y-1 text-sm">
+              <li>Extra hour: $50–$100</li>
+              <li>Emergency/same-day visit: +$50–$100</li>
+              <li>Batteries & parts supplied at cost + small markup</li>
+              <li>Senior & military discount: 10% off</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Referral Rewards Section */}
+      <div className="bg-accent/10 py-12">
+        <div className="container max-w-4xl mx-auto px-4">
+          <div className="text-center">
+            <span className="inline-flex items-center gap-2 text-accent font-semibold mb-3">
+              <Gift className="w-5 h-5" />
+              Referrals
+            </span>
+            <h2 className="font-heading text-heading-md text-foreground mb-4">
+              Refer a Friend & Get Rewarded!
+            </h2>
+            <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
+              Know a neighbor, friend, or family member who could use our help? Refer them to us and you'll both benefit!
+            </p>
+            
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-6">
+              <div className="bg-card border-2 border-accent rounded-xl p-6 text-center min-w-[180px]">
+                <span className="font-heading text-3xl text-accent">$25 OFF</span>
+                <p className="text-muted-foreground text-sm mt-1">Your next service</p>
+              </div>
+              <div className="bg-card border-2 border-primary rounded-xl p-6 text-center min-w-[180px]">
+                <span className="font-heading text-3xl text-primary">$25 OFF</span>
+                <p className="text-muted-foreground text-sm mt-1">Their first service</p>
+              </div>
+            </div>
+            
+            <p className="text-foreground font-medium">
+              Just have your friend mention your name when they call or text!
+            </p>
+          </div>
         </div>
       </div>
     </section>
