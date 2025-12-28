@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Open+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Open+Sans:wght@400;500;600;700&family=Pacifico&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -54,6 +54,11 @@
     /* Font families */
     --font-heading: 'Merriweather', Georgia, serif;
     --font-body: 'Open Sans', -apple-system, sans-serif;
+    --font-script: 'Pacifico', cursive;
+    
+    /* Logo colors - retro warm palette */
+    --logo-fixit: 150 30% 25%;
+    --logo-swell: 25 75% 45%;
   }
 
   * {
