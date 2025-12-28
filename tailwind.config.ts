@@ -16,6 +16,7 @@ export default {
       fontFamily: {
         heading: ['Merriweather', 'Georgia', 'serif'],
         body: ['Open Sans', '-apple-system', 'sans-serif'],
+        script: ['Pacifico', 'cursive'],
       },
       fontSize: {
         'body': ['18px', { lineHeight: '1.7' }],
@@ -66,6 +67,10 @@ export default {
         medic: {
           DEFAULT: "hsl(var(--medic))",
           foreground: "hsl(var(--medic-foreground))",
+        },
+        logo: {
+          fixit: "hsl(var(--logo-fixit))",
+          swell: "hsl(var(--logo-swell))",
         },
       },
       borderRadius: {

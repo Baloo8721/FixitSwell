@@ -16,8 +16,9 @@ const Header = () => {
       <div className="container max-w-6xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
-          <a href="/" className="font-heading text-2xl text-primary">
-            FixitSwell
+          <a href="/" className="flex items-baseline gap-0.5">
+            <span className="font-heading text-2xl font-bold text-logo-fixit tracking-tight">Fixit</span>
+            <span className="font-script text-2xl text-logo-swell -ml-0.5">Swell</span>
           </a>
 
           {/* Desktop Nav */}
