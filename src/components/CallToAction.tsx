@@ -18,7 +18,7 @@ const CallToAction = () => {
             size="lg" 
             className="bg-accent hover:bg-accent/90 text-accent-foreground text-xl px-10 py-7 rounded-xl shadow-lg"
           >
-            <a href="tel:+1234567890">
+            <a href="tel:+18137381655">
               <Phone className="w-6 h-6 mr-3" />
               Call Now
             </a>
@@ -29,7 +29,7 @@ const CallToAction = () => {
             variant="outline"
             className="border-2 border-primary-foreground text-primary-foreground bg-transparent hover:bg-primary-foreground hover:text-primary text-xl px-10 py-7 rounded-xl"
           >
-            <a href="sms:+1234567890">
+            <a href="sms:+18137381655">
               <MessageCircle className="w-6 h-6 mr-3" />
               Text for Help
             </a>
@@ -37,7 +37,7 @@ const CallToAction = () => {
         </div>
 
         <a 
-          href="mailto:help@yourhandyman.com" 
+          href="mailto:tylerbelislefl@gmail.com" 
           className="inline-flex items-center gap-2 text-primary-foreground/90 hover:text-primary-foreground transition-colors mb-8"
         >
           <Mail className="w-5 h-5" />

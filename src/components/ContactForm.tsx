@@ -95,9 +95,9 @@ const ContactForm = () => {
       </Button>
 
       <p className="text-sm text-muted-foreground text-center">
-        Prefer to call? <a href="tel:+1234567890" className="text-primary underline">Click here</a>
+        Prefer to call? <a href="tel:+18137381655" className="text-primary underline">Click here</a>
         <span className="mx-2">|</span>
-        <a href="mailto:help@yourhandyman.com" className="text-primary underline">Email us</a>
+        <a href="mailto:tylerbelislefl@gmail.com" className="text-primary underline">Email us</a>
       </p>
     </form>
   );

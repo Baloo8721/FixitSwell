@@ -18,14 +18,14 @@ const Footer = () => {
 
             <div className="space-y-6">
               <a 
-                href="tel:+1234567890"
+                href="tel:+18137381655"
                 className="flex items-center gap-4 text-foreground hover:text-primary transition-colors"
               >
                 <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
                   <Phone className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="font-semibold text-lg">(123) 456-7890</p>
+                  <p className="font-semibold text-lg">(813) 738-1655</p>
                   <p className="text-sm text-muted-foreground">Call or text anytime</p>
                 </div>
               </a>
@@ -65,7 +65,7 @@ const Footer = () => {
             <span>Serving Seniors with Care</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Friendly Fix-It. All rights reserved.
+            © {new Date().getFullYear()} FixitSwell. All rights reserved.
           </p>
         </div>
       </div>

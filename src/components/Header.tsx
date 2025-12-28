@@ -17,7 +17,7 @@ const Header = () => {
         <div className="flex items-center justify-between">
           {/* Logo */}
           <a href="/" className="font-heading text-2xl text-primary">
-            Friendly Fix-It
+            FixitSwell
           </a>
 
           {/* Desktop Nav */}
@@ -32,7 +32,7 @@ const Header = () => {
               </a>
             ))}
             <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl">
-              <a href="tel:+1234567890">
+              <a href="tel:+18137381655">
                 <Phone className="w-4 h-4 mr-2" />
                 Call Now
               </a>
@@ -63,7 +63,7 @@ const Header = () => {
               </a>
             ))}
             <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl w-full">
-              <a href="tel:+1234567890">
+              <a href="tel:+18137381655">
                 <Phone className="w-4 h-4 mr-2" />
                 Call Now
               </a>

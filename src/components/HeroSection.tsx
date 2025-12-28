@@ -25,7 +25,7 @@ const HeroSection = () => {
             size="lg" 
             className="bg-accent hover:bg-accent/90 text-accent-foreground text-lg px-8 py-6 rounded-xl shadow-lg"
           >
-            <a href="tel:+1234567890">
+            <a href="tel:+18137381655">
               <Phone className="w-5 h-5 mr-2" />
               Call Now
             </a>
@@ -36,7 +36,7 @@ const HeroSection = () => {
             variant="outline"
             className="border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground text-lg px-8 py-6 rounded-xl"
           >
-            <a href="sms:+1234567890">
+            <a href="sms:+18137381655">
               <MessageCircle className="w-5 h-5 mr-2" />
               Text for Help
             </a>
