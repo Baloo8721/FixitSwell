@@ -1,6 +1,7 @@
 import { Phone, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import logo from "@/assets/logo.jpeg";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -16,9 +17,8 @@ const Header = () => {
       <div className="container max-w-6xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
-          <a href="/" className="flex items-baseline gap-0.5">
-            <span className="font-heading text-2xl font-bold text-logo-fixit tracking-tight">Fixit</span>
-            <span className="font-script text-2xl text-logo-swell -ml-0.5">Swell</span>
+          <a href="/">
+            <img src={logo} alt="FixitSwell - Your Go-To Home Helper" className="h-12 w-auto" />
           </a>
 
           {/* Desktop Nav */}
