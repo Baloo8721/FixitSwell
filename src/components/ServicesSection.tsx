@@ -1,4 +1,4 @@
-import { Wrench, Tv, Leaf, Heart, ShieldCheck, Sparkles, List } from "lucide-react";
+import { Wrench, Tv, Leaf, Heart, ShieldCheck, Sparkles, List, MapPin, Clock } from "lucide-react";
 import {
   Accordion,
   AccordionContent,
@@ -122,6 +122,58 @@ const ServicesSection = () => {
           <List className="w-5 h-5" />
           See full list of services
         </button>
+
+        {/* Service Area - Compact */}
+        <div className="mt-12 max-w-2xl mx-auto">
+          <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-border bg-primary/5">
+              <h3 className="font-heading text-lg text-center text-foreground flex items-center justify-center gap-2">
+                <MapPin className="w-4 h-4 text-primary" />
+                Our Service Area
+              </h3>
+            </div>
+            
+            {/* Content - horizontal on desktop, stacked on mobile */}
+            <div className="flex flex-col sm:flex-row">
+              {/* Map Visual - Smaller */}
+              <div className="relative bg-gradient-to-br from-primary/5 via-primary/10 to-accent/10 flex items-center justify-center p-6 sm:w-2/5">
+                <div className="text-center">
+                  <div className="w-14 h-14 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <MapPin className="w-7 h-7 text-primary" />
+                  </div>
+                  <h4 className="font-heading text-lg text-foreground">Lakeshore Villas</h4>
+                  <p className="text-sm text-muted-foreground">Tampa, FL</p>
+                  <div className="mt-3 inline-flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium">
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></span>
+                    Exclusive Area
+                  </div>
+                </div>
+              </div>
+              
+              {/* Info - Compact */}
+              <div className="p-4 sm:p-5 sm:w-3/5 flex flex-col justify-center">
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    We exclusively serve the <strong className="text-foreground">Lakeshore Villas</strong> mobile home community.
+                  </p>
+                  
+                  <div className="flex items-center gap-3 text-sm">
+                    <Clock className="w-4 h-4 text-primary flex-shrink-0" />
+                    <div>
+                      <span className="text-foreground font-medium">Mon–Fri</span>
+                      <span className="text-muted-foreground ml-2">8:30 AM – 2:30 PM</span>
+                    </div>
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground italic pt-2 border-t border-border">
+                    Local neighbors helping neighbors — no travel fees.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
