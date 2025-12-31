@@ -360,7 +360,7 @@ const BookingCalendar = () => {
         </div>
       </div>
 
-      <CardContent className="p-6 md:p-8">
+      <CardContent className="p-4 sm:p-6 md:p-8">
         {/* Step 1: Date & Time Selection (Combined) */}
         {currentStep === 'datetime' && (
           <div className="space-y-6">
@@ -373,30 +373,30 @@ const BookingCalendar = () => {
               </p>
             </div>
             
-            <div className="grid md:grid-cols-2 gap-8 items-start">
+            <div className="grid md:grid-cols-2 gap-6 md:gap-8 items-start">
               {/* Calendar */}
-              <div className="flex justify-center">
+              <div className="flex justify-center overflow-x-auto">
                 <Calendar
                   mode="single"
                   selected={bookingData.date}
                   onSelect={(date) => setBookingData(prev => ({ ...prev, date, timeSlot: '', timeLabel: '' }))}
                   disabled={(date) => isBefore(date, startOfToday()) || isBefore(addDays(new Date(), 60), date)}
-                  className="rounded-xl border-2 border-border p-4 bg-background pointer-events-auto"
+                  className="rounded-xl border-2 border-border p-2 sm:p-4 bg-background pointer-events-auto w-full max-w-[320px]"
                   classNames={{
                     months: "flex flex-col space-y-4",
                     month: "space-y-4",
                     caption: "flex justify-center pt-1 relative items-center",
-                    caption_label: "text-lg font-heading font-semibold",
+                    caption_label: "text-base sm:text-lg font-heading font-semibold",
                     nav: "space-x-1 flex items-center",
-                    nav_button: "h-9 w-9 bg-transparent p-0 opacity-50 hover:opacity-100 border border-border rounded-lg hover:bg-secondary",
+                    nav_button: "h-8 w-8 sm:h-9 sm:w-9 bg-transparent p-0 opacity-50 hover:opacity-100 border border-border rounded-lg hover:bg-secondary",
                     nav_button_previous: "absolute left-1",
                     nav_button_next: "absolute right-1",
                     table: "w-full border-collapse",
-                    head_row: "flex",
-                    head_cell: "text-muted-foreground rounded-md w-10 font-medium text-sm",
-                    row: "flex w-full mt-1",
-                    cell: "h-10 w-10 text-center text-base p-0 relative focus-within:relative focus-within:z-20",
-                    day: "h-10 w-10 p-0 font-medium aria-selected:opacity-100 hover:bg-primary/10 rounded-lg transition-colors",
+                    head_row: "flex justify-between",
+                    head_cell: "text-muted-foreground rounded-md w-9 sm:w-10 font-medium text-xs sm:text-sm text-center",
+                    row: "flex w-full mt-1 justify-between",
+                    cell: "h-9 w-9 sm:h-10 sm:w-10 text-center text-sm sm:text-base p-0 relative focus-within:relative focus-within:z-20",
+                    day: "h-9 w-9 sm:h-10 sm:w-10 p-0 font-medium aria-selected:opacity-100 hover:bg-primary/10 rounded-lg transition-colors",
                     day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground rounded-lg",
                     day_today: "bg-accent/20 text-accent-foreground font-bold",
                     day_outside: "text-muted-foreground opacity-50",
