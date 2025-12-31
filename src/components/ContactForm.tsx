@@ -3,27 +3,71 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Send, CheckCircle } from "lucide-react";
+import { Send, CheckCircle, AlertCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+
+// n8n webhook URL for contact form submissions
+const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_CONTACT_WEBHOOK || '';
 
 const ContactForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    message: ''
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData(prev => ({
+      ...prev,
+      [e.target.name]: e.target.value
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
-    // Simulate form submission for now
-    // TODO: Connect to backend when Lovable Cloud is enabled
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    setIsSubmitting(false);
-    setIsSubmitted(true);
-    toast({
-      title: "Message Sent!",
-      description: "We'll get back to you as soon as possible.",
-    });
+
+    try {
+      // If webhook URL is configured, send to n8n
+      if (N8N_WEBHOOK_URL) {
+        const response = await fetch(N8N_WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...formData,
+            timestamp: new Date().toISOString(),
+            source: 'website_contact_form'
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to send message');
+        }
+      } else {
+        // Fallback: just simulate success if no webhook configured
+        console.log('No webhook configured. Form data:', formData);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      setIsSubmitting(false);
+      setIsSubmitted(true);
+      toast({
+        title: "Message Sent!",
+        description: "We'll get back to you as soon as possible.",
+      });
+    } catch (error) {
+      console.error('Form submission error:', error);
+      setIsSubmitting(false);
+      toast({
+        title: "Something went wrong",
+        description: "Please try calling us instead at (813) 738-1655",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isSubmitted) {
@@ -49,6 +93,8 @@ const ContactForm = () => {
         <Input 
           id="name" 
           name="name"
+          value={formData.name}
+          onChange={handleChange}
           placeholder="e.g., John Smith" 
           required
           className="h-14 text-lg rounded-lg"
@@ -60,7 +106,9 @@ const ContactForm = () => {
         <Input 
           id="phone" 
           name="phone"
-          type="tel" 
+          type="tel"
+          value={formData.phone}
+          onChange={handleChange}
           placeholder="e.g., (555) 123-4567" 
           required
           className="h-14 text-lg rounded-lg"
@@ -72,6 +120,8 @@ const ContactForm = () => {
         <Textarea 
           id="message" 
           name="message"
+          value={formData.message}
+          onChange={handleChange}
           placeholder="Tell us what you need — no detail is too small..." 
           rows={4}
           className="text-lg rounded-lg resize-none"
@@ -97,7 +147,7 @@ const ContactForm = () => {
       <p className="text-sm text-muted-foreground text-center">
         Prefer to call? <a href="tel:+18137381655" className="text-primary underline">Click here</a>
         <span className="mx-2">|</span>
-        <a href="mailto:tylerbelislefl@gmail.com" className="text-primary underline">Email us</a>
+        <a href="mailto:fixitswell@gmail.com" className="text-primary underline">Email us</a>
       </p>
     </form>
   );

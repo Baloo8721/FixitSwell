@@ -6,6 +6,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { useServicesOverlay } from "@/components/ServicesOverlay";
+import lakeshoreMap from "@/assets/lakeshore villas.png";
 
 const serviceCategories = [
   {
@@ -78,13 +79,13 @@ const ServicesSection = () => {
           Services We Provide
         </h2>
         <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
-          Clear pricing. No surprises. All work stays within safe, unlicensed limits — light repairs, cosmetic fixes, and helpful support.
+          Clear pricing. No surprises. All work stays within safe, appropriate limits — light repairs, cosmetic fixes, and helpful support.
         </p>
 
         <Accordion type="single" collapsible className="space-y-4">
           {serviceCategories.map((category, index) => (
-            <AccordionItem 
-              key={index} 
+            <AccordionItem
+              key={index}
               value={`item-${index}`}
               className="bg-card border-none rounded-xl shadow-sm overflow-hidden"
             >
@@ -101,7 +102,7 @@ const ServicesSection = () => {
               <AccordionContent className="px-6 pb-6">
                 <ul className="space-y-3 pt-2">
                   {category.services.map((service, serviceIndex) => (
-                    <li 
+                    <li
                       key={serviceIndex}
                       className="flex items-start gap-3 text-muted-foreground"
                     >
@@ -114,7 +115,7 @@ const ServicesSection = () => {
             </AccordionItem>
           ))}
         </Accordion>
-        
+
         <button
           onClick={() => setOpen(true)}
           className="flex items-center gap-2 mx-auto mt-10 text-primary hover:text-primary/80 transition-colors font-medium"
@@ -124,53 +125,45 @@ const ServicesSection = () => {
         </button>
 
         {/* Service Area - Compact */}
-        <div className="mt-12 max-w-2xl mx-auto">
+        <div className="mt-12 max-w-md mx-auto">
           <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
             {/* Header */}
-            <div className="px-4 py-3 border-b border-border bg-primary/5">
-              <h3 className="font-heading text-lg text-center text-foreground flex items-center justify-center gap-2">
+            <div className="px-3 py-2 border-b border-border bg-primary/5">
+              <h3 className="font-heading text-base text-center text-foreground flex items-center justify-center gap-2">
                 <MapPin className="w-4 h-4 text-primary" />
                 Our Service Area
               </h3>
             </div>
-            
-            {/* Content - horizontal on desktop, stacked on mobile */}
-            <div className="flex flex-col sm:flex-row">
-              {/* Map Visual - Smaller */}
-              <div className="relative bg-gradient-to-br from-primary/5 via-primary/10 to-accent/10 flex items-center justify-center p-6 sm:w-2/5">
-                <div className="text-center">
-                  <div className="w-14 h-14 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <MapPin className="w-7 h-7 text-primary" />
-                  </div>
-                  <h4 className="font-heading text-lg text-foreground">Lakeshore Villas</h4>
-                  <p className="text-sm text-muted-foreground">Tampa, FL</p>
-                  <div className="mt-3 inline-flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium">
-                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></span>
-                    Exclusive Area
-                  </div>
+
+            {/* Map Image - fills container edge to edge */}
+            <div className="relative">
+              <img
+                src={lakeshoreMap}
+                alt="Lakeshore Villas Community Map"
+                className="w-full h-auto block"
+              />
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
+                <div className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-2 py-1 rounded-full text-[10px] font-medium shadow-lg">
+                  <span className="w-1 h-1 bg-white rounded-full animate-pulse"></span>
+                  Exclusive Service Area
                 </div>
               </div>
-              
-              {/* Info - Compact */}
-              <div className="p-4 sm:p-5 sm:w-3/5 flex flex-col justify-center">
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    We exclusively serve the <strong className="text-foreground">Lakeshore Villas</strong> mobile home community.
-                  </p>
-                  
-                  <div className="flex items-center gap-3 text-sm">
-                    <Clock className="w-4 h-4 text-primary flex-shrink-0" />
-                    <div>
-                      <span className="text-foreground font-medium">Mon–Fri</span>
-                      <span className="text-muted-foreground ml-2">8:30 AM – 2:30 PM</span>
-                    </div>
-                  </div>
-                  
-                  <p className="text-xs text-muted-foreground italic pt-2 border-t border-border">
-                    Local neighbors helping neighbors — no travel fees.
-                  </p>
-                </div>
+            </div>
+
+            {/* Info */}
+            <div className="p-3 space-y-2">
+              <div className="text-center">
+                <h4 className="font-heading text-base text-foreground">Lakeshore Villas</h4>
+                <p className="text-xs text-muted-foreground">Mobile home community in Tampa, FL</p>
               </div>
+              <div className="flex items-center justify-center gap-1 text-sm">
+                <Clock className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                <span className="text-foreground font-bold">Mon–Fri: 8:30 AM – 2:30 PM</span>
+                <span className="text-muted-foreground">| Weekends: Contact us</span>
+              </div>
+              <p className="text-sm text-primary font-semibold text-center pt-2 border-t border-border">
+                Local neighbors helping neighbors — no travel fees
+              </p>
             </div>
           </div>
         </div>

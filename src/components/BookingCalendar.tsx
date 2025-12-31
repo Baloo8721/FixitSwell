@@ -311,7 +311,7 @@ const BookingCalendar = () => {
   }
 
   return (
-    <Card className="max-w-4xl mx-auto border-2 border-border bg-card overflow-hidden">
+    <Card className="w-full border-2 border-border bg-card overflow-hidden">
       {/* Progress Steps - Desktop */}
       <div className="hidden md:flex items-center justify-between bg-secondary/50 px-6 py-4 border-b border-border">
         {steps.map((step, index) => (
@@ -381,7 +381,7 @@ const BookingCalendar = () => {
                   selected={bookingData.date}
                   onSelect={(date) => setBookingData(prev => ({ ...prev, date, timeSlot: '', timeLabel: '' }))}
                   disabled={(date) => isBefore(date, startOfToday()) || isBefore(addDays(new Date(), 60), date)}
-                  className="rounded-xl border-2 border-border p-2 sm:p-4 bg-background pointer-events-auto w-full max-w-[320px]"
+                  className="rounded-xl border-2 border-border p-2 sm:p-4 bg-background pointer-events-auto w-full max-w-[100%] sm:max-w-[360px]"
                   classNames={{
                     months: "flex flex-col space-y-4",
                     month: "space-y-4",

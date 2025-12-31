@@ -1,55 +1,67 @@
-import { Phone, Clock, CheckCircle } from "lucide-react";
-
-const steps = [
-  {
-    icon: Phone,
-    title: "Call or Text",
-    description: "Tell us what you need help with — no question is too small.",
-  },
-  {
-    icon: Clock,
-    title: "We Arrive On Time",
-    description: "Friendly, respectful service at your convenience.",
-  },
-  {
-    icon: CheckCircle,
-    title: "Job Done Safely",
-    description: "No mess, no stress — just quality work you can trust.",
-  },
-];
+import { Phone, Clock, CheckCircle, CalendarDays } from "lucide-react";
 
 const HowItWorks = () => {
   return (
-    <section className="py-section px-4 bg-background">
-      <div className="container max-w-5xl mx-auto">
-        <h2 className="font-heading text-heading-md text-center text-foreground mb-12">
+    <section className="py-10 px-4 bg-background">
+      <div className="container max-w-4xl mx-auto">
+        <h2 className="font-heading text-heading-md text-center text-foreground mb-8">
           How It Works
         </h2>
 
-        <div className="grid md:grid-cols-3 gap-8">
-          {steps.map((step, index) => (
-            <div 
-              key={index}
-              className="flex flex-col items-center text-center p-6"
-            >
-              {/* Step number with icon */}
-              <div className="relative mb-6">
-                <div className="w-20 h-20 bg-secondary rounded-full flex items-center justify-center">
-                  <step.icon className="w-9 h-9 text-primary" />
-                </div>
-                <span className="absolute -top-2 -right-2 w-8 h-8 bg-accent text-accent-foreground rounded-full flex items-center justify-center font-bold text-lg">
-                  {index + 1}
-                </span>
+        <div className="grid md:grid-cols-3 gap-4 md:gap-6">
+          {/* Step 1 */}
+          <div className="flex flex-col items-center text-center p-4 bg-secondary/30 rounded-xl">
+            <div className="relative mb-4">
+              <div className="w-14 h-14 bg-secondary rounded-full flex items-center justify-center">
+                <Phone className="w-7 h-7 text-primary" />
               </div>
-
-              <h3 className="font-heading text-heading-sm text-foreground mb-3">
-                {step.title}
-              </h3>
-              <p className="text-muted-foreground text-body">
-                {step.description}
-              </p>
+              <span className="absolute -top-1 -right-1 w-6 h-6 bg-accent text-accent-foreground rounded-full flex items-center justify-center font-bold text-sm">
+                1
+              </span>
             </div>
-          ))}
+            <h3 className="font-heading text-lg text-foreground mb-2">
+              Reach Out
+            </h3>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              Tell us what you need — <a href="tel:+18137381655" className="text-primary underline hover:text-primary/80">call</a>, <a href="sms:+18137381655" className="text-primary underline hover:text-primary/80">text</a>, <a href="#message-form" className="text-primary underline hover:text-primary/80">message</a>, or <a href="#booking" className="text-primary underline hover:text-primary/80 inline-flex items-center gap-1">schedule online <span className="inline-flex items-center justify-center w-5 h-5 bg-primary rounded-full"><CalendarDays className="w-3 h-3 text-primary-foreground" /></span></a>.
+            </p>
+          </div>
+
+          {/* Step 2 */}
+          <div className="flex flex-col items-center text-center p-4 bg-secondary/30 rounded-xl">
+            <div className="relative mb-4">
+              <div className="w-14 h-14 bg-secondary rounded-full flex items-center justify-center">
+                <Clock className="w-7 h-7 text-primary" />
+              </div>
+              <span className="absolute -top-1 -right-1 w-6 h-6 bg-accent text-accent-foreground rounded-full flex items-center justify-center font-bold text-sm">
+                2
+              </span>
+            </div>
+            <h3 className="font-heading text-lg text-foreground mb-2">
+              We Arrive On Time
+            </h3>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              Friendly, respectful service at your convenience.
+            </p>
+          </div>
+
+          {/* Step 3 */}
+          <div className="flex flex-col items-center text-center p-4 bg-secondary/30 rounded-xl">
+            <div className="relative mb-4">
+              <div className="w-14 h-14 bg-secondary rounded-full flex items-center justify-center">
+                <CheckCircle className="w-7 h-7 text-primary" />
+              </div>
+              <span className="absolute -top-1 -right-1 w-6 h-6 bg-accent text-accent-foreground rounded-full flex items-center justify-center font-bold text-sm">
+                3
+              </span>
+            </div>
+            <h3 className="font-heading text-lg text-foreground mb-2">
+              Job Done Safely
+            </h3>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              No mess, no stress — quality work and help you can trust.
+            </p>
+          </div>
         </div>
       </div>
     </section>

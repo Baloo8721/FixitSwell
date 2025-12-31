@@ -1,4 +1,4 @@
-import { Phone, MessageCircle, Heart, MapPin, DollarSign, ShieldCheck } from "lucide-react";
+import { Phone, MessageCircle, Heart, MapPin, DollarSign, ShieldCheck, Mail, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const HeroSection = () => {
@@ -14,33 +14,40 @@ const HeroSection = () => {
         </h1>
         
         <p className="text-body-lg text-muted-foreground mb-8 max-w-2xl mx-auto text-balance">
-          Helping seniors with small home jobs, tech help, and everyday fixes — 
+          Helping with everyday home tasks, tech help, and small fixes — 
           done right, done kindly, by someone who truly cares.
         </p>
 
         {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
-          <Button 
-            asChild
-            size="lg" 
-            className="bg-accent hover:bg-accent/90 text-accent-foreground text-lg px-8 py-6 rounded-xl shadow-lg"
+        <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
+          <a 
+            href="#booking"
+            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-full text-base font-medium hover:bg-primary/90 transition-colors shadow-lg"
           >
-            <a href="tel:+18137381655">
-              <Phone className="w-5 h-5 mr-2" />
-              Call Now
-            </a>
-          </Button>
-          <Button 
-            asChild
-            size="lg" 
-            variant="outline"
-            className="border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground text-lg px-8 py-6 rounded-xl"
+            <CalendarDays className="w-5 h-5" />
+            Book Now
+          </a>
+          <a 
+            href="tel:+18137381655"
+            className="inline-flex items-center gap-2 bg-card text-foreground px-5 py-3 rounded-full text-base font-medium hover:bg-card/80 transition-colors shadow-md border border-border"
           >
-            <a href="sms:+18137381655">
-              <MessageCircle className="w-5 h-5 mr-2" />
-              Text for Help
-            </a>
-          </Button>
+            <Phone className="w-5 h-5 text-primary" />
+            Call
+          </a>
+          <a 
+            href="sms:+18137381655"
+            className="inline-flex items-center gap-2 bg-card text-foreground px-5 py-3 rounded-full text-base font-medium hover:bg-card/80 transition-colors shadow-md border border-border"
+          >
+            <MessageCircle className="w-5 h-5 text-primary" />
+            Text
+          </a>
+          <a 
+            href="#message-form"
+            className="inline-flex items-center gap-2 bg-card text-foreground px-5 py-3 rounded-full text-base font-medium hover:bg-card/80 transition-colors shadow-md border border-border"
+          >
+            <Mail className="w-5 h-5 text-primary" />
+            Message
+          </a>
         </div>
 
         {/* Trust badges */}
@@ -51,7 +58,7 @@ const HeroSection = () => {
           </div>
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-primary" />
-            <span>Senior-Focused</span>
+            <span>Senior-Friendly</span>
           </div>
           <div className="flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-primary" />
@@ -64,8 +71,7 @@ const HeroSection = () => {
         </div>
 
         {/* Paramedic trust badge */}
-        <div className="inline-flex items-center gap-2 bg-medic/10 text-medic px-4 py-2 rounded-full font-medium">
-          <Heart className="w-5 h-5" />
+        <div className="inline-flex items-center bg-medic/10 text-medic px-4 py-2 rounded-full font-medium">
           <span>Ran & Operated by a Former Paramedic & Professional Maintenance Team — Your Safety Is Our Priority</span>
         </div>
       </div>

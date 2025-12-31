@@ -270,16 +270,6 @@ const SpecialPackages = () => {
             ))}
           </div>
 
-          {/* Add-ons note */}
-          <div className="mt-12 text-center bg-card rounded-xl p-6 max-w-2xl mx-auto border border-border">
-            <h3 className="font-heading text-lg text-foreground mb-3">Add-Ons Available</h3>
-            <ul className="text-muted-foreground space-y-1 text-sm">
-              <li>Extra hour: $50–$100</li>
-              <li>Emergency/same-day visit: +$50–$100</li>
-              <li>Batteries & parts supplied at cost + small markup</li>
-              <li>Senior & military discount: 10% off</li>
-            </ul>
-          </div>
         </div>
       </div>
 
@@ -295,7 +285,7 @@ const SpecialPackages = () => {
               Refer a Friend & Get Rewarded!
             </h2>
             <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-              Know a neighbor, friend, or family member who could use our help? Refer them to us and you'll both benefit!
+              Know a neighbor, friend, or family member in the community who could use a hand? Refer them to us and you'll both benefit.
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-6">

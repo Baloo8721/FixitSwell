@@ -50,9 +50,7 @@ const Index = () => {
             </div>
           </section>
           
-          <section id="contact">
-            <CallToAction />
-          </section>
+          <CallToAction />
         </main>
         <Footer />
       </div>

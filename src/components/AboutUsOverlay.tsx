@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Heart, Shield, Users, Wrench } from "lucide-react";
+import { Heart, Shield, Users, Wrench, CalendarDays, Phone, MessageSquare, Mail } from "lucide-react";
 import logo from "@/assets/logo.jpeg";
 
 interface AboutUsOverlayProps {
@@ -22,16 +22,11 @@ const AboutUsOverlay = ({ open, onOpenChange }: AboutUsOverlayProps) => {
 
         {/* Logo/Image Section */}
         <div className="flex justify-center mb-6">
-          <div className="relative">
-            <img 
-              src={logo} 
-              alt="FixitSwell Team" 
-              className="w-48 h-48 object-cover rounded-2xl shadow-lg border-4 border-primary/20"
-            />
-            <div className="absolute -bottom-3 -right-3 bg-primary text-primary-foreground rounded-full p-3 shadow-lg">
-              <Heart className="w-6 h-6" />
-            </div>
-          </div>
+          <img 
+            src={logo} 
+            alt="FixitSwell" 
+            className="w-full max-w-md h-auto object-contain rounded-xl"
+          />
         </div>
 
         {/* Bio Content */}
@@ -41,15 +36,14 @@ const AboutUsOverlay = ({ open, onOpenChange }: AboutUsOverlayProps) => {
               Meet Your Home Helpers
             </h3>
             <p className="text-lg text-muted-foreground leading-relaxed mb-4">
-              We're a husband-and-wife team with deep roots in this community. 
-              <span className="text-primary font-semibold"> Tyler is a former paramedic</span> who 
-              spent years helping people in their most vulnerable moments. 
-              <span className="text-primary font-semibold"> His partner brings over 30 years of 
-              multi-trade and maintenance experience</span>, having worked on everything from 
-              plumbing to carpentry to electrical basics.
+              We're a <span className="text-primary font-semibold">family-owned business</span> with 
+              deep roots in this community. Owned and operated by 
+              <span className="text-primary font-semibold"> a former medic and handyman</span>, alongside 
+              <span className="text-primary font-semibold"> his brother-in-law — a multi-tradesman 
+              with over 30 years of hands-on experience</span>.
             </p>
             <p className="text-lg text-muted-foreground leading-relaxed">
-              We live here. Our family lives here. This isn't just a business — 
+              We're local. Our family lives here. This isn't just a business — 
               it's our way of giving back to the neighbors we care about.
             </p>
           </div>
@@ -76,8 +70,8 @@ const AboutUsOverlay = ({ open, onOpenChange }: AboutUsOverlayProps) => {
               <div className="w-12 h-12 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-3">
                 <Users className="w-6 h-6 text-accent" />
               </div>
-              <h4 className="font-heading text-base text-foreground mb-1">Local Family</h4>
-              <p className="text-sm text-muted-foreground">We live in your community</p>
+              <h4 className="font-heading text-base text-foreground mb-1">Local</h4>
+              <p className="text-sm text-muted-foreground">Family ties to the community</p>
             </div>
             
             <div className="bg-card border border-border rounded-xl p-4 text-center">
@@ -97,6 +91,42 @@ const AboutUsOverlay = ({ open, onOpenChange }: AboutUsOverlayProps) => {
             <p className="text-muted-foreground mt-2">
               — The FixitSwell Family
             </p>
+          </div>
+
+          {/* Action links */}
+          <div className="border-t border-border pt-4 mt-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <a 
+                href="#booking" 
+                onClick={() => onOpenChange(false)}
+                className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                <CalendarDays className="w-4 h-4" />
+                Book Now
+              </a>
+              <a 
+                href="tel:+18137381655" 
+                className="inline-flex items-center gap-1.5 bg-secondary text-foreground px-3 py-2 rounded-full text-sm font-medium hover:bg-secondary/80 transition-colors"
+              >
+                <Phone className="w-4 h-4 text-primary" />
+                Call
+              </a>
+              <a 
+                href="sms:+18137381655" 
+                className="inline-flex items-center gap-1.5 bg-secondary text-foreground px-3 py-2 rounded-full text-sm font-medium hover:bg-secondary/80 transition-colors"
+              >
+                <MessageSquare className="w-4 h-4 text-primary" />
+                Text
+              </a>
+              <a 
+                href="#message-form" 
+                onClick={() => onOpenChange(false)}
+                className="inline-flex items-center gap-1.5 bg-secondary text-foreground px-3 py-2 rounded-full text-sm font-medium hover:bg-secondary/80 transition-colors"
+              >
+                <Mail className="w-4 h-4 text-primary" />
+                Message
+              </a>
+            </div>
           </div>
         </div>
       </DialogContent>

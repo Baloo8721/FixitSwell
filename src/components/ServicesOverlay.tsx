@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from "react";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, CalendarDays, Phone, MessageSquare, Mail } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -101,10 +101,11 @@ export const ServicesOverlayProvider = ({ children }: { children: ReactNode }) =
       {/* Floating button */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition-all hover:scale-105 flex items-center justify-center"
+        className="fixed bottom-6 right-6 z-50 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition-all hover:scale-105 flex flex-col items-center justify-center px-3 py-2 gap-0.5"
         aria-label="View all services"
       >
-        <ClipboardList className="w-6 h-6" />
+        <ClipboardList className="w-5 h-5" />
+        <span className="text-[9px] font-medium leading-tight">All Services</span>
       </button>
 
       {/* Dialog */}
@@ -143,6 +144,42 @@ export const ServicesOverlayProvider = ({ children }: { children: ReactNode }) =
               </div>
             </div>
           </ScrollArea>
+          
+          {/* Action links */}
+          <div className="border-t border-border pt-4 mt-4">
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <a 
+                href="#booking" 
+                onClick={() => setOpen(false)}
+                className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                <CalendarDays className="w-4 h-4" />
+                Book Now
+              </a>
+              <a 
+                href="tel:+18137381655" 
+                className="inline-flex items-center gap-1.5 bg-secondary text-foreground px-3 py-2 rounded-full text-sm font-medium hover:bg-secondary/80 transition-colors"
+              >
+                <Phone className="w-4 h-4 text-primary" />
+                Call
+              </a>
+              <a 
+                href="sms:+18137381655" 
+                className="inline-flex items-center gap-1.5 bg-secondary text-foreground px-3 py-2 rounded-full text-sm font-medium hover:bg-secondary/80 transition-colors"
+              >
+                <MessageSquare className="w-4 h-4 text-primary" />
+                Text
+              </a>
+              <a 
+                href="#message-form" 
+                onClick={() => setOpen(false)}
+                className="inline-flex items-center gap-1.5 bg-secondary text-foreground px-3 py-2 rounded-full text-sm font-medium hover:bg-secondary/80 transition-colors"
+              >
+                <Mail className="w-4 h-4 text-primary" />
+                Message
+              </a>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </ServicesOverlayContext.Provider>

@@ -3,38 +3,31 @@ import { Heart, Clock, MessageCircle, DollarSign, ShieldCheck, BadgeCheck, Wrenc
 const trustPoints = [
   {
     icon: Heart,
-    text: "Former paramedic — trained to care for people",
-    highlight: true,
+    text: "Former paramedic with years of real-world problem-solving experience",
   },
   {
     icon: Wrench,
-    text: "Decades of hands-on maintenance experience",
-    highlight: true,
+    text: "Years of hands-on experience helping with everyday home tasks, repairs, and tech support",
   },
   {
     icon: Clock,
-    text: "Patient & never rushing",
-    highlight: false,
+    text: "Patient and never rushing",
   },
   {
     icon: MessageCircle,
-    text: "No confusing tech talk — plain English only",
-    highlight: false,
+    text: "No confusing tech talk — clear, simple explanations",
   },
   {
     icon: DollarSign,
     text: "Clear pricing — no surprise charges",
-    highlight: false,
   },
   {
     icon: ShieldCheck,
-    text: "Your safety is always my priority",
-    highlight: false,
+    text: "Your safety is always the priority",
   },
   {
     icon: BadgeCheck,
     text: "No upselling — just honest help",
-    highlight: false,
   },
 ];
 
@@ -53,22 +46,17 @@ const WhyTrustUs = () => {
           {trustPoints.map((point, index) => (
             <div 
               key={index}
-              className={`flex items-center gap-4 p-5 rounded-xl transition-colors ${
-                point.highlight 
-                  ? 'bg-medic/10 border border-medic/20' 
-                  : 'bg-card border border-border'
-              }`}
+              className="group flex items-center gap-4 p-5 rounded-xl border bg-card border-border 
+                         hover:bg-medic/10 hover:border-medic/20 hover:scale-[1.02] 
+                         transition-all duration-300 ease-out cursor-default"
             >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                point.highlight 
-                  ? 'bg-medic text-medic-foreground' 
-                  : 'bg-secondary text-primary'
-              }`}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 
+                              bg-secondary text-primary 
+                              group-hover:bg-medic group-hover:text-medic-foreground 
+                              transition-all duration-300 ease-out">
                 <point.icon className="w-5 h-5" />
               </div>
-              <span className={`text-lg ${
-                point.highlight ? 'text-foreground font-medium' : 'text-muted-foreground'
-              }`}>
+              <span className="text-lg text-muted-foreground group-hover:text-foreground transition-colors duration-300 ease-out">
                 {point.text}
               </span>
             </div>
