@@ -37,11 +37,13 @@ import {
   getUpcomingBookings,
   getAllBookings,
   updateBookingStatus,
+  updateBookingNotes,
   getBookingStats,
   type BookingWithDetails,
   type Booking,
   SERVICE_OPTIONS
 } from "@/lib/supabase";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 
@@ -55,6 +57,9 @@ const Admin = () => {
   const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [stats, setStats] = useState({ total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0 });
+  const [editingNotes, setEditingNotes] = useState<string | null>(null);
+  const [notesValue, setNotesValue] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
 
   const loadBookings = async () => {
     setIsLoading(true);
@@ -82,9 +87,10 @@ const Admin = () => {
     setUpdatingId(null);
 
     if (error) {
+      console.error('Status update error:', error);
       toast({
-        title: "Error",
-        description: "Failed to update booking status",
+        title: "Error updating booking",
+        description: error.message || "Failed to update booking status. Please try again.",
         variant: "destructive"
       });
     } else {
@@ -94,6 +100,37 @@ const Admin = () => {
       });
       loadBookings();
     }
+  };
+
+  const handleNotesEdit = (booking: BookingWithDetails) => {
+    setEditingNotes(booking.id);
+    setNotesValue(booking.internal_notes || '');
+  };
+
+  const handleNotesSave = async (bookingId: string) => {
+    setSavingNotes(true);
+    const { error } = await updateBookingNotes(bookingId, notesValue);
+    setSavingNotes(false);
+
+    if (error) {
+      toast({
+        title: "Error saving notes",
+        description: error.message || "Failed to save notes. Please try again.",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Notes saved",
+        description: "Internal notes have been updated.",
+      });
+      setEditingNotes(null);
+      loadBookings();
+    }
+  };
+
+  const handleNotesCancel = () => {
+    setEditingNotes(null);
+    setNotesValue('');
   };
 
   const getStatusBadge = (status: Booking['status']) => {
@@ -369,13 +406,71 @@ const Admin = () => {
                                   
                                   {booking.notes && (
                                     <div className="mt-3">
-                                      <h5 className="text-sm font-medium text-muted-foreground">Notes:</h5>
+                                      <h5 className="text-sm font-medium text-muted-foreground">Customer Notes:</h5>
                                       <p className="text-sm mt-1 p-2 bg-background rounded border">
                                         {booking.notes}
                                       </p>
                                     </div>
                                   )}
                                 </div>
+                              </div>
+
+                              {/* Internal Notes Section */}
+                              <div className="mt-4 pt-4 border-t border-border">
+                                <h4 className="font-heading font-semibold text-foreground mb-2 flex items-center gap-2">
+                                  <AlertCircle className="w-4 h-4 text-muted-foreground" />
+                                  Internal Notes (Staff Only)
+                                </h4>
+                                {editingNotes === booking.id ? (
+                                  <div className="space-y-2">
+                                    <Textarea
+                                      value={notesValue}
+                                      onChange={(e) => setNotesValue(e.target.value)}
+                                      placeholder="Add internal notes about this booking..."
+                                      rows={3}
+                                      className="text-sm"
+                                    />
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleNotesSave(booking.id)}
+                                        disabled={savingNotes}
+                                      >
+                                        {savingNotes ? (
+                                          <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                                        ) : (
+                                          <CheckCircle className="w-4 h-4 mr-1" />
+                                        )}
+                                        Save
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleNotesCancel}
+                                        disabled={savingNotes}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {booking.internal_notes ? (
+                                      <p className="text-sm p-2 bg-yellow-50 border border-yellow-200 rounded">
+                                        {booking.internal_notes}
+                                      </p>
+                                    ) : (
+                                      <p className="text-sm text-muted-foreground italic">No internal notes</p>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleNotesEdit(booking)}
+                                    >
+                                      {booking.internal_notes ? 'Edit Notes' : 'Add Notes'}
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
 
                               {/* Action Buttons */}

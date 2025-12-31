@@ -397,38 +397,207 @@ export async function updateBookingStatus(
 ): Promise<{ error: Error | null }> {
   try {
     // Get current booking state
-    const { data: current } = await supabase
+    const { data: current, error: fetchError } = await supabase
       .from('bookings')
       .select('*')
       .eq('id', bookingId)
       .single();
+
+    if (fetchError) {
+      console.error('Error fetching booking:', fetchError);
+      throw new Error(`Failed to fetch booking: ${fetchError.message}`);
+    }
 
     // Update booking
     const updates: Partial<Booking> = { status };
     if (status === 'confirmed') updates.confirmed_at = new Date().toISOString();
     if (status === 'completed') updates.completed_at = new Date().toISOString();
 
-    const { error } = await supabase
+    const { error: updateError } = await supabase
       .from('bookings')
       .update(updates)
       .eq('id', bookingId);
 
-    if (error) throw error;
+    if (updateError) {
+      console.error('Error updating booking:', updateError);
+      throw new Error(`Failed to update booking: ${updateError.message}`);
+    }
 
-    // Log history
-    await supabase
+    // Map status to valid history action
+    // Valid actions: 'created' | 'confirmed' | 'rescheduled' | 'cancelled' | 'completed'
+    let action: 'confirmed' | 'cancelled' | 'completed';
+    if (status === 'cancelled') {
+      action = 'cancelled';
+    } else if (status === 'confirmed') {
+      action = 'confirmed';
+    } else if (status === 'completed' || status === 'no_show') {
+      action = 'completed';
+    } else {
+      // For pending status, don't log history (or we could skip this)
+      action = 'confirmed';
+    }
+
+    // Log history - don't fail the whole operation if this fails
+    const { error: historyError } = await supabase
       .from('booking_history')
       .insert([{
         booking_id: bookingId,
-        action: status === 'cancelled' ? 'cancelled' : status === 'confirmed' ? 'confirmed' : 'completed',
+        action,
         old_data: current,
         new_data: { ...current, ...updates },
         changed_by: changedBy
       }]);
 
+    if (historyError) {
+      console.warn('Failed to log booking history:', historyError);
+      // Don't throw - the main update succeeded
+    }
+
     return { error: null };
   } catch (error) {
     console.error('Error updating booking:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function updateBookingNotes(
+  bookingId: string,
+  internalNotes: string
+): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('bookings')
+      .update({ internal_notes: internalNotes })
+      .eq('id', bookingId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating booking notes:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function updateBookingByToken(
+  token: string,
+  updates: {
+    date?: string;
+    time_slot?: string;
+    notes?: string;
+    services?: string[];
+  }
+): Promise<{ error: Error | null }> {
+  try {
+    // First get the booking by token
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('id, date, time_slot')
+      .eq('manage_token', token)
+      .single();
+
+    if (fetchError || !booking) {
+      throw new Error('Booking not found');
+    }
+
+    // Prepare booking updates
+    const bookingUpdates: Record<string, unknown> = {};
+    if (updates.date) bookingUpdates.date = updates.date;
+    if (updates.time_slot) bookingUpdates.time_slot = updates.time_slot;
+    if (updates.notes !== undefined) bookingUpdates.notes = updates.notes;
+
+    // Update booking if there are changes
+    if (Object.keys(bookingUpdates).length > 0) {
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update(bookingUpdates)
+        .eq('id', booking.id);
+
+      if (updateError) throw updateError;
+    }
+
+    // Update services if provided
+    if (updates.services) {
+      // Delete existing services
+      await supabase
+        .from('booking_services')
+        .delete()
+        .eq('booking_id', booking.id);
+
+      // Insert new services
+      if (updates.services.length > 0) {
+        const bookingServices = updates.services.map(serviceId => ({
+          booking_id: booking.id,
+          service_id: serviceId
+        }));
+        await supabase
+          .from('booking_services')
+          .insert(bookingServices);
+      }
+    }
+
+    // Log history if date/time changed
+    if (updates.date || updates.time_slot) {
+      await supabase
+        .from('booking_history')
+        .insert([{
+          booking_id: booking.id,
+          action: 'rescheduled',
+          old_data: { date: booking.date, time_slot: booking.time_slot },
+          new_data: { date: updates.date || booking.date, time_slot: updates.time_slot || booking.time_slot },
+          changed_by: 'customer'
+        }]);
+    }
+
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating booking by token:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function cancelBookingByToken(token: string): Promise<{ error: Error | null }> {
+  try {
+    // Get booking by token
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('id, status')
+      .eq('manage_token', token)
+      .single();
+
+    if (fetchError || !booking) {
+      throw new Error('Booking not found');
+    }
+
+    if (booking.status === 'cancelled') {
+      throw new Error('Booking is already cancelled');
+    }
+
+    if (booking.status === 'completed') {
+      throw new Error('Cannot cancel a completed booking');
+    }
+
+    // Update status to cancelled
+    const { error: updateError } = await supabase
+      .from('bookings')
+      .update({ status: 'cancelled' })
+      .eq('id', booking.id);
+
+    if (updateError) throw updateError;
+
+    // Log history
+    await supabase
+      .from('booking_history')
+      .insert([{
+        booking_id: booking.id,
+        action: 'cancelled',
+        old_data: { status: booking.status },
+        new_data: { status: 'cancelled' },
+        changed_by: 'customer'
+      }]);
+
+    return { error: null };
+  } catch (error) {
+    console.error('Error cancelling booking:', error);
     return { error: error as Error };
   }
 }
