@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,6 +96,8 @@ const BookingCalendar = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const timeSlotsRef = useRef<HTMLDivElement>(null);
   
   const [bookingData, setBookingData] = useState<BookingData>({
     date: undefined,
@@ -120,6 +122,10 @@ const BookingCalendar = () => {
         .then(slots => {
           setAvailableSlots(slots);
           setIsLoading(false);
+          // Small scroll to reveal time slots after they load
+          setTimeout(() => {
+            timeSlotsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 100);
         })
         .catch(() => {
           setAvailableSlots(DEFAULT_TIME_SLOTS);
@@ -146,10 +152,22 @@ const BookingCalendar = () => {
     }
   };
 
+  const scrollToTop = () => {
+    // Scroll the card into view with offset so step indicator and header are visible
+    setTimeout(() => {
+      if (cardRef.current) {
+        const cardTop = cardRef.current.getBoundingClientRect().top + window.scrollY;
+        // Scroll to 100px above the card to show the full header and step indicator
+        window.scrollTo({ top: cardTop - 100, behavior: 'smooth' });
+      }
+    }, 50);
+  };
+
   const handleNext = () => {
     const nextIndex = currentStepIndex + 1;
     if (nextIndex < steps.length) {
       setCurrentStep(steps[nextIndex].id);
+      scrollToTop();
     }
   };
 
@@ -157,6 +175,7 @@ const BookingCalendar = () => {
     const prevIndex = currentStepIndex - 1;
     if (prevIndex >= 0) {
       setCurrentStep(steps[prevIndex].id);
+      scrollToTop();
     }
   };
 
@@ -311,7 +330,7 @@ const BookingCalendar = () => {
   }
 
   return (
-    <Card className="w-full border-2 border-border bg-card overflow-hidden">
+    <Card ref={cardRef} className="w-full border-2 border-border bg-card overflow-hidden">
       {/* Progress Steps - Desktop */}
       <div className="hidden md:flex items-center justify-between bg-secondary/50 px-6 py-4 border-b border-border">
         {steps.map((step, index) => (
@@ -407,7 +426,7 @@ const BookingCalendar = () => {
               </div>
 
               {/* Time Slots - Show when date is selected */}
-              <div className="space-y-4">
+              <div ref={timeSlotsRef} className="space-y-4">
                 {bookingData.date ? (
                   <>
                     <div className="text-center md:text-left">

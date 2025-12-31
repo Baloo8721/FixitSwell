@@ -50,7 +50,10 @@ export interface Booking {
   manage_token: string;
   confirmed_at: string | null;
   completed_at: string | null;
+  cancelled_at: string | null;
+  cancelled_by: 'customer' | 'staff' | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface BookingService {
@@ -412,6 +415,10 @@ export async function updateBookingStatus(
     const updates: Partial<Booking> = { status };
     if (status === 'confirmed') updates.confirmed_at = new Date().toISOString();
     if (status === 'completed') updates.completed_at = new Date().toISOString();
+    if (status === 'cancelled') {
+      updates.cancelled_at = new Date().toISOString();
+      updates.cancelled_by = changedBy;
+    }
 
     const { error: updateError } = await supabase
       .from('bookings')
@@ -579,7 +586,11 @@ export async function cancelBookingByToken(token: string): Promise<{ error: Erro
     // Update status to cancelled
     const { error: updateError } = await supabase
       .from('bookings')
-      .update({ status: 'cancelled' })
+      .update({ 
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        cancelled_by: 'customer'
+      })
       .eq('id', booking.id);
 
     if (updateError) throw updateError;

@@ -535,12 +535,20 @@ const Admin = () => {
                                     </Button>
                                   </>
                                 )}
-                                {(booking.status === 'completed' || booking.status === 'cancelled') && (
+                                {booking.status === 'completed' && (
                                   <p className="text-sm text-muted-foreground">
-                                    {booking.status === 'completed' ? 'Completed' : 'Cancelled'} on {
-                                      booking.status === 'completed' && booking.completed_at
-                                        ? format(parseISO(booking.completed_at), 'MMM d, yyyy')
-                                        : 'N/A'
+                                    Completed on {booking.completed_at
+                                      ? format(parseISO(booking.completed_at), 'MMM d, yyyy')
+                                      : 'N/A'
+                                    }
+                                  </p>
+                                )}
+                                {booking.status === 'cancelled' && (
+                                  <p className="text-sm text-muted-foreground">
+                                    Cancelled {booking.cancelled_by === 'customer' ? 'by customer' : 'by staff'}{' '}
+                                    {booking.cancelled_at
+                                      ? `on ${format(parseISO(booking.cancelled_at), 'MMM d, yyyy')}`
+                                      : ''
                                     }
                                   </p>
                                 )}
