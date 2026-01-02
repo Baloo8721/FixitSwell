@@ -629,12 +629,29 @@ const ManageBooking = () => {
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={async () => {
+                                      // #region agent log
+                                      console.log('[DEBUG] Pay with Card clicked, token:', token);
+                                      fetch('http://127.0.0.1:7242/ingest/571e61b4-de68-4b16-9da4-beffe4921895',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManageBooking.tsx:onClick',message:'Pay button clicked',data:{token},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'click'})}).catch(()=>{});
+                                      // #endregion
                                       setSelectingPayment(true);
+                                      // #region agent log
+                                      console.log('[DEBUG] Calling createCheckoutSession...');
+                                      // #endregion
                                       const result = await createCheckoutSession(token!);
+                                      // #region agent log
+                                      console.log('[DEBUG] createCheckoutSession result:', result);
+                                      fetch('http://127.0.0.1:7242/ingest/571e61b4-de68-4b16-9da4-beffe4921895',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ManageBooking.tsx:afterCheckout',message:'Checkout result',data:{result,hasUrl:!!result?.url},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'result'})}).catch(()=>{});
+                                      // #endregion
                                       if (result?.url) {
+                                        // #region agent log
+                                        console.log('[DEBUG] Redirecting to:', result.url);
+                                        // #endregion
                                         // Redirect to Stripe Checkout
                                         window.location.href = result.url;
                                       } else {
+                                        // #region agent log
+                                        console.log('[DEBUG] No URL returned, showing error');
+                                        // #endregion
                                         toast({
                                           title: "Error",
                                           description: "Could not create payment session. Please try again.",

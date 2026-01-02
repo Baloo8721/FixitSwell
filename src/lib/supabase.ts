@@ -1293,27 +1293,51 @@ export async function createPaymentIntentByToken(
 export async function createCheckoutSession(
   token: string
 ): Promise<{ url: string } | null> {
+  // #region agent log
+  console.log('[DEBUG] createCheckoutSession called with token:', token);
+  fetch('http://127.0.0.1:7242/ingest/571e61b4-de68-4b16-9da4-beffe4921895',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'supabase.ts:createCheckoutSession',message:'Starting checkout session',data:{token,supabaseUrl,hasAnonKey:!!supabaseAnonKey},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D'})}).catch(()=>{});
+  // #endregion
   try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout`, {
+    const requestBody = { 
+      token,
+      successUrl: `${window.location.origin}/manage/${token}?payment=success`,
+      cancelUrl: `${window.location.origin}/manage/${token}?payment=cancelled`
+    };
+    // #region agent log
+    console.log('[DEBUG] Request body:', requestBody);
+    fetch('http://127.0.0.1:7242/ingest/571e61b4-de68-4b16-9da4-beffe4921895',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'supabase.ts:createCheckoutSession',message:'Request body',data:{requestBody},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,C'})}).catch(()=>{});
+    // #endregion
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/create-checkout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        'Authorization': `Bearer ${supabaseAnonKey}`
       },
-      body: JSON.stringify({ 
-        token,
-        successUrl: `${window.location.origin}/manage/${token}?payment=success`,
-        cancelUrl: `${window.location.origin}/manage/${token}?payment=cancelled`
-      })
+      body: JSON.stringify(requestBody)
     });
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/571e61b4-de68-4b16-9da4-beffe4921895',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'supabase.ts:createCheckoutSession',message:'Response received',data:{status:response.status,ok:response.ok,statusText:response.statusText},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D,E'})}).catch(()=>{});
+    // #endregion
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to create checkout session');
+      const errorData = await response.json();
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/571e61b4-de68-4b16-9da4-beffe4921895',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'supabase.ts:createCheckoutSession',message:'Error response from edge function',data:{errorData},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,C,E'})}).catch(()=>{});
+      // #endregion
+      throw new Error(errorData.error || 'Failed to create checkout session');
     }
 
-    return await response.json();
+    const result = await response.json();
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/571e61b4-de68-4b16-9da4-beffe4921895',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'supabase.ts:createCheckoutSession',message:'Success response',data:{hasUrl:!!result.url},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'success'})}).catch(()=>{});
+    // #endregion
+    return result;
   } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/571e61b4-de68-4b16-9da4-beffe4921895',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'supabase.ts:createCheckoutSession',message:'Catch block error',data:{errorMessage:(error as Error).message,errorName:(error as Error).name},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
     console.error('Error creating checkout session:', error);
     return null;
   }

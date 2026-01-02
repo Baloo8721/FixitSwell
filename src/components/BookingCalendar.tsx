@@ -210,11 +210,17 @@ const BookingCalendar = () => {
 
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
 
+  // Email validation helper
+  const isValidEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const canProceed = () => {
     switch (currentStep) {
       case 'datetime': return bookingData.date !== undefined && bookingData.timeSlot !== '';
       case 'services': return bookingData.services.length > 0 || bookingData.customNotes.trim() !== '';
-      case 'details': return bookingData.name && bookingData.email && bookingData.phone && bookingData.address;
+      case 'details': return bookingData.name && bookingData.email && isValidEmail(bookingData.email) && bookingData.phone && bookingData.address;
       default: return true;
     }
   };
@@ -966,8 +972,11 @@ const BookingCalendar = () => {
                   value={bookingData.email}
                   onChange={(e) => setBookingData(prev => ({ ...prev, email: e.target.value }))}
                   placeholder="e.g., john@email.com"
-                  className="h-14 text-lg rounded-xl"
+                  className={`h-14 text-lg rounded-xl ${bookingData.email && !isValidEmail(bookingData.email) ? 'border-red-500 focus:ring-red-500' : ''}`}
                 />
+                {bookingData.email && !isValidEmail(bookingData.email) && (
+                  <p className="text-sm text-red-500">Please enter a valid email address (e.g., john@email.com)</p>
+                )}
               </div>
 
               <div className="space-y-2">
