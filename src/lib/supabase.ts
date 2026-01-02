@@ -842,7 +842,9 @@ export async function getBookingStats(): Promise<{
   completed: number;
   cancelled: number;
   completedUnpaid: number;
+  completedNoInvoice: number;
   totalUnpaid: number;
+  needsAttention: number;
 }> {
   try {
     const { data } = await supabase
@@ -850,13 +852,23 @@ export async function getBookingStats(): Promise<{
       .select('status, invoice_status, invoice_amount');
     
     const completedBookings = data?.filter(b => b.status === 'completed') || [];
+    
+    // Completed WITH invoice but NOT paid
     const completedUnpaid = completedBookings.filter(b => 
       b.invoice_amount && b.invoice_status !== 'paid'
+    ).length;
+    
+    // Completed but NO invoice created at all (potential missed payment!)
+    const completedNoInvoice = completedBookings.filter(b => 
+      !b.invoice_amount
     ).length;
     
     const allWithInvoice = data?.filter(b => 
       b.invoice_amount && b.invoice_status !== 'paid' && b.status !== 'cancelled'
     ) || [];
+    
+    // Total needing attention: unpaid invoices + completed without invoice
+    const needsAttention = completedUnpaid + completedNoInvoice;
     
     const stats = {
       total: data?.length || 0,
@@ -865,13 +877,15 @@ export async function getBookingStats(): Promise<{
       completed: data?.filter(b => b.status === 'completed').length || 0,
       cancelled: data?.filter(b => b.status === 'cancelled').length || 0,
       completedUnpaid,
+      completedNoInvoice,
       totalUnpaid: allWithInvoice.length,
+      needsAttention,
     };
     
     return stats;
   } catch (error) {
     console.error('Error fetching stats:', error);
-    return { total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0, completedUnpaid: 0, totalUnpaid: 0 };
+    return { total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0, completedUnpaid: 0, completedNoInvoice: 0, totalUnpaid: 0, needsAttention: 0 };
   }
 }
 

@@ -77,7 +77,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 
-type StatusFilter = 'all' | 'unpaid' | Booking['status'];
+type StatusFilter = 'all' | 'unpaid' | 'needs_invoice' | 'needs_attention' | Booking['status'];
 
 const Admin = () => {
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
@@ -86,7 +86,7 @@ const Admin = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [stats, setStats] = useState({ total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0, completedUnpaid: 0, totalUnpaid: 0 });
+  const [stats, setStats] = useState({ total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0, completedUnpaid: 0, completedNoInvoice: 0, totalUnpaid: 0, needsAttention: 0 });
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [notesValue, setNotesValue] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -320,8 +320,8 @@ const Admin = () => {
   const loadBookings = async () => {
     setIsLoading(true);
     const filters: { status?: Booking['status'] } = {};
-    // Handle unpaid filter separately (filter client-side)
-    if (statusFilter !== 'all' && statusFilter !== 'unpaid') {
+    // Handle special filters separately (filter client-side)
+    if (statusFilter !== 'all' && statusFilter !== 'unpaid' && statusFilter !== 'needs_invoice' && statusFilter !== 'needs_attention') {
       filters.status = statusFilter;
     }
     
@@ -424,9 +424,29 @@ const Admin = () => {
   };
 
   const filteredBookings = bookings.filter(booking => {
-    // Filter by unpaid status
+    // Filter by unpaid status (has invoice but not paid)
     if (statusFilter === 'unpaid') {
       if (!booking.invoice_amount || booking.invoice_status === 'paid') {
+        return false;
+      }
+    }
+    
+    // Filter by needs invoice (completed but no invoice created)
+    if (statusFilter === 'needs_invoice') {
+      if (booking.status !== 'completed' || booking.invoice_amount) {
+        return false;
+      }
+    }
+    
+    // Filter by needs attention (completed: either unpaid or no invoice)
+    if (statusFilter === 'needs_attention') {
+      if (booking.status !== 'completed') {
+        return false;
+      }
+      // Must be either: has invoice but unpaid, OR no invoice at all
+      const hasUnpaidInvoice = booking.invoice_amount && booking.invoice_status !== 'paid';
+      const hasNoInvoice = !booking.invoice_amount;
+      if (!hasUnpaidInvoice && !hasNoInvoice) {
         return false;
       }
     }
@@ -623,7 +643,7 @@ const Admin = () => {
 
       <main className="container mx-auto px-4 py-6 space-y-6">
         {/* Stats Cards - Clickable to filter */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <Card 
             className={`cursor-pointer transition-all hover:scale-105 ${statusFilter === 'all' ? 'ring-2 ring-primary ring-offset-2' : ''}`}
             onClick={() => setStatusFilter('all')}
@@ -658,11 +678,6 @@ const Admin = () => {
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-green-700">{stats.completed}</p>
               <p className="text-sm text-green-600">Completed</p>
-              {stats.completedUnpaid > 0 && (
-                <p className="text-xs text-orange-600 font-medium mt-1">
-                  💰 {stats.completedUnpaid} unpaid
-                </p>
-              )}
             </CardContent>
           </Card>
           <Card 
@@ -672,6 +687,30 @@ const Admin = () => {
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-red-700">{stats.cancelled}</p>
               <p className="text-sm text-red-600">Cancelled</p>
+            </CardContent>
+          </Card>
+          {/* Needs Attention Card - Shows completed jobs needing payment action */}
+          <Card 
+            className={`cursor-pointer transition-all hover:scale-105 ${
+              stats.needsAttention > 0 
+                ? 'bg-orange-50 border-orange-300 border-2 animate-pulse' 
+                : 'bg-gray-50 border-gray-200'
+            } ${statusFilter === 'needs_attention' ? 'ring-2 ring-orange-500 ring-offset-2' : ''}`}
+            onClick={() => setStatusFilter('needs_attention')}
+          >
+            <CardContent className="p-4 text-center">
+              <p className={`text-3xl font-bold ${stats.needsAttention > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
+                {stats.needsAttention}
+              </p>
+              <p className={`text-sm font-medium ${stats.needsAttention > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
+                💰 Needs Payment
+              </p>
+              {stats.needsAttention > 0 && (
+                <div className="text-xs text-orange-500 mt-1 space-y-0.5">
+                  {stats.completedUnpaid > 0 && <p>{stats.completedUnpaid} unpaid</p>}
+                  {stats.completedNoInvoice > 0 && <p>{stats.completedNoInvoice} no invoice</p>}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -694,7 +733,9 @@ const Admin = () => {
               <SelectItem value="confirmed">Confirmed</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
-              <SelectItem value="unpaid">💰 Unpaid Invoices</SelectItem>
+              <SelectItem value="needs_attention">💰 Needs Payment Action</SelectItem>
+              <SelectItem value="unpaid">💵 Unpaid Invoices</SelectItem>
+              <SelectItem value="needs_invoice">⚠️ No Invoice Created</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -775,6 +816,10 @@ const Admin = () => {
                                         💰 ${booking.invoice_amount} due
                                       </Badge>
                                     )
+                                  ) : booking.status === 'completed' ? (
+                                    <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 text-xs animate-pulse">
+                                      ⚠️ No Invoice
+                                    </Badge>
                                   ) : null}
                                   {getStatusBadge(booking.status)}
                                   {expandedBooking === booking.id ? (
