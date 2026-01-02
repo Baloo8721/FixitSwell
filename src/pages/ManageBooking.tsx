@@ -542,8 +542,8 @@ const ManageBooking = () => {
                         </Badge>
                       </div>
 
-                      {/* Payment Method Already Selected */}
-                      {booking.payment_method && booking.payment_pending_collection && (
+                      {/* Payment Method Already Selected - Cash/Check pending collection */}
+                      {booking.payment_method && booking.payment_pending_collection && (booking.payment_method === 'check' || booking.payment_method === 'cash') && (
                         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
                           <div className="flex items-center justify-between">
                             <div>
@@ -596,8 +596,8 @@ const ManageBooking = () => {
                         </div>
                       )}
 
-                      {/* Payment Options */}
-                      {!booking.payment_method && (
+                      {/* Payment Options - Show unless cash/check is pending collection */}
+                      {!(booking.payment_method && booking.payment_pending_collection && (booking.payment_method === 'check' || booking.payment_method === 'cash')) && (
                         <>
                           <p className="text-sm text-foreground font-medium mb-3">Choose how you'd like to pay:</p>
                           <div className="grid gap-3">

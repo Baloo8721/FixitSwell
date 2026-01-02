@@ -1383,18 +1383,47 @@ export async function updateBookingAISummary(
 // Delete a booking (admin only)
 export async function deleteBooking(bookingId: string): Promise<{ error: Error | null }> {
   try {
-    // First delete related records
-    await supabase.from('booking_services').delete().eq('booking_id', bookingId);
-    await supabase.from('booking_history').delete().eq('booking_id', bookingId);
-    await supabase.from('booking_supplies').delete().eq('booking_id', bookingId);
+    // First delete related records - check each for errors
+    const { error: servicesError } = await supabase
+      .from('booking_services')
+      .delete()
+      .eq('booking_id', bookingId);
     
-    // Then delete the booking
-    const { error } = await supabase
+    if (servicesError) {
+      console.warn('Error deleting booking_services:', servicesError);
+    }
+    
+    const { error: historyError } = await supabase
+      .from('booking_history')
+      .delete()
+      .eq('booking_id', bookingId);
+    
+    if (historyError) {
+      console.warn('Error deleting booking_history:', historyError);
+    }
+    
+    const { error: suppliesError } = await supabase
+      .from('booking_supplies')
+      .delete()
+      .eq('booking_id', bookingId);
+    
+    if (suppliesError) {
+      console.warn('Error deleting booking_supplies:', suppliesError);
+    }
+    
+    // Then delete the booking itself
+    const { error, count } = await supabase
       .from('bookings')
       .delete()
-      .eq('id', bookingId);
+      .eq('id', bookingId)
+      .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error deleting booking:', error);
+      throw error;
+    }
+    
+    console.log('Booking deleted successfully, bookingId:', bookingId);
     return { error: null };
   } catch (error) {
     console.error('Error deleting booking:', error);
