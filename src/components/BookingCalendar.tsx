@@ -24,7 +24,10 @@ import {
   Loader2,
   Info,
   MapPin,
-  User
+  User,
+  Camera,
+  X,
+  ImagePlus
 } from "lucide-react";
 import { format, addDays, isBefore, startOfToday } from "date-fns";
 import { 
@@ -33,9 +36,60 @@ import {
   createBooking,
   getAvailableTimeSlots,
   trackEvent,
+  uploadBookingImage,
   type TimeSlot 
 } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
+
+// Service details for info popovers (Individual Services)
+const SERVICE_DETAILS: Record<string, { features: string[] }> = {
+  'assembly': {
+    features: [
+      'Furniture Assembly — Beds, desks, shelves, IKEA/Wayfair ($50–$150)',
+      'TV & Wall Mounting — TVs, shelves, mirrors, soundbars ($75–$200)',
+      'Appliance Hookups — Washers, dryers, microwaves ($80–$200)'
+    ]
+  },
+  'tech': {
+    features: [
+      'Smart Device Setup — Doorbells, cameras, lights, Wi-Fi ($75–$200)',
+      'Streaming & Remote Help — TV apps, phones, troubleshooting ($50–$150)',
+      'Scam Awareness Tips — Stay safe online'
+    ]
+  },
+  'repairs': {
+    features: [
+      'Door & Window Adjustments — Squeaks, alignment, screens ($50–$200)',
+      'Minor Repairs — Hinges, caulking, patch small holes ($50–$150)',
+      'Skirting & Exterior Fixes — Vinyl skirting, mailbox, rails ($80–$200)',
+      'Touch-Up Painting — Walls, trim, doors ($150–$500)'
+    ]
+  },
+  'safety': {
+    features: [
+      'Grab Bars & Fall Prevention — Non-slip mats, night lights ($100–$300)',
+      'Light Bulb, Battery & Filter Changes — Hard-to-reach ($40–$100)',
+      'Errands & Personal Assistance — Pharmacy/store runs ($30–$100/hr)',
+      'Wait-at-Home Help — Wait for contractors/deliveries ($50–$150)'
+    ]
+  },
+  'outdoor': {
+    features: [
+      'Window & Pressure Washing — Windows, driveways, patios ($80–$300)',
+      'Gutter Cleaning & Awning Care — Single-story gutters ($100–$250)',
+      'Light Yard Cleanup — Trimming, weeding, mulch ($100–$300)',
+      'Storm & Holiday Prep — Hurricane prep, holiday lights ($100–$300)'
+    ]
+  },
+  'organizing': {
+    features: [
+      'Interior & Garage Organizing — Closets, kitchens, sheds ($75–$500)',
+      'Junk Sorting & Valuation — Help price items for sales',
+      'Bicycle & Scooter Tune-Ups — Lube, inflate, adjust ($40–$100)',
+      'Pet Gate & Enclosure Setup — Non-permanent installs ($80–$150)'
+    ]
+  }
+};
 
 // Package details for info popovers
 const PACKAGE_DETAILS: Record<string, { price: string; duration: string; features: string[]; bestFor?: string }> = {
@@ -76,6 +130,13 @@ const PACKAGE_DETAILS: Record<string, { price: string; duration: string; feature
 
 type BookingStep = 'datetime' | 'services' | 'details' | 'confirm';
 
+interface UploadedImage {
+  file: File;
+  preview: string;
+  uploading?: boolean;
+  url?: string;
+}
+
 interface BookingData {
   date: Date | undefined;
   timeSlot: string;
@@ -88,7 +149,10 @@ interface BookingData {
   address: string;
   community: string;
   notes: string;
+  images: UploadedImage[];
 }
+
+const MAX_IMAGES = 10;
 
 const BookingCalendar = () => {
   const [currentStep, setCurrentStep] = useState<BookingStep>('datetime');
@@ -110,8 +174,11 @@ const BookingCalendar = () => {
     phone: '',
     address: '',
     community: '',
-    notes: ''
+    notes: '',
+    images: []
   });
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch available time slots when date changes
   useEffect(() => {
@@ -184,6 +251,14 @@ const BookingCalendar = () => {
     
     setIsSubmitting(true);
     
+    // Upload images first
+    let imageUrls: string[] = [];
+    if (bookingData.images.length > 0) {
+      setUploadingImages(true);
+      imageUrls = await uploadAllImages();
+      setUploadingImages(false);
+    }
+    
     // Combine custom notes with regular notes
     const allNotes = [bookingData.customNotes, bookingData.notes].filter(Boolean).join('\n\n');
     
@@ -196,7 +271,8 @@ const BookingCalendar = () => {
       services: bookingData.services,
       notes: allNotes || undefined,
       address: bookingData.address,
-      community: bookingData.community || undefined
+      community: bookingData.community || undefined,
+      images: imageUrls
     };
 
     const { data, error } = await createBooking(bookingPayload);
@@ -235,9 +311,64 @@ const BookingCalendar = () => {
     }));
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const remainingSlots = MAX_IMAGES - bookingData.images.length;
+    const filesToAdd = Array.from(files).slice(0, remainingSlots);
+
+    const newImages: UploadedImage[] = filesToAdd.map(file => ({
+      file,
+      preview: URL.createObjectURL(file)
+    }));
+
+    setBookingData(prev => ({
+      ...prev,
+      images: [...prev.images, ...newImages]
+    }));
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setBookingData(prev => {
+      const newImages = [...prev.images];
+      // Revoke object URL to prevent memory leak
+      URL.revokeObjectURL(newImages[index].preview);
+      newImages.splice(index, 1);
+      return { ...prev, images: newImages };
+    });
+  };
+
+  const uploadAllImages = async (): Promise<string[]> => {
+    const uploadedUrls: string[] = [];
+    
+    for (const img of bookingData.images) {
+      if (img.url) {
+        // Already uploaded
+        uploadedUrls.push(img.url);
+      } else {
+        const { data } = await uploadBookingImage(img.file);
+        if (data) {
+          uploadedUrls.push(data.url);
+        }
+      }
+    }
+    
+    return uploadedUrls;
+  };
+
   // Info popover component for packages/plans
-  const InfoPopover = ({ serviceId }: { serviceId: string }) => {
-    const details = PACKAGE_DETAILS[serviceId];
+  // Info popover that works for both services and packages
+  const InfoPopover = ({ serviceId, type = 'package' }: { serviceId: string; type?: 'service' | 'package' }) => {
+    const packageDetails = PACKAGE_DETAILS[serviceId];
+    const serviceDetails = SERVICE_DETAILS[serviceId];
+    const details = type === 'service' ? serviceDetails : packageDetails;
+    
     if (!details) return null;
     
     return (
@@ -245,29 +376,37 @@ const BookingCalendar = () => {
         <PopoverTrigger asChild>
           <button 
             type="button"
-            className="ml-auto p-1 text-muted-foreground hover:text-primary transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded-full text-sm font-medium transition-all border border-primary/30 hover:border-primary/50"
             onClick={(e) => e.stopPropagation()}
           >
-            <Info className="w-5 h-5" />
+            <Info className="w-4 h-4" />
+            <span className="hidden sm:inline">Details</span>
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-72 p-4" side="top">
+        <PopoverContent className="w-80 p-4" side="top">
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-heading font-semibold text-primary">{details.price}</span>
-              <span className="text-sm text-muted-foreground">{details.duration}</span>
-            </div>
-            {details.bestFor && (
+            {'price' in details && 'duration' in details && (
+              <div className="flex items-center justify-between pb-2 border-b border-border">
+                <span className="font-heading font-semibold text-primary">{details.price}</span>
+                <span className="text-sm text-muted-foreground">{details.duration}</span>
+              </div>
+            )}
+            {'bestFor' in details && details.bestFor && (
               <p className="text-sm text-accent font-medium">Best for: {details.bestFor}</p>
             )}
-            <ul className="space-y-1">
-              {details.features.map((feature, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                  <span className="text-primary mt-0.5">✓</span>
-                  {feature}
-                </li>
-              ))}
-            </ul>
+            <div>
+              {type === 'package' && (
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2 font-medium">What's included:</p>
+              )}
+              <ul className="space-y-2">
+                {details.features.map((feature, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-foreground">
+                    <span className="text-primary mt-0.5 font-bold">✓</span>
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </PopoverContent>
       </Popover>
@@ -315,7 +454,8 @@ const BookingCalendar = () => {
                 phone: '',
                 address: '',
                 community: '',
-                notes: ''
+                notes: '',
+                images: []
               });
             }}
             variant="outline"
@@ -489,7 +629,7 @@ const BookingCalendar = () => {
           </div>
         )}
 
-        {/* Step 2: Services Selection */}
+        {/* Step 2: Services Selection - Classic Checklist Style */}
         {currentStep === 'services' && (
           <div className="space-y-6">
             <div className="text-center mb-6">
@@ -497,111 +637,237 @@ const BookingCalendar = () => {
                 What Do You Need Help With?
               </h3>
               <p className="text-lg text-muted-foreground">
-                Select services or describe what you need below
+                Check all that apply
               </p>
             </div>
 
-            {/* Individual Services */}
-            <div>
-              <h4 className="font-heading text-lg text-foreground mb-3 flex items-center gap-2">
-                <Wrench className="w-5 h-5 text-primary" />
-                Individual Services
-              </h4>
-              <div className="grid md:grid-cols-2 gap-3">
-                {SERVICE_OPTIONS.filter(s => s.category === 'service').map((service) => (
-                  <label
-                    key={service.id}
-                    className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      bookingData.services.includes(service.id)
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/30 bg-card'
-                    }`}
-                  >
-                    <Checkbox
-                      checked={bookingData.services.includes(service.id)}
-                      onCheckedChange={() => handleServiceToggle(service.id)}
-                      className="w-6 h-6"
-                    />
-                    <span className="text-lg text-foreground">{service.label}</span>
-                  </label>
-                ))}
-              </div>
+            {/* Classic Paper Checklist Container */}
+            <div className="bg-amber-50/50 border-2 border-amber-200/50 rounded-lg p-6 shadow-inner">
               
-              {/* Custom Notes for Individual Services */}
-              <div className="mt-4">
-                <Label htmlFor="custom-notes" className="text-base text-muted-foreground">
-                  Need something specific? Describe it here:
+              {/* Individual Services */}
+              <div className="mb-6">
+                <h4 className="font-heading text-xl text-foreground mb-4 pb-2 border-b-2 border-amber-300/50 flex items-center gap-2">
+                  <Wrench className="w-5 h-5 text-primary" />
+                  Individual Services
+                  <span className="text-sm font-normal text-muted-foreground">
+                    (tap Details for pricing)
+                  </span>
+                </h4>
+                <ul className="space-y-3">
+                  {SERVICE_OPTIONS.filter(s => s.category === 'service').map((service) => (
+                    <li key={service.id}>
+                      <label
+                        className={`flex items-center gap-4 cursor-pointer group py-2 px-3 -mx-3 rounded-lg transition-colors ${
+                          bookingData.services.includes(service.id)
+                            ? 'bg-primary/10'
+                            : 'hover:bg-amber-100/50'
+                        }`}
+                      >
+                        <div className={`w-7 h-7 border-2 rounded flex items-center justify-center transition-all ${
+                          bookingData.services.includes(service.id)
+                            ? 'bg-primary border-primary'
+                            : 'border-gray-400 bg-white'
+                        }`}>
+                          {bookingData.services.includes(service.id) && (
+                            <CheckCircle2 className="w-5 h-5 text-white" />
+                          )}
+                        </div>
+                        <Checkbox
+                          checked={bookingData.services.includes(service.id)}
+                          onCheckedChange={() => handleServiceToggle(service.id)}
+                          className="sr-only"
+                        />
+                        <span className={`text-xl flex-1 transition-all ${
+                          bookingData.services.includes(service.id)
+                            ? 'text-primary font-medium'
+                            : 'text-foreground'
+                        }`}>
+                          {service.label}
+                        </span>
+                        <InfoPopover serviceId={service.id} type="service" />
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Custom Notes */}
+              <div className="mb-6 pb-6 border-b-2 border-amber-300/30">
+                <Label htmlFor="custom-notes" className="text-lg text-foreground font-medium block mb-2">
+                  Tell us what you need — describe your project or request:
                 </Label>
                 <Textarea
                   id="custom-notes"
                   value={bookingData.customNotes}
                   onChange={(e) => setBookingData(prev => ({ ...prev, customNotes: e.target.value }))}
-                  placeholder="e.g., Need help hanging 3 pictures, fixing a squeaky door, and replacing bathroom faucet..."
-                  rows={3}
-                  className="mt-2 text-lg rounded-xl resize-none"
+                  placeholder="e.g., Hang 3 pictures in living room, fix squeaky bedroom door, need help setting up new TV..."
+                  rows={6}
+                  className="text-lg bg-white border-2 border-gray-300 rounded-lg resize-none"
                 />
+                
+                {/* Image Upload Section */}
+                <div className="mt-4">
+                  <Label className="text-lg text-foreground font-medium block mb-2">
+                    Add photos (optional) — show us what you need help with:
+                  </Label>
+                  
+                  {/* Image Preview Grid */}
+                  {bookingData.images.length > 0 && (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3">
+                      {bookingData.images.map((img, index) => (
+                        <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 border-2 border-gray-200">
+                          <img
+                            src={img.preview}
+                            alt={`Upload ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index)}
+                            className="absolute top-1 right-1 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Upload Button */}
+                  {bookingData.images.length < MAX_IMAGES && (
+                    <div className="flex gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleImageSelect}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-2 bg-white border-2 border-dashed border-gray-300 hover:border-primary hover:bg-primary/5 text-foreground px-4 py-3 h-auto"
+                      >
+                        <ImagePlus className="w-5 h-5 text-primary" />
+                        <span className="text-base">Add Photos</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          if (fileInputRef.current) {
+                            fileInputRef.current.capture = 'environment';
+                            fileInputRef.current.click();
+                          }
+                        }}
+                        className="flex items-center gap-2 bg-white border-2 border-dashed border-gray-300 hover:border-primary hover:bg-primary/5 text-foreground px-4 py-3 h-auto"
+                      >
+                        <Camera className="w-5 h-5 text-primary" />
+                        <span className="text-base">Take Photo</span>
+                      </Button>
+                    </div>
+                  )}
+                  
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {bookingData.images.length}/{MAX_IMAGES} photos added
+                  </p>
+                </div>
               </div>
-            </div>
 
-            {/* Value Packages */}
-            <div>
-              <h4 className="font-heading text-lg text-foreground mb-3 flex items-center gap-2">
-                <Package className="w-5 h-5 text-accent" />
-                Value Packages
-                <span className="text-sm font-normal text-muted-foreground ml-2">
-                  (tap <Info className="w-4 h-4 inline" /> for details)
-                </span>
-              </h4>
-              <div className="grid md:grid-cols-2 gap-3">
-                {SERVICE_OPTIONS.filter(s => s.category === 'package').map((service) => (
-                  <label
-                    key={service.id}
-                    className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      bookingData.services.includes(service.id)
-                        ? 'border-accent bg-accent/5'
-                        : 'border-border hover:border-accent/30 bg-card'
-                    }`}
-                  >
-                    <Checkbox
-                      checked={bookingData.services.includes(service.id)}
-                      onCheckedChange={() => handleServiceToggle(service.id)}
-                      className="w-6 h-6"
-                    />
-                    <span className="text-lg text-foreground flex-1">{service.label}</span>
-                    <InfoPopover serviceId={service.id} />
-                  </label>
-                ))}
+              {/* Value Packages */}
+              <div className="mb-6">
+                <h4 className="font-heading text-xl text-foreground mb-4 pb-2 border-b-2 border-amber-300/50 flex items-center gap-2">
+                  <Package className="w-5 h-5 text-accent" />
+                  Value Packages
+                  <span className="text-sm font-normal text-muted-foreground">
+                    (tap Details for pricing)
+                  </span>
+                </h4>
+                <ul className="space-y-3">
+                  {SERVICE_OPTIONS.filter(s => s.category === 'package').map((service) => (
+                    <li key={service.id}>
+                      <label
+                        className={`flex items-center gap-4 cursor-pointer group py-2 px-3 -mx-3 rounded-lg transition-colors ${
+                          bookingData.services.includes(service.id)
+                            ? 'bg-accent/10'
+                            : 'hover:bg-amber-100/50'
+                        }`}
+                      >
+                        <div className={`w-7 h-7 border-2 rounded flex items-center justify-center transition-all ${
+                          bookingData.services.includes(service.id)
+                            ? 'bg-accent border-accent'
+                            : 'border-gray-400 bg-white'
+                        }`}>
+                          {bookingData.services.includes(service.id) && (
+                            <CheckCircle2 className="w-5 h-5 text-white" />
+                          )}
+                        </div>
+                        <Checkbox
+                          checked={bookingData.services.includes(service.id)}
+                          onCheckedChange={() => handleServiceToggle(service.id)}
+                          className="sr-only"
+                        />
+                        <span className={`text-xl flex-1 transition-all ${
+                          bookingData.services.includes(service.id)
+                            ? 'text-accent font-medium'
+                            : 'text-foreground'
+                        }`}>
+                          {service.label}
+                        </span>
+                        <InfoPopover serviceId={service.id} type="package" />
+                      </label>
+                    </li>
+                  ))}
+                </ul>
               </div>
-            </div>
 
-            {/* Monthly Plans */}
-            <div>
-              <h4 className="font-heading text-lg text-foreground mb-3 flex items-center gap-2">
-                <CalendarCheck className="w-5 h-5 text-trust" />
-                Monthly Plans
-                <span className="text-sm font-normal text-muted-foreground ml-2">
-                  (tap <Info className="w-4 h-4 inline" /> for details)
-                </span>
-              </h4>
-              <div className="grid md:grid-cols-2 gap-3">
-                {SERVICE_OPTIONS.filter(s => s.category === 'monthly').map((service) => (
-                  <label
-                    key={service.id}
-                    className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      bookingData.services.includes(service.id)
-                        ? 'border-trust bg-trust/5'
-                        : 'border-border hover:border-trust/30 bg-card'
-                    }`}
-                  >
-                    <Checkbox
-                      checked={bookingData.services.includes(service.id)}
-                      onCheckedChange={() => handleServiceToggle(service.id)}
-                      className="w-6 h-6"
-                    />
-                    <span className="text-lg text-foreground flex-1">{service.label}</span>
-                    <InfoPopover serviceId={service.id} />
-                  </label>
-                ))}
+              {/* Monthly Plans */}
+              <div>
+                <h4 className="font-heading text-xl text-foreground mb-4 pb-2 border-b-2 border-amber-300/50 flex items-center gap-2">
+                  <CalendarCheck className="w-5 h-5 text-trust" />
+                  Monthly Plans
+                  <span className="text-sm font-normal text-muted-foreground">
+                    (tap Details for pricing)
+                  </span>
+                </h4>
+                <ul className="space-y-3">
+                  {SERVICE_OPTIONS.filter(s => s.category === 'monthly').map((service) => (
+                    <li key={service.id}>
+                      <label
+                        className={`flex items-center gap-4 cursor-pointer group py-2 px-3 -mx-3 rounded-lg transition-colors ${
+                          bookingData.services.includes(service.id)
+                            ? 'bg-trust/10'
+                            : 'hover:bg-amber-100/50'
+                        }`}
+                      >
+                        <div className={`w-7 h-7 border-2 rounded flex items-center justify-center transition-all ${
+                          bookingData.services.includes(service.id)
+                            ? 'bg-trust border-trust'
+                            : 'border-gray-400 bg-white'
+                        }`}>
+                          {bookingData.services.includes(service.id) && (
+                            <CheckCircle2 className="w-5 h-5 text-white" />
+                          )}
+                        </div>
+                        <Checkbox
+                          checked={bookingData.services.includes(service.id)}
+                          onCheckedChange={() => handleServiceToggle(service.id)}
+                          className="sr-only"
+                        />
+                        <span className={`text-xl flex-1 transition-all ${
+                          bookingData.services.includes(service.id)
+                            ? 'text-trust font-medium'
+                            : 'text-foreground'
+                        }`}>
+                          {service.label}
+                        </span>
+                        <InfoPopover serviceId={service.id} type="package" />
+                      </label>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
 
@@ -826,7 +1092,7 @@ const BookingCalendar = () => {
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Sending...
+                  {uploadingImages ? 'Uploading photos...' : 'Sending...'}
                 </>
               ) : (
                 <>

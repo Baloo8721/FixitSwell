@@ -52,6 +52,16 @@ export interface Booking {
   completed_at: string | null;
   cancelled_at: string | null;
   cancelled_by: 'customer' | 'staff' | null;
+  images: string[];
+  created_by: 'customer' | 'admin';
+  // Invoice fields
+  invoice_amount: number | null;
+  invoice_status: 'none' | 'pending' | 'paid' | 'partial';
+  invoice_created_at: string | null;
+  invoice_paid_at: string | null;
+  stripe_payment_intent_id: string | null;
+  deposit_amount: number | null;
+  deposit_paid_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -262,6 +272,7 @@ export interface CreateBookingData {
   notes?: string;
   address?: string;
   community?: string;
+  images?: string[];
 }
 
 export async function createBooking(data: CreateBookingData): Promise<{ 
@@ -290,7 +301,9 @@ export async function createBooking(data: CreateBookingData): Promise<{
         date: data.date,
         time_slot: data.time_slot,
         notes: data.notes || null,
-        status: 'pending'
+        images: data.images || [],
+        status: 'pending',
+        created_by: 'customer'
       }])
       .select()
       .single();
@@ -855,3 +868,377 @@ export const SERVICE_OPTIONS = [
   { id: 'tech-support', label: 'Tech + Home Support (Monthly)', category: 'monthly' },
   { id: 'helper-plan', label: 'Trusted Helper Plan (Monthly)', category: 'monthly' },
 ];
+
+// =============================================================================
+// Image Upload Functions
+// =============================================================================
+
+export async function uploadBookingImage(file: File, bookingId?: string): Promise<{
+  data: { url: string; path: string } | null;
+  error: Error | null;
+}> {
+  try {
+    // Generate unique filename
+    const timestamp = Date.now();
+    const randomId = Math.random().toString(36).substring(2, 8);
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const folder = bookingId || 'temp';
+    const path = `${folder}/${timestamp}-${randomId}.${ext}`;
+
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from('booking-images')
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) throw uploadError;
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('booking-images')
+      .getPublicUrl(path);
+
+    return {
+      data: { url: urlData.publicUrl, path },
+      error: null
+    };
+  } catch (error) {
+    console.error('Error uploading image:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function deleteBookingImage(path: string): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase.storage
+      .from('booking-images')
+      .remove([path]);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error deleting image:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function updateBookingImages(
+  bookingId: string,
+  images: string[]
+): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('bookings')
+      .update({ images })
+      .eq('id', bookingId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating booking images:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function addImagesToBookingByToken(
+  token: string,
+  newImages: string[]
+): Promise<{ error: Error | null }> {
+  try {
+    // Get current booking
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('id, images')
+      .eq('manage_token', token)
+      .single();
+
+    if (fetchError || !booking) {
+      throw new Error('Booking not found');
+    }
+
+    // Append new images
+    const updatedImages = [...(booking.images || []), ...newImages];
+
+    const { error: updateError } = await supabase
+      .from('bookings')
+      .update({ images: updatedImages })
+      .eq('id', booking.id);
+
+    if (updateError) throw updateError;
+    return { error: null };
+  } catch (error) {
+    console.error('Error adding images to booking:', error);
+    return { error: error as Error };
+  }
+}
+
+// =============================================================================
+// Admin Manual Booking Creation
+// =============================================================================
+
+export interface CreateManualBookingData {
+  name: string;
+  email: string;
+  phone: string;
+  date: string;
+  time_slot: string;
+  services: string[];
+  notes?: string;
+  address?: string;
+  community?: string;
+  images?: string[];
+}
+
+export async function createManualBooking(data: CreateManualBookingData): Promise<{ 
+  data: { booking: Booking; client: Client } | null; 
+  error: Error | null 
+}> {
+  try {
+    // 1. Find or create the client
+    const { data: client, error: clientError } = await findOrCreateClient({
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      address: data.address,
+      community: data.community
+    });
+
+    if (clientError || !client) {
+      throw clientError || new Error('Failed to create client');
+    }
+
+    // 2. Create the booking (marked as created by admin)
+    const { data: booking, error: bookingError } = await supabase
+      .from('bookings')
+      .insert([{
+        client_id: client.id,
+        date: data.date,
+        time_slot: data.time_slot,
+        notes: data.notes || null,
+        images: data.images || [],
+        status: 'confirmed', // Admin bookings are auto-confirmed
+        created_by: 'admin'
+      }])
+      .select()
+      .single();
+
+    if (bookingError) throw bookingError;
+
+    // 3. Create booking_services entries
+    if (data.services.length > 0) {
+      const bookingServices = data.services.map(serviceId => ({
+        booking_id: booking.id,
+        service_id: serviceId
+      }));
+
+      await supabase
+        .from('booking_services')
+        .insert(bookingServices);
+    }
+
+    // 4. Log booking history
+    await supabase
+      .from('booking_history')
+      .insert([{
+        booking_id: booking.id,
+        action: 'created',
+        new_data: { date: data.date, time_slot: data.time_slot, services: data.services, created_by: 'admin' },
+        changed_by: 'staff'
+      }]);
+
+    return { 
+      data: { booking: booking as Booking, client }, 
+      error: null 
+    };
+  } catch (error) {
+    console.error('Error creating manual booking:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+// =============================================================================
+// Invoice Management
+// =============================================================================
+
+export async function createInvoice(
+  bookingId: string,
+  amount: number,
+  depositAmount?: number
+): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('bookings')
+      .update({
+        invoice_amount: amount,
+        invoice_status: 'pending',
+        invoice_created_at: new Date().toISOString(),
+        deposit_amount: depositAmount || null
+      })
+      .eq('id', bookingId);
+
+    if (error) throw error;
+
+    await supabase
+      .from('booking_history')
+      .insert([{
+        booking_id: bookingId,
+        action: 'invoice_created',
+        new_data: { amount, deposit_amount: depositAmount },
+        changed_by: 'staff'
+      }]);
+
+    return { error: null };
+  } catch (error) {
+    console.error('Error creating invoice:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function updateInvoiceStatus(
+  bookingId: string,
+  status: 'none' | 'pending' | 'paid' | 'partial'
+): Promise<{ error: Error | null }> {
+  try {
+    const updates: Record<string, unknown> = { invoice_status: status };
+    if (status === 'paid') {
+      updates.invoice_paid_at = new Date().toISOString();
+    }
+
+    const { error } = await supabase
+      .from('bookings')
+      .update(updates)
+      .eq('id', bookingId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating invoice status:', error);
+    return { error: error as Error };
+  }
+}
+
+// =============================================================================
+// Supplies Management
+// =============================================================================
+
+export interface BookingSupply {
+  id: string;
+  booking_id: string;
+  item: string;
+  quantity: number;
+  cost: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getBookingSupplies(bookingId: string): Promise<BookingSupply[]> {
+  try {
+    const { data, error } = await supabase
+      .from('booking_supplies')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching supplies:', error);
+    return [];
+  }
+}
+
+export async function addBookingSupply(
+  bookingId: string,
+  item: string,
+  cost: number,
+  quantity: number = 1,
+  notes?: string
+): Promise<{ data: BookingSupply | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('booking_supplies')
+      .insert([{ booking_id: bookingId, item, cost, quantity, notes }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { data, error: null };
+  } catch (error) {
+    console.error('Error adding supply:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function deleteBookingSupply(supplyId: string): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('booking_supplies')
+      .delete()
+      .eq('id', supplyId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error deleting supply:', error);
+    return { error: error as Error };
+  }
+}
+
+// =============================================================================
+// Payment Functions
+// =============================================================================
+
+export async function createPaymentIntent(
+  bookingId: string,
+  type: 'invoice' | 'deposit' = 'invoice'
+): Promise<{ clientSecret: string; amount: number } | null> {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/create-payment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({ bookingId, type })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to create payment');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error creating payment intent:', error);
+    return null;
+  }
+}
+
+export async function createPaymentIntentByToken(
+  token: string,
+  type: 'invoice' | 'deposit' = 'invoice'
+): Promise<{ clientSecret: string; amount: number } | null> {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/create-payment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({ token, type })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to create payment');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error creating payment intent:', error);
+    return null;
+  }
+}

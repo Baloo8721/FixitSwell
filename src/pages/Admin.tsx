@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -15,6 +16,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   CalendarDays,
   Clock,
@@ -30,7 +38,11 @@ import {
   Loader2,
   RefreshCw,
   Home,
-  Wrench
+  Wrench,
+  Image as ImageIcon,
+  ImagePlus,
+  Plus,
+  X
 } from "lucide-react";
 import { format, parseISO, isToday, isTomorrow, isPast } from "date-fns";
 import {
@@ -38,11 +50,26 @@ import {
   getAllBookings,
   updateBookingStatus,
   updateBookingNotes,
+  updateBookingImages,
+  uploadBookingImage,
   getBookingStats,
+  createManualBooking,
+  getAvailableTimeSlots,
+  createInvoice,
+  updateInvoiceStatus,
+  getBookingSupplies,
+  addBookingSupply,
+  deleteBookingSupply,
+  DEFAULT_TIME_SLOTS,
   type BookingWithDetails,
   type Booking,
+  type BookingSupply,
+  type TimeSlot,
   SERVICE_OPTIONS
 } from "@/lib/supabase";
+import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { addDays, isBefore, startOfToday } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
@@ -60,6 +87,232 @@ const Admin = () => {
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [notesValue, setNotesValue] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [uploadingImageFor, setUploadingImageFor] = useState<string | null>(null);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeUploadBookingId, setActiveUploadBookingId] = useState<string | null>(null);
+  
+  // Manual booking modal state
+  const [showNewBooking, setShowNewBooking] = useState(false);
+  const [newBookingLoading, setNewBookingLoading] = useState(false);
+  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>(DEFAULT_TIME_SLOTS);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [newBooking, setNewBooking] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    community: '',
+    date: undefined as Date | undefined,
+    timeSlot: '',
+    services: [] as string[],
+    notes: ''
+  });
+
+  const handleNewBookingDateChange = async (date: Date | undefined) => {
+    setNewBooking(prev => ({ ...prev, date, timeSlot: '' }));
+    if (date) {
+      setLoadingSlots(true);
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const slots = await getAvailableTimeSlots(dateStr);
+      setAvailableSlots(slots);
+      setLoadingSlots(false);
+    }
+  };
+
+  const handleNewBookingServiceToggle = (serviceId: string) => {
+    setNewBooking(prev => ({
+      ...prev,
+      services: prev.services.includes(serviceId)
+        ? prev.services.filter(s => s !== serviceId)
+        : [...prev.services, serviceId]
+    }));
+  };
+
+  // Invoice and supplies state
+  const [invoiceBookingId, setInvoiceBookingId] = useState<string | null>(null);
+  const [invoiceAmount, setInvoiceAmount] = useState('');
+  const [depositAmount, setDepositAmount] = useState('');
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
+  const [supplies, setSupplies] = useState<Record<string, BookingSupply[]>>({});
+  const [newSupply, setNewSupply] = useState({ item: '', cost: '', quantity: '1', notes: '' });
+  const [addingSupply, setAddingSupply] = useState<string | null>(null);
+
+  const loadSupplies = async (bookingId: string) => {
+    const data = await getBookingSupplies(bookingId);
+    setSupplies(prev => ({ ...prev, [bookingId]: data }));
+  };
+
+  const handleCreateInvoice = async (bookingId: string) => {
+    const amount = parseFloat(invoiceAmount);
+    const deposit = depositAmount ? parseFloat(depositAmount) : undefined;
+    
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid amount",
+        description: "Please enter a valid invoice amount.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setCreatingInvoice(true);
+    const { error } = await createInvoice(bookingId, amount, deposit);
+    setCreatingInvoice(false);
+
+    if (error) {
+      toast({
+        title: "Error creating invoice",
+        description: error.message,
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Invoice created",
+        description: `Invoice for $${amount.toFixed(2)} has been created.`
+      });
+      setInvoiceBookingId(null);
+      setInvoiceAmount('');
+      setDepositAmount('');
+      loadBookings();
+    }
+  };
+
+  const handleMarkPaid = async (bookingId: string) => {
+    const { error } = await updateInvoiceStatus(bookingId, 'paid');
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    } else {
+      toast({ title: "Invoice marked as paid" });
+      loadBookings();
+    }
+  };
+
+  const handleAddSupply = async (bookingId: string) => {
+    const cost = parseFloat(newSupply.cost);
+    const quantity = parseInt(newSupply.quantity) || 1;
+    
+    if (!newSupply.item || isNaN(cost) || cost <= 0) {
+      toast({
+        title: "Invalid supply",
+        description: "Please enter item name and cost.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const { error } = await addBookingSupply(bookingId, newSupply.item, cost, quantity, newSupply.notes || undefined);
+    if (error) {
+      toast({
+        title: "Error adding supply",
+        description: error.message,
+        variant: "destructive"
+      });
+    } else {
+      setNewSupply({ item: '', cost: '', quantity: '1', notes: '' });
+      setAddingSupply(null);
+      loadSupplies(bookingId);
+    }
+  };
+
+  const handleDeleteSupply = async (supplyId: string, bookingId: string) => {
+    await deleteBookingSupply(supplyId);
+    loadSupplies(bookingId);
+  };
+
+  const handleCreateBooking = async () => {
+    if (!newBooking.date || !newBooking.timeSlot || !newBooking.name || !newBooking.phone) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in name, phone, date, and time.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setNewBookingLoading(true);
+    const { data, error } = await createManualBooking({
+      name: newBooking.name,
+      email: newBooking.email || `${newBooking.phone.replace(/\D/g, '')}@placeholder.local`,
+      phone: newBooking.phone,
+      address: newBooking.address,
+      community: newBooking.community,
+      date: format(newBooking.date, 'yyyy-MM-dd'),
+      time_slot: newBooking.timeSlot,
+      services: newBooking.services,
+      notes: newBooking.notes
+    });
+
+    setNewBookingLoading(false);
+
+    if (error) {
+      toast({
+        title: "Error creating booking",
+        description: error.message,
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Booking created",
+        description: `Booking for ${newBooking.name} has been created and confirmed.`
+      });
+      setShowNewBooking(false);
+      setNewBooking({
+        name: '',
+        email: '',
+        phone: '',
+        address: '',
+        community: '',
+        date: undefined,
+        timeSlot: '',
+        services: [],
+        notes: ''
+      });
+      loadBookings();
+    }
+  };
+
+  const handleAdminImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, booking: BookingWithDetails) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingImageFor(booking.id);
+    const currentImages = booking.images || [];
+    const newImageUrls: string[] = [];
+
+    for (const file of Array.from(files)) {
+      const { data } = await uploadBookingImage(file, booking.id);
+      if (data) {
+        newImageUrls.push(data.url);
+      }
+    }
+
+    if (newImageUrls.length > 0) {
+      const { error } = await updateBookingImages(booking.id, [...currentImages, ...newImageUrls]);
+      if (error) {
+        toast({
+          title: "Error uploading images",
+          description: error.message,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Images uploaded",
+          description: `${newImageUrls.length} image(s) added to booking.`
+        });
+        loadBookings();
+      }
+    }
+
+    setUploadingImageFor(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const loadBookings = async () => {
     setIsLoading(true);
@@ -197,10 +450,161 @@ const Admin = () => {
               </Link>
               <h1 className="font-heading text-2xl font-bold text-foreground">Admin Dashboard</h1>
             </div>
-            <Button onClick={loadBookings} variant="outline" size="sm" className="gap-2">
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2">
+              <Dialog open={showNewBooking} onOpenChange={setShowNewBooking}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    New Booking
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Create New Booking</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-6 py-4">
+                    {/* Customer Info */}
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="new-name">Name *</Label>
+                        <Input
+                          id="new-name"
+                          value={newBooking.name}
+                          onChange={(e) => setNewBooking(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="John Smith"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="new-phone">Phone *</Label>
+                        <Input
+                          id="new-phone"
+                          value={newBooking.phone}
+                          onChange={(e) => setNewBooking(prev => ({ ...prev, phone: e.target.value }))}
+                          placeholder="(555) 123-4567"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="new-email">Email</Label>
+                        <Input
+                          id="new-email"
+                          value={newBooking.email}
+                          onChange={(e) => setNewBooking(prev => ({ ...prev, email: e.target.value }))}
+                          placeholder="john@email.com"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="new-address">Address</Label>
+                        <Input
+                          id="new-address"
+                          value={newBooking.address}
+                          onChange={(e) => setNewBooking(prev => ({ ...prev, address: e.target.value }))}
+                          placeholder="123 Main St, Lot 45"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Date & Time */}
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Date *</Label>
+                        <Calendar
+                          mode="single"
+                          selected={newBooking.date}
+                          onSelect={handleNewBookingDateChange}
+                          disabled={(date) => isBefore(date, startOfToday()) || isBefore(addDays(new Date(), 60), date)}
+                          className="rounded-lg border p-2"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Time *</Label>
+                        {newBooking.date ? (
+                          loadingSlots ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2">
+                              {availableSlots.map((slot) => (
+                                <button
+                                  key={slot.id}
+                                  onClick={() => slot.available && setNewBooking(prev => ({ ...prev, timeSlot: slot.time }))}
+                                  disabled={!slot.available}
+                                  className={`p-2 rounded-lg border text-sm font-medium transition-all ${
+                                    newBooking.timeSlot === slot.time
+                                      ? 'border-primary bg-primary text-primary-foreground'
+                                      : slot.available
+                                        ? 'border-border hover:border-primary/50'
+                                        : 'border-border bg-muted text-muted-foreground opacity-50 cursor-not-allowed'
+                                  }`}
+                                >
+                                  {slot.label}
+                                </button>
+                              ))}
+                            </div>
+                          )
+                        ) : (
+                          <p className="text-sm text-muted-foreground py-4">Select a date first</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Services */}
+                    <div className="space-y-2">
+                      <Label>Services</Label>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        {SERVICE_OPTIONS.filter(s => s.category === 'service').map((service) => (
+                          <label
+                            key={service.id}
+                            className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
+                              newBooking.services.includes(service.id)
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border hover:border-primary/30'
+                            }`}
+                          >
+                            <Checkbox
+                              checked={newBooking.services.includes(service.id)}
+                              onCheckedChange={() => handleNewBookingServiceToggle(service.id)}
+                            />
+                            <span className="text-sm">{service.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Notes */}
+                    <div className="space-y-2">
+                      <Label htmlFor="new-notes">Notes</Label>
+                      <Textarea
+                        id="new-notes"
+                        value={newBooking.notes}
+                        onChange={(e) => setNewBooking(prev => ({ ...prev, notes: e.target.value }))}
+                        placeholder="What does the customer need help with?"
+                        rows={3}
+                      />
+                    </div>
+
+                    {/* Submit */}
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                      <Button variant="outline" onClick={() => setShowNewBooking(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleCreateBooking} disabled={newBookingLoading}>
+                        {newBookingLoading ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Plus className="w-4 h-4 mr-2" />
+                        )}
+                        Create Booking
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Button onClick={loadBookings} variant="outline" size="sm" className="gap-2">
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -471,6 +875,220 @@ const Admin = () => {
                                     </Button>
                                   </div>
                                 )}
+                              </div>
+
+                              {/* Images Section */}
+                              <div className="mt-4 pt-4 border-t border-border">
+                                <h4 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
+                                  <ImageIcon className="w-4 h-4 text-primary" />
+                                  Photos ({(booking.images || []).length})
+                                </h4>
+                                
+                                {/* Image Grid */}
+                                {booking.images && booking.images.length > 0 ? (
+                                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 mb-3">
+                                    {booking.images.map((url, idx) => (
+                                      <Dialog key={idx}>
+                                        <DialogTrigger asChild>
+                                          <button className="aspect-square rounded-lg overflow-hidden bg-gray-100 border hover:border-primary transition-colors cursor-pointer">
+                                            <img
+                                              src={url}
+                                              alt={`Photo ${idx + 1}`}
+                                              className="w-full h-full object-cover"
+                                            />
+                                          </button>
+                                        </DialogTrigger>
+                                        <DialogContent className="max-w-3xl">
+                                          <img
+                                            src={url}
+                                            alt={`Photo ${idx + 1}`}
+                                            className="w-full h-auto rounded-lg"
+                                          />
+                                        </DialogContent>
+                                      </Dialog>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground italic mb-3">No photos uploaded</p>
+                                )}
+
+                                {/* Upload Button */}
+                                <input
+                                  ref={activeUploadBookingId === booking.id ? fileInputRef : undefined}
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  onChange={(e) => handleAdminImageUpload(e, booking)}
+                                  className="hidden"
+                                  id={`upload-${booking.id}`}
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setActiveUploadBookingId(booking.id);
+                                    setTimeout(() => {
+                                      document.getElementById(`upload-${booking.id}`)?.click();
+                                    }, 0);
+                                  }}
+                                  disabled={uploadingImageFor === booking.id}
+                                >
+                                  {uploadingImageFor === booking.id ? (
+                                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                  ) : (
+                                    <ImagePlus className="w-4 h-4 mr-1" />
+                                  )}
+                                  {uploadingImageFor === booking.id ? 'Uploading...' : 'Add Photos'}
+                                </Button>
+                              </div>
+
+                              {/* Invoice & Supplies Section */}
+                              <div className="mt-4 pt-4 border-t border-border space-y-4">
+                                <h4 className="font-heading font-semibold text-foreground flex items-center gap-2">
+                                  Invoice & Supplies
+                                </h4>
+                                
+                                {/* Invoice Status */}
+                                {booking.invoice_status === 'none' || !booking.invoice_amount ? (
+                                  // Create Invoice Form
+                                  invoiceBookingId === booking.id ? (
+                                    <div className="p-4 bg-secondary/50 rounded-lg space-y-3">
+                                      <div className="grid sm:grid-cols-2 gap-3">
+                                        <div>
+                                          <Label htmlFor={`invoice-${booking.id}`} className="text-sm">Invoice Amount ($)</Label>
+                                          <Input
+                                            id={`invoice-${booking.id}`}
+                                            type="number"
+                                            step="0.01"
+                                            value={invoiceAmount}
+                                            onChange={(e) => setInvoiceAmount(e.target.value)}
+                                            placeholder="150.00"
+                                          />
+                                        </div>
+                                        <div>
+                                          <Label htmlFor={`deposit-${booking.id}`} className="text-sm">Deposit Amount (optional)</Label>
+                                          <Input
+                                            id={`deposit-${booking.id}`}
+                                            type="number"
+                                            step="0.01"
+                                            value={depositAmount}
+                                            onChange={(e) => setDepositAmount(e.target.value)}
+                                            placeholder="50.00"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleCreateInvoice(booking.id)}
+                                          disabled={creatingInvoice}
+                                        >
+                                          {creatingInvoice ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+                                          Create Invoice
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={() => setInvoiceBookingId(null)}>
+                                          Cancel
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <Button size="sm" variant="outline" onClick={() => setInvoiceBookingId(booking.id)}>
+                                      Create Invoice
+                                    </Button>
+                                  )
+                                ) : (
+                                  // Show Invoice Details
+                                  <div className="p-4 bg-secondary/50 rounded-lg">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="font-medium">Invoice: ${booking.invoice_amount?.toFixed(2)}</span>
+                                      <Badge variant={booking.invoice_status === 'paid' ? 'default' : 'secondary'}>
+                                        {booking.invoice_status === 'paid' ? '✓ Paid' : booking.invoice_status === 'partial' ? 'Partial' : 'Pending'}
+                                      </Badge>
+                                    </div>
+                                    {booking.deposit_amount && (
+                                      <p className="text-sm text-muted-foreground">
+                                        Deposit: ${booking.deposit_amount.toFixed(2)}
+                                        {booking.deposit_paid_at ? ' (Paid)' : ' (Unpaid)'}
+                                      </p>
+                                    )}
+                                    {booking.invoice_status !== 'paid' && (
+                                      <Button size="sm" className="mt-2" onClick={() => handleMarkPaid(booking.id)}>
+                                        <CheckCircle className="w-4 h-4 mr-1" />
+                                        Mark Paid
+                                      </Button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Supplies List */}
+                                <div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-medium">Materials/Supplies:</span>
+                                    {addingSupply !== booking.id && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => {
+                                          setAddingSupply(booking.id);
+                                          loadSupplies(booking.id);
+                                        }}
+                                      >
+                                        <Plus className="w-4 h-4 mr-1" />
+                                        Add
+                                      </Button>
+                                    )}
+                                  </div>
+                                  
+                                  {supplies[booking.id]?.length > 0 && (
+                                    <ul className="space-y-1 mb-2">
+                                      {supplies[booking.id].map(supply => (
+                                        <li key={supply.id} className="flex items-center justify-between text-sm p-2 bg-white rounded border">
+                                          <span>
+                                            {supply.item} (×{supply.quantity}) — ${supply.cost.toFixed(2)}
+                                          </span>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                            onClick={() => handleDeleteSupply(supply.id, booking.id)}
+                                          >
+                                            <X className="w-4 h-4" />
+                                          </Button>
+                                        </li>
+                                      ))}
+                                      <li className="text-sm font-medium pt-1 border-t">
+                                        Total: ${supplies[booking.id].reduce((sum, s) => sum + (s.cost * s.quantity), 0).toFixed(2)}
+                                      </li>
+                                    </ul>
+                                  )}
+                                  
+                                  {addingSupply === booking.id && (
+                                    <div className="p-3 bg-white rounded border space-y-2">
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <Input
+                                          placeholder="Item name"
+                                          value={newSupply.item}
+                                          onChange={(e) => setNewSupply(prev => ({ ...prev, item: e.target.value }))}
+                                        />
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          placeholder="Cost"
+                                          value={newSupply.cost}
+                                          onChange={(e) => setNewSupply(prev => ({ ...prev, cost: e.target.value }))}
+                                        />
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <Button size="sm" onClick={() => handleAddSupply(booking.id)}>
+                                          Add Supply
+                                        </Button>
+                                        <Button size="sm" variant="outline" onClick={() => setAddingSupply(null)}>
+                                          Cancel
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
 
                               {/* Action Buttons */}

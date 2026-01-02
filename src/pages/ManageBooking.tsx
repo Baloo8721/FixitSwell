@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   CalendarDays,
   Clock,
   User,
@@ -35,7 +40,12 @@ import {
   ArrowLeft,
   Edit,
   Save,
-  X
+  X,
+  Image as ImageIcon,
+  ImagePlus,
+  Camera,
+  CreditCard,
+  DollarSign
 } from "lucide-react";
 import { format, parseISO, addDays, isBefore, startOfToday } from "date-fns";
 import {
@@ -43,6 +53,9 @@ import {
   updateBookingByToken,
   cancelBookingByToken,
   getAvailableTimeSlots,
+  addImagesToBookingByToken,
+  uploadBookingImage,
+  createPaymentIntentByToken,
   SERVICE_OPTIONS,
   DEFAULT_TIME_SLOTS,
   type Booking,
@@ -70,6 +83,44 @@ const ManageBooking = () => {
   const [editNotes, setEditNotes] = useState('');
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>(DEFAULT_TIME_SLOTS);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!token || !e.target.files || e.target.files.length === 0) return;
+
+    setUploadingImages(true);
+    const newImageUrls: string[] = [];
+
+    for (const file of Array.from(e.target.files)) {
+      const { data } = await uploadBookingImage(file, booking?.id);
+      if (data) {
+        newImageUrls.push(data.url);
+      }
+    }
+
+    if (newImageUrls.length > 0) {
+      const { error } = await addImagesToBookingByToken(token, newImageUrls);
+      if (error) {
+        toast({
+          title: "Error uploading photos",
+          description: error.message,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Photos uploaded",
+          description: `${newImageUrls.length} photo(s) added.`
+        });
+        loadBooking();
+      }
+    }
+
+    setUploadingImages(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const loadBooking = async () => {
     if (!token) {
@@ -382,6 +433,112 @@ const ManageBooking = () => {
                   <div className="space-y-2">
                     <h3 className="font-heading font-semibold text-foreground">Notes</h3>
                     <p className="text-sm p-3 bg-secondary/50 rounded-lg">{booking.notes}</p>
+                  </div>
+                )}
+
+                {/* Photos Section */}
+                <div className="space-y-3 pt-4 border-t border-border">
+                  <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
+                    <ImageIcon className="w-5 h-5 text-primary" />
+                    Photos ({(booking.images || []).length})
+                  </h3>
+                  
+                  {/* Image Grid */}
+                  {booking.images && booking.images.length > 0 ? (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {booking.images.map((url, idx) => (
+                        <Dialog key={idx}>
+                          <DialogTrigger asChild>
+                            <button className="aspect-square rounded-lg overflow-hidden bg-gray-100 border hover:border-primary transition-colors cursor-pointer">
+                              <img
+                                src={url}
+                                alt={`Photo ${idx + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-3xl">
+                            <img
+                              src={url}
+                              alt={`Photo ${idx + 1}`}
+                              className="w-full h-auto rounded-lg"
+                            />
+                          </DialogContent>
+                        </Dialog>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">No photos uploaded yet</p>
+                  )}
+
+                  {/* Upload Button - only show if booking can be modified */}
+                  {canModify && (
+                    <div className="flex gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingImages}
+                      >
+                        {uploadingImages ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <ImagePlus className="w-4 h-4 mr-2" />
+                        )}
+                        {uploadingImages ? 'Uploading...' : 'Add More Photos'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Payment Section */}
+                {booking.invoice_amount && booking.invoice_status !== 'paid' && (
+                  <div className="space-y-3 pt-4 border-t border-border">
+                    <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
+                      <DollarSign className="w-5 h-5 text-primary" />
+                      Payment Due
+                    </h3>
+                    <div className="p-4 bg-secondary/50 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-lg font-semibold">
+                          ${booking.invoice_amount.toFixed(2)}
+                        </span>
+                        <Badge variant="secondary">
+                          {booking.invoice_status === 'partial' ? 'Partial Payment' : 'Pending'}
+                        </Badge>
+                      </div>
+                      {booking.deposit_amount && !booking.deposit_paid_at && (
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Or pay ${booking.deposit_amount.toFixed(2)} deposit now
+                        </p>
+                      )}
+                      <p className="text-sm text-muted-foreground">
+                        To pay online, please contact us for a secure payment link, 
+                        or pay in person at your appointment.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {booking.invoice_status === 'paid' && (
+                  <div className="space-y-3 pt-4 border-t border-border">
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
+                      <CheckCircle className="w-6 h-6 text-green-600" />
+                      <div>
+                        <p className="font-semibold text-green-800">Payment Complete</p>
+                        <p className="text-sm text-green-600">
+                          ${booking.invoice_amount?.toFixed(2)} paid on{' '}
+                          {booking.invoice_paid_at && format(parseISO(booking.invoice_paid_at), 'MMM d, yyyy')}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
 
