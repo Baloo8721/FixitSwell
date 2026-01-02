@@ -45,7 +45,9 @@ import {
   ImagePlus,
   Camera,
   CreditCard,
-  DollarSign
+  DollarSign,
+  Banknote,
+  FileText
 } from "lucide-react";
 import { format, parseISO, addDays, isBefore, startOfToday } from "date-fns";
 import {
@@ -56,6 +58,7 @@ import {
   addImagesToBookingByToken,
   uploadBookingImage,
   createPaymentIntentByToken,
+  selectPaymentMethodByToken,
   SERVICE_OPTIONS,
   DEFAULT_TIME_SLOTS,
   type Booking,
@@ -85,6 +88,8 @@ const ManageBooking = () => {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectingPayment, setSelectingPayment] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'check' | 'cash' | null>(null);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!token || !e.target.files || e.target.files.length === 0) return;
@@ -500,33 +505,125 @@ const ManageBooking = () => {
 
                 {/* Payment Section */}
                 {booking.invoice_amount && booking.invoice_status !== 'paid' && (
-                  <div className="space-y-3 pt-4 border-t border-border">
+                  <div className="space-y-4 pt-4 border-t border-border">
                     <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
                       <DollarSign className="w-5 h-5 text-primary" />
                       Payment Due
                     </h3>
-                    <div className="p-4 bg-secondary/50 rounded-lg">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-lg font-semibold">
+                    
+                    <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-2xl font-bold text-orange-700">
                           ${booking.invoice_amount.toFixed(2)}
                         </span>
-                        <Badge variant="secondary">
-                          {booking.invoice_status === 'partial' ? 'Partial Payment' : 'Pending'}
+                        <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-300">
+                          {booking.invoice_status === 'partial' ? 'Partial Payment' : 'Payment Due'}
                         </Badge>
                       </div>
-                      {booking.deposit_amount && !booking.deposit_paid_at && (
-                        <p className="text-sm text-muted-foreground mb-3">
-                          Or pay ${booking.deposit_amount.toFixed(2)} deposit now
-                        </p>
+
+                      {/* Payment Method Already Selected */}
+                      {booking.payment_method && booking.payment_pending_collection && (
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
+                          <p className="font-medium text-blue-800">
+                            {booking.payment_method === 'check' ? '📝 Paying by Check' : '💵 Paying by Cash'}
+                          </p>
+                          <p className="text-sm text-blue-600 mt-1">
+                            We'll collect payment when we arrive for your appointment.
+                          </p>
+                        </div>
                       )}
-                      <p className="text-sm text-muted-foreground">
-                        To pay online, please contact us for a secure payment link, 
-                        or pay in person at your appointment.
-                      </p>
+
+                      {/* Payment Options */}
+                      {!booking.payment_method && (
+                        <>
+                          <p className="text-sm text-foreground font-medium mb-3">Choose how you'd like to pay:</p>
+                          <div className="grid gap-3">
+                            {/* Pay with Card - Stripe */}
+                            <button
+                              onClick={async () => {
+                                setSelectingPayment(true);
+                                // Create Stripe payment session
+                                const result = await createPaymentIntentByToken(token!, 'invoice');
+                                if (result?.clientSecret) {
+                                  // Redirect to Stripe checkout (or open modal)
+                                  // For now, we'll just show a message
+                                  toast({
+                                    title: "Card Payment",
+                                    description: "Stripe payment is being set up. Contact us to complete card payment.",
+                                  });
+                                }
+                                setSelectingPayment(false);
+                              }}
+                              disabled={selectingPayment}
+                              className="flex items-center gap-3 p-4 bg-white border-2 border-primary rounded-lg hover:bg-primary/5 transition-colors text-left"
+                            >
+                              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                                <CreditCard className="w-6 h-6 text-primary" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-semibold text-foreground">Pay with Card</p>
+                                <p className="text-sm text-muted-foreground">Credit/Debit card, Apple Pay, Google Pay</p>
+                              </div>
+                              {selectingPayment && <Loader2 className="w-5 h-5 animate-spin" />}
+                            </button>
+
+                            {/* Pay by Check */}
+                            <button
+                              onClick={async () => {
+                                setSelectingPayment(true);
+                                const { error } = await selectPaymentMethodByToken(token!, 'check');
+                                if (error) {
+                                  toast({ title: "Error", description: error.message, variant: "destructive" });
+                                } else {
+                                  toast({ title: "Check Payment Selected", description: "We'll collect your check at the appointment." });
+                                  loadBooking();
+                                }
+                                setSelectingPayment(false);
+                              }}
+                              disabled={selectingPayment}
+                              className="flex items-center gap-3 p-4 bg-white border-2 border-gray-200 rounded-lg hover:border-primary/50 hover:bg-primary/5 transition-colors text-left"
+                            >
+                              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                <FileText className="w-6 h-6 text-blue-600" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-semibold text-foreground">Pay by Check</p>
+                                <p className="text-sm text-muted-foreground">We'll collect at your appointment</p>
+                              </div>
+                            </button>
+
+                            {/* Pay with Cash */}
+                            <button
+                              onClick={async () => {
+                                setSelectingPayment(true);
+                                const { error } = await selectPaymentMethodByToken(token!, 'cash');
+                                if (error) {
+                                  toast({ title: "Error", description: error.message, variant: "destructive" });
+                                } else {
+                                  toast({ title: "Cash Payment Selected", description: "We'll collect cash at the appointment." });
+                                  loadBooking();
+                                }
+                                setSelectingPayment(false);
+                              }}
+                              disabled={selectingPayment}
+                              className="flex items-center gap-3 p-4 bg-white border-2 border-gray-200 rounded-lg hover:border-primary/50 hover:bg-primary/5 transition-colors text-left"
+                            >
+                              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                <Banknote className="w-6 h-6 text-green-600" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-semibold text-foreground">Pay with Cash</p>
+                                <p className="text-sm text-muted-foreground">We'll collect at your appointment</p>
+                              </div>
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
 
+                {/* Payment Complete */}
                 {booking.invoice_status === 'paid' && (
                   <div className="space-y-3 pt-4 border-t border-border">
                     <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
@@ -534,8 +631,9 @@ const ManageBooking = () => {
                       <div>
                         <p className="font-semibold text-green-800">Payment Complete</p>
                         <p className="text-sm text-green-600">
-                          ${booking.invoice_amount?.toFixed(2)} paid on{' '}
-                          {booking.invoice_paid_at && format(parseISO(booking.invoice_paid_at), 'MMM d, yyyy')}
+                          ${booking.invoice_amount?.toFixed(2)} paid
+                          {booking.payment_method && ` via ${booking.payment_method}`}
+                          {booking.invoice_paid_at && ` on ${format(parseISO(booking.invoice_paid_at), 'MMM d, yyyy')}`}
                         </p>
                       </div>
                     </div>

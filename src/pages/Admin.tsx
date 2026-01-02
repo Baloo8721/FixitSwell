@@ -63,6 +63,7 @@ import {
   getBookingSupplies,
   addBookingSupply,
   deleteBookingSupply,
+  markPaymentCollected,
   DEFAULT_TIME_SLOTS,
   type BookingWithDetails,
   type Booking,
@@ -191,6 +192,20 @@ const Admin = () => {
       });
     } else {
       toast({ title: "Invoice marked as paid" });
+      loadBookings();
+    }
+  };
+
+  const handleCollectPayment = async (bookingId: string, method: 'check' | 'cash') => {
+    const { error } = await markPaymentCollected(bookingId, method);
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    } else {
+      toast({ title: `${method === 'check' ? 'Check' : 'Cash'} payment collected!` });
       loadBookings();
     }
   };
@@ -390,7 +405,7 @@ const Admin = () => {
     setNotesValue('');
   };
 
-  const getStatusBadge = (status: Booking['status']) => {
+  const getStatusBadge = (status: Booking['status'], cancelledBy?: 'customer' | 'staff' | null) => {
     const variants: Record<Booking['status'], { className: string; icon: React.ReactNode }> = {
       pending: { className: 'bg-yellow-100 text-yellow-800 border-yellow-300', icon: <AlertCircle className="w-3 h-3" /> },
       confirmed: { className: 'bg-blue-100 text-blue-800 border-blue-300', icon: <CheckCircle className="w-3 h-3" /> },
@@ -399,10 +414,16 @@ const Admin = () => {
       no_show: { className: 'bg-gray-100 text-gray-800 border-gray-300', icon: <XCircle className="w-3 h-3" /> },
     };
     
+    // Custom label for cancelled status
+    let label = status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ');
+    if (status === 'cancelled' && cancelledBy) {
+      label = cancelledBy === 'customer' ? 'Cancelled by Client' : 'Cancelled by Staff';
+    }
+    
     return (
       <Badge variant="outline" className={`flex items-center gap-1 ${variants[status].className}`}>
         {variants[status].icon}
-        {status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+        {label}
       </Badge>
     );
   };
@@ -804,12 +825,16 @@ const Admin = () => {
                                     </div>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap justify-end">
                                   {/* Payment Status Indicator */}
                                   {booking.invoice_amount ? (
                                     booking.invoice_status === 'paid' ? (
                                       <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-xs">
-                                        💵 Paid
+                                        💵 Paid {booking.payment_method && `(${booking.payment_method})`}
+                                      </Badge>
+                                    ) : booking.payment_pending_collection ? (
+                                      <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 text-xs animate-pulse">
+                                        {booking.payment_method === 'check' ? '📝' : '💵'} Collect ${booking.invoice_amount}
                                       </Badge>
                                     ) : (
                                       <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 text-xs animate-pulse">
@@ -821,7 +846,7 @@ const Admin = () => {
                                       ⚠️ No Invoice
                                     </Badge>
                                   ) : null}
-                                  {getStatusBadge(booking.status)}
+                                  {getStatusBadge(booking.status, booking.cancelled_by)}
                                   {expandedBooking === booking.id ? (
                                     <ChevronUp className="w-5 h-5 text-muted-foreground" />
                                   ) : (
@@ -1214,11 +1239,40 @@ const Admin = () => {
                                         {booking.deposit_paid_at ? ' (Paid)' : ' (Unpaid)'}
                                       </p>
                                     )}
+                                    {/* Payment Method Info */}
+                                    {booking.payment_method && booking.invoice_status !== 'paid' && (
+                                      <p className="text-sm text-blue-600 font-medium mt-1">
+                                        Customer selected: {booking.payment_method === 'check' ? '📝 Check' : booking.payment_method === 'cash' ? '💵 Cash' : '💳 Card'}
+                                      </p>
+                                    )}
+                                    {/* Payment Actions */}
                                     {booking.invoice_status !== 'paid' && (
-                                      <Button size="sm" className="mt-2" onClick={() => handleMarkPaid(booking.id)}>
-                                        <CheckCircle className="w-4 h-4 mr-1" />
-                                        Mark Paid
-                                      </Button>
+                                      <div className="flex flex-wrap gap-2 mt-2">
+                                        {booking.payment_pending_collection ? (
+                                          // Show "Collected" button for pending cash/check
+                                          <Button 
+                                            size="sm" 
+                                            onClick={() => handleCollectPayment(booking.id, booking.payment_method as 'check' | 'cash')}
+                                            className="bg-green-600 hover:bg-green-700"
+                                          >
+                                            <CheckCircle className="w-4 h-4 mr-1" />
+                                            {booking.payment_method === 'check' ? 'Check Collected' : 'Cash Collected'}
+                                          </Button>
+                                        ) : (
+                                          // Show all payment options
+                                          <>
+                                            <Button size="sm" variant="outline" onClick={() => handleCollectPayment(booking.id, 'cash')}>
+                                              💵 Collected Cash
+                                            </Button>
+                                            <Button size="sm" variant="outline" onClick={() => handleCollectPayment(booking.id, 'check')}>
+                                              📝 Collected Check
+                                            </Button>
+                                            <Button size="sm" onClick={() => handleMarkPaid(booking.id)}>
+                                              💳 Paid by Card
+                                            </Button>
+                                          </>
+                                        )}
+                                      </div>
                                     )}
                                   </div>
                                 )}
