@@ -1289,6 +1289,36 @@ export async function createPaymentIntentByToken(
   }
 }
 
+// Create Stripe Checkout session and get redirect URL
+export async function createCheckoutSession(
+  token: string
+): Promise<{ url: string } | null> {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({ 
+        token,
+        successUrl: `${window.location.origin}/manage/${token}?payment=success`,
+        cancelUrl: `${window.location.origin}/manage/${token}?payment=cancelled`
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to create checkout session');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error creating checkout session:', error);
+    return null;
+  }
+}
+
 // =============================================================================
 // AI Summary Functions (for n8n workflow integration)
 // =============================================================================

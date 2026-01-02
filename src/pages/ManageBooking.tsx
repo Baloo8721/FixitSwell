@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,7 +57,7 @@ import {
   getAvailableTimeSlots,
   addImagesToBookingByToken,
   uploadBookingImage,
-  createPaymentIntentByToken,
+  createCheckoutSession,
   selectPaymentMethodByToken,
   SERVICE_OPTIONS,
   DEFAULT_TIME_SLOTS,
@@ -72,11 +72,32 @@ type BookingWithDetails = Booking & { client: Client; services: Service[] };
 
 const ManageBooking = () => {
   const { token } = useParams<{ token: string }>();
+  const [searchParams] = useSearchParams();
   const [booking, setBooking] = useState<BookingWithDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [paymentResult, setPaymentResult] = useState<'success' | 'cancelled' | null>(null);
+
+  // Check for payment result from Stripe redirect
+  useEffect(() => {
+    const payment = searchParams.get('payment');
+    if (payment === 'success') {
+      setPaymentResult('success');
+      toast({
+        title: "Payment Successful! 🎉",
+        description: "Thank you! Your payment has been processed.",
+      });
+    } else if (payment === 'cancelled') {
+      setPaymentResult('cancelled');
+      toast({
+        title: "Payment Cancelled",
+        description: "Your payment was cancelled. You can try again anytime.",
+        variant: "destructive"
+      });
+    }
+  }, [searchParams]);
   const [isCancelling, setIsCancelling] = useState(false);
 
   // Edit form state
@@ -550,12 +571,17 @@ const ManageBooking = () => {
                                   <AlertDialogCancel>Keep {booking.payment_method === 'check' ? 'Check' : 'Cash'}</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={async () => {
-                                      const result = await createPaymentIntentByToken(token!, 'invoice');
-                                      if (result?.clientSecret) {
+                                      setSelectingPayment(true);
+                                      const result = await createCheckoutSession(token!);
+                                      if (result?.url) {
+                                        window.location.href = result.url;
+                                      } else {
                                         toast({
-                                          title: "Card Payment",
-                                          description: "Stripe payment is being set up. Contact us to complete card payment.",
+                                          title: "Error",
+                                          description: "Could not create payment session.",
+                                          variant: "destructive"
                                         });
+                                        setSelectingPayment(false);
                                       }
                                     }}
                                     className="bg-primary"
@@ -589,13 +615,14 @@ const ManageBooking = () => {
                                     <p className="font-semibold text-foreground">Pay with Card</p>
                                     <p className="text-sm text-muted-foreground">Credit/Debit card, Apple Pay, Google Pay</p>
                                   </div>
+                                  {selectingPayment && <Loader2 className="w-5 h-5 animate-spin" />}
                                 </button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Pay ${booking.invoice_amount?.toFixed(2)} with Card?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    You'll be redirected to our secure payment page to complete your payment.
+                                    You'll be redirected to Stripe's secure payment page to complete your payment.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -603,14 +630,18 @@ const ManageBooking = () => {
                                   <AlertDialogAction
                                     onClick={async () => {
                                       setSelectingPayment(true);
-                                      const result = await createPaymentIntentByToken(token!, 'invoice');
-                                      if (result?.clientSecret) {
+                                      const result = await createCheckoutSession(token!);
+                                      if (result?.url) {
+                                        // Redirect to Stripe Checkout
+                                        window.location.href = result.url;
+                                      } else {
                                         toast({
-                                          title: "Card Payment",
-                                          description: "Stripe payment is being set up. Contact us to complete card payment.",
+                                          title: "Error",
+                                          description: "Could not create payment session. Please try again.",
+                                          variant: "destructive"
                                         });
+                                        setSelectingPayment(false);
                                       }
-                                      setSelectingPayment(false);
                                     }}
                                     className="bg-primary"
                                   >
