@@ -42,7 +42,10 @@ import {
   Image as ImageIcon,
   ImagePlus,
   Plus,
-  X
+  X,
+  ExternalLink,
+  Copy,
+  Link as LinkIcon
 } from "lucide-react";
 import { format, parseISO, isToday, isTomorrow, isPast } from "date-fns";
 import {
@@ -74,7 +77,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 
-type StatusFilter = 'all' | Booking['status'];
+type StatusFilter = 'all' | 'unpaid' | Booking['status'];
 
 const Admin = () => {
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
@@ -83,7 +86,7 @@ const Admin = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [stats, setStats] = useState({ total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0 });
+  const [stats, setStats] = useState({ total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0, completedUnpaid: 0, totalUnpaid: 0 });
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [notesValue, setNotesValue] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -317,7 +320,8 @@ const Admin = () => {
   const loadBookings = async () => {
     setIsLoading(true);
     const filters: { status?: Booking['status'] } = {};
-    if (statusFilter !== 'all') {
+    // Handle unpaid filter separately (filter client-side)
+    if (statusFilter !== 'all' && statusFilter !== 'unpaid') {
       filters.status = statusFilter;
     }
     
@@ -420,6 +424,14 @@ const Admin = () => {
   };
 
   const filteredBookings = bookings.filter(booking => {
+    // Filter by unpaid status
+    if (statusFilter === 'unpaid') {
+      if (!booking.invoice_amount || booking.invoice_status === 'paid') {
+        return false;
+      }
+    }
+    
+    // Filter by search query
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -610,33 +622,53 @@ const Admin = () => {
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-6">
-        {/* Stats Cards */}
+        {/* Stats Cards - Clickable to filter */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <Card className="bg-card">
+          <Card 
+            className={`cursor-pointer transition-all hover:scale-105 ${statusFilter === 'all' ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+            onClick={() => setStatusFilter('all')}
+          >
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-foreground">{stats.total}</p>
               <p className="text-sm text-muted-foreground">Total</p>
             </CardContent>
           </Card>
-          <Card className="bg-yellow-50 border-yellow-200">
+          <Card 
+            className={`bg-yellow-50 border-yellow-200 cursor-pointer transition-all hover:scale-105 ${statusFilter === 'pending' ? 'ring-2 ring-yellow-500 ring-offset-2' : ''}`}
+            onClick={() => setStatusFilter('pending')}
+          >
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-yellow-700">{stats.pending}</p>
               <p className="text-sm text-yellow-600">Pending</p>
             </CardContent>
           </Card>
-          <Card className="bg-blue-50 border-blue-200">
+          <Card 
+            className={`bg-blue-50 border-blue-200 cursor-pointer transition-all hover:scale-105 ${statusFilter === 'confirmed' ? 'ring-2 ring-blue-500 ring-offset-2' : ''}`}
+            onClick={() => setStatusFilter('confirmed')}
+          >
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-blue-700">{stats.confirmed}</p>
               <p className="text-sm text-blue-600">Confirmed</p>
             </CardContent>
           </Card>
-          <Card className="bg-green-50 border-green-200">
+          <Card 
+            className={`bg-green-50 border-green-200 cursor-pointer transition-all hover:scale-105 ${statusFilter === 'completed' ? 'ring-2 ring-green-500 ring-offset-2' : ''}`}
+            onClick={() => setStatusFilter('completed')}
+          >
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-green-700">{stats.completed}</p>
               <p className="text-sm text-green-600">Completed</p>
+              {stats.completedUnpaid > 0 && (
+                <p className="text-xs text-orange-600 font-medium mt-1">
+                  💰 {stats.completedUnpaid} unpaid
+                </p>
+              )}
             </CardContent>
           </Card>
-          <Card className="bg-red-50 border-red-200">
+          <Card 
+            className={`bg-red-50 border-red-200 cursor-pointer transition-all hover:scale-105 ${statusFilter === 'cancelled' ? 'ring-2 ring-red-500 ring-offset-2' : ''}`}
+            onClick={() => setStatusFilter('cancelled')}
+          >
             <CardContent className="p-4 text-center">
               <p className="text-3xl font-bold text-red-700">{stats.cancelled}</p>
               <p className="text-sm text-red-600">Cancelled</p>
@@ -662,6 +694,7 @@ const Admin = () => {
               <SelectItem value="confirmed">Confirmed</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
+              <SelectItem value="unpaid">💰 Unpaid Invoices</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -695,7 +728,16 @@ const Admin = () => {
                   
                   <div className="space-y-3">
                     {dateBookings.map((booking) => (
-                      <Card key={booking.id} className="overflow-hidden">
+                      <Card 
+                        key={booking.id} 
+                        className={`overflow-hidden border-l-4 ${
+                          booking.status === 'pending' ? 'border-l-yellow-500 bg-yellow-50/30' :
+                          booking.status === 'confirmed' ? 'border-l-blue-500 bg-blue-50/30' :
+                          booking.status === 'completed' ? 'border-l-green-500 bg-green-50/30' :
+                          booking.status === 'cancelled' ? 'border-l-red-500 bg-red-50/30' :
+                          booking.status === 'no_show' ? 'border-l-gray-500 bg-gray-50/30' : ''
+                        }`}
+                      >
                         <Collapsible
                           open={expandedBooking === booking.id}
                           onOpenChange={() => setExpandedBooking(
@@ -721,7 +763,19 @@ const Admin = () => {
                                     </div>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                  {/* Payment Status Indicator */}
+                                  {booking.invoice_amount ? (
+                                    booking.invoice_status === 'paid' ? (
+                                      <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-xs">
+                                        💵 Paid
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 text-xs animate-pulse">
+                                        💰 ${booking.invoice_amount} due
+                                      </Badge>
+                                    )
+                                  ) : null}
                                   {getStatusBadge(booking.status)}
                                   {expandedBooking === booking.id ? (
                                     <ChevronUp className="w-5 h-5 text-muted-foreground" />
@@ -818,6 +872,110 @@ const Admin = () => {
                                   )}
                                 </div>
                               </div>
+
+                              {/* Customer Manage Link */}
+                              <div className="mt-4 pt-4 border-t border-border">
+                                <h4 className="font-heading font-semibold text-foreground mb-2 flex items-center gap-2">
+                                  <LinkIcon className="w-4 h-4 text-primary" />
+                                  Customer Self-Service Link
+                                </h4>
+                                <div className="flex items-center gap-2 p-2 bg-secondary/50 rounded-lg">
+                                  <code className="text-xs text-muted-foreground flex-1 truncate">
+                                    {window.location.origin}/manage/{booking.manage_token}
+                                  </code>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 px-2"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(`${window.location.origin}/manage/${booking.manage_token}`);
+                                      toast({ title: "Link copied to clipboard" });
+                                    }}
+                                  >
+                                    <Copy className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 px-2"
+                                    asChild
+                                  >
+                                    <a href={`/manage/${booking.manage_token}`} target="_blank" rel="noopener noreferrer">
+                                      <ExternalLink className="w-4 h-4" />
+                                    </a>
+                                  </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Share this link with the customer to let them view/edit their booking
+                                </p>
+                              </div>
+
+                              {/* AI Summary Section (populated by n8n workflow) */}
+                              {booking.ai_summary ? (
+                                <div className="mt-4 pt-4 border-t border-border">
+                                  <h4 className="font-heading font-semibold text-foreground mb-2 flex items-center gap-2">
+                                    <span className="text-lg">🤖</span>
+                                    AI Estimate
+                                    {booking.ai_summary.complexity && (
+                                      <Badge variant={
+                                        booking.ai_summary.complexity === 'simple' ? 'secondary' :
+                                        booking.ai_summary.complexity === 'medium' ? 'default' : 'destructive'
+                                      } className="ml-2 text-xs">
+                                        {booking.ai_summary.complexity}
+                                      </Badge>
+                                    )}
+                                  </h4>
+                                  <div className="p-4 bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200 rounded-lg space-y-3">
+                                    {booking.ai_summary.summary && (
+                                      <p className="text-sm text-foreground">{booking.ai_summary.summary}</p>
+                                    )}
+                                    <div className="grid grid-cols-3 gap-2 text-center">
+                                      {booking.ai_summary.estimated_hours !== undefined && (
+                                        <div className="p-2 bg-white/80 rounded">
+                                          <p className="text-lg font-bold text-primary">{booking.ai_summary.estimated_hours}h</p>
+                                          <p className="text-xs text-muted-foreground">Est. Time</p>
+                                        </div>
+                                      )}
+                                      {booking.ai_summary.estimated_labor !== undefined && (
+                                        <div className="p-2 bg-white/80 rounded">
+                                          <p className="text-lg font-bold text-primary">${booking.ai_summary.estimated_labor}</p>
+                                          <p className="text-xs text-muted-foreground">Labor</p>
+                                        </div>
+                                      )}
+                                      {booking.ai_summary.estimated_total !== undefined && (
+                                        <div className="p-2 bg-white/80 rounded">
+                                          <p className="text-lg font-bold text-green-600">${booking.ai_summary.estimated_total}</p>
+                                          <p className="text-xs text-muted-foreground">Total Est.</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {booking.ai_summary.skills_needed && booking.ai_summary.skills_needed.length > 0 && (
+                                      <div className="flex flex-wrap gap-1">
+                                        {booking.ai_summary.skills_needed.map((skill, i) => (
+                                          <Badge key={i} variant="outline" className="text-xs">{skill}</Badge>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {booking.ai_summary.notes && (
+                                      <p className="text-xs text-muted-foreground italic">{booking.ai_summary.notes}</p>
+                                    )}
+                                    {booking.ai_summary.generated_at && (
+                                      <p className="text-xs text-muted-foreground">
+                                        Generated {format(parseISO(booking.ai_summary.generated_at), 'MMM d, h:mm a')}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="mt-4 pt-4 border-t border-border">
+                                  <div className="p-4 bg-secondary/30 border border-dashed border-border rounded-lg text-center">
+                                    <span className="text-2xl mb-2 block">🤖</span>
+                                    <p className="text-sm text-muted-foreground">
+                                      AI estimate will appear here after n8n workflow processes this booking
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
 
                               {/* Internal Notes Section */}
                               <div className="mt-4 pt-4 border-t border-border">
