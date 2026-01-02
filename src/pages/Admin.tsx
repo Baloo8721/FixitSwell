@@ -46,7 +46,10 @@ import {
   ExternalLink,
   Copy,
   Link as LinkIcon,
-  Trash2
+  Trash2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 import { format, parseISO, isToday, isTomorrow, isPast } from "date-fns";
 import {
@@ -224,6 +227,74 @@ const Admin = () => {
   };
 
   const [deletingBooking, setDeletingBooking] = useState<string | null>(null);
+
+  // Bulk selection state
+  const [selectedBookings, setSelectedBookings] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // Sort state
+  const [sortBy, setSortBy] = useState<'scheduled' | 'created'>('scheduled');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Toggle booking selection
+  const toggleBookingSelection = (bookingId: string) => {
+    setSelectedBookings(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(bookingId)) {
+        newSet.delete(bookingId);
+      } else {
+        newSet.add(bookingId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select all visible bookings
+  const selectAllVisible = () => {
+    const allVisibleIds = filteredBookings.map(b => b.id);
+    setSelectedBookings(new Set(allVisibleIds));
+  };
+
+  // Clear selection
+  const clearSelection = () => {
+    setSelectedBookings(new Set());
+  };
+
+  // Bulk delete handler
+  const handleBulkDelete = async () => {
+    if (selectedBookings.size === 0) return;
+    
+    setBulkDeleting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const bookingId of selectedBookings) {
+      const { error } = await deleteBooking(bookingId);
+      if (error) {
+        errorCount++;
+      } else {
+        successCount++;
+      }
+    }
+
+    setBulkDeleting(false);
+    setSelectedBookings(new Set());
+
+    if (errorCount === 0) {
+      toast({ 
+        title: "Bookings deleted", 
+        description: `Successfully deleted ${successCount} booking(s).` 
+      });
+    } else {
+      toast({ 
+        title: "Partial deletion", 
+        description: `Deleted ${successCount}, failed ${errorCount}.`,
+        variant: "destructive"
+      });
+    }
+    
+    loadBookings();
+  };
 
   const handleDeleteBooking = async (bookingId: string) => {
     setDeletingBooking(bookingId);
@@ -515,13 +586,34 @@ const Admin = () => {
     );
   });
 
-  // Group bookings by date
-  const groupedBookings = filteredBookings.reduce((acc, booking) => {
-    const dateKey = booking.date;
-    if (!acc[dateKey]) acc[dateKey] = [];
-    acc[dateKey].push(booking);
-    return acc;
-  }, {} as Record<string, BookingWithDetails[]>);
+  // Sort and group bookings based on sortBy
+  const sortedFilteredBookings = [...filteredBookings].sort((a, b) => {
+    if (sortBy === 'created') {
+      // Sort by created_at
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+    } else {
+      // Sort by scheduled date and time
+      const dateCompare = a.date.localeCompare(b.date);
+      if (dateCompare !== 0) {
+        return sortOrder === 'asc' ? dateCompare : -dateCompare;
+      }
+      // If same date, sort by time
+      const timeCompare = a.time_slot.localeCompare(b.time_slot);
+      return sortOrder === 'asc' ? timeCompare : -timeCompare;
+    }
+  });
+
+  // Group bookings by date (for scheduled) or show flat list (for created)
+  const groupedBookings = sortBy === 'scheduled' 
+    ? sortedFilteredBookings.reduce((acc, booking) => {
+        const dateKey = booking.date;
+        if (!acc[dateKey]) acc[dateKey] = [];
+        acc[dateKey].push(booking);
+        return acc;
+      }, {} as Record<string, BookingWithDetails[]>)
+    : { 'all': sortedFilteredBookings };
 
   return (
     <div className="min-h-screen bg-background">
@@ -769,7 +861,7 @@ const Admin = () => {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex flex-col md:flex-row gap-4 flex-wrap">
           <Input
             placeholder="Search by name, email, phone, or address..."
             value={searchQuery}
@@ -791,7 +883,112 @@ const Admin = () => {
               <SelectItem value="needs_invoice">⚠️ No Invoice Created</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Sort Toggle */}
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              <button
+                onClick={() => { setSortBy('scheduled'); setSortOrder('asc'); }}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                  sortBy === 'scheduled' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'bg-background hover:bg-secondary'
+                }`}
+              >
+                Scheduled
+              </button>
+              <button
+                onClick={() => { setSortBy('created'); setSortOrder('desc'); }}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                  sortBy === 'created' 
+                    ? 'bg-primary text-primary-foreground' 
+                    : 'bg-background hover:bg-secondary'
+                }`}
+              >
+                Created
+              </button>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+              className="px-2"
+              title={sortOrder === 'asc' ? 'Oldest first' : 'Newest first'}
+            >
+              {sortOrder === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+            </Button>
+          </div>
         </div>
+
+        {/* Bulk Selection Bar */}
+        {filteredBookings.length > 0 && (
+          <div className="flex items-center justify-between py-2 px-4 bg-secondary/30 rounded-lg border border-border">
+            <div className="flex items-center gap-3">
+              <Checkbox
+                checked={selectedBookings.size > 0 && selectedBookings.size === filteredBookings.length}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    selectAllVisible();
+                  } else {
+                    clearSelection();
+                  }
+                }}
+              />
+              <span className="text-sm text-muted-foreground">
+                {selectedBookings.size === 0 
+                  ? `Select all (${filteredBookings.length})` 
+                  : `${selectedBookings.size} selected`}
+              </span>
+              {selectedBookings.size > 0 && selectedBookings.size < filteredBookings.length && (
+                <Button variant="ghost" size="sm" onClick={selectAllVisible} className="text-xs h-7">
+                  Select all {filteredBookings.length}
+                </Button>
+              )}
+              {selectedBookings.size > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearSelection} className="text-xs h-7">
+                  Clear
+                </Button>
+              )}
+            </div>
+            
+            {/* Bulk Delete Button */}
+            {selectedBookings.size > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={bulkDeleting}>
+                    {bulkDeleting ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4 mr-2" />
+                    )}
+                    Delete {selectedBookings.size} Booking{selectedBookings.size > 1 ? 's' : ''}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="border-red-200">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-red-600 flex items-center gap-2">
+                      <Trash2 className="w-5 h-5" />
+                      Delete {selectedBookings.size} Booking{selectedBookings.size > 1 ? 's' : ''}?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      <p className="mb-2">Are you sure you want to <strong>permanently delete</strong> these bookings?</p>
+                      <p className="text-red-600 font-medium">⚠️ This action cannot be undone!</p>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleBulkDelete}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      Yes, Delete All Selected
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
+        )}
 
         {/* Bookings List */}
         {isLoading ? (
@@ -808,17 +1005,31 @@ const Admin = () => {
         ) : (
           <div className="space-y-6">
             {Object.entries(groupedBookings)
-              .sort(([a], [b]) => a.localeCompare(b))
+              .sort(([a], [b]) => {
+                if (sortBy === 'created') return 0; // Don't sort groups for created view
+                return sortOrder === 'asc' ? a.localeCompare(b) : b.localeCompare(a);
+              })
               .map(([dateKey, dateBookings]) => (
                 <div key={dateKey}>
-                  <h3 className="font-heading text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
-                    <CalendarDays className="w-5 h-5 text-primary" />
-                    {getDateLabel(dateKey)}
-                    <span className="text-muted-foreground font-normal">
-                      ({format(parseISO(dateKey), 'EEEE, MMMM d, yyyy')})
-                    </span>
-                    <Badge variant="secondary" className="ml-2">{dateBookings.length}</Badge>
-                  </h3>
+                  {sortBy === 'scheduled' ? (
+                    <h3 className="font-heading text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <CalendarDays className="w-5 h-5 text-primary" />
+                      {getDateLabel(dateKey)}
+                      <span className="text-muted-foreground font-normal">
+                        ({format(parseISO(dateKey), 'EEEE, MMMM d, yyyy')})
+                      </span>
+                      <Badge variant="secondary" className="ml-2">{dateBookings.length}</Badge>
+                    </h3>
+                  ) : (
+                    <h3 className="font-heading text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                      <CalendarDays className="w-5 h-5 text-primary" />
+                      All Bookings by Date Created
+                      <span className="text-muted-foreground font-normal">
+                        ({sortOrder === 'desc' ? 'Newest first' : 'Oldest first'})
+                      </span>
+                      <Badge variant="secondary" className="ml-2">{dateBookings.length}</Badge>
+                    </h3>
+                  )}
                   
                   <div className="space-y-3">
                     {dateBookings.map((booking) => (
@@ -842,6 +1053,20 @@ const Admin = () => {
                             <div className="p-4 cursor-pointer hover:bg-secondary/30 transition-colors">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
+                                  {/* Selection Checkbox */}
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <Checkbox
+                                      checked={selectedBookings.has(booking.id)}
+                                      onCheckedChange={() => toggleBookingSelection(booking.id)}
+                                    />
+                                  </div>
+                                  {/* Show scheduled date when sorting by created */}
+                                  {sortBy === 'created' && (
+                                    <div className="flex items-center gap-1 min-w-[90px] text-xs text-muted-foreground">
+                                      <CalendarDays className="w-3 h-3" />
+                                      <span>{format(parseISO(booking.date), 'MMM d')}</span>
+                                    </div>
+                                  )}
                                   <div className="flex items-center gap-2 min-w-[100px]">
                                     <Clock className="w-4 h-4 text-primary" />
                                     <span className="font-medium">{getTimeLabel(booking.time_slot)}</span>
@@ -850,6 +1075,12 @@ const Admin = () => {
                                     <User className="w-4 h-4 text-muted-foreground" />
                                     <span className="font-medium">{booking.client?.name || 'Unknown'}</span>
                                   </div>
+                                  {/* Show created date when sorting by created */}
+                                  {sortBy === 'created' && (
+                                    <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
+                                      <span>Created: {format(parseISO(booking.created_at), 'MMM d, h:mm a')}</span>
+                                    </div>
+                                  )}
                                   {booking.client?.address && (
                                     <div className="hidden md:flex items-center gap-2 text-muted-foreground">
                                       <MapPin className="w-4 h-4" />
