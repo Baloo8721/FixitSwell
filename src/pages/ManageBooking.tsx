@@ -524,12 +524,49 @@ const ManageBooking = () => {
                       {/* Payment Method Already Selected */}
                       {booking.payment_method && booking.payment_pending_collection && (
                         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
-                          <p className="font-medium text-blue-800">
-                            {booking.payment_method === 'check' ? '📝 Paying by Check' : '💵 Paying by Cash'}
-                          </p>
-                          <p className="text-sm text-blue-600 mt-1">
-                            We'll collect payment when we arrive for your appointment.
-                          </p>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-blue-800">
+                                {booking.payment_method === 'check' ? '📝 Paying by Check' : '💵 Paying by Cash'}
+                              </p>
+                              <p className="text-sm text-blue-600 mt-1">
+                                We'll collect payment when we arrive for your appointment.
+                              </p>
+                            </div>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="outline" className="text-blue-600 border-blue-300">
+                                  Change
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Change Payment Method?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Would you like to pay with a different method instead?
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                                  <AlertDialogCancel>Keep {booking.payment_method === 'check' ? 'Check' : 'Cash'}</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={async () => {
+                                      const result = await createPaymentIntentByToken(token!, 'invoice');
+                                      if (result?.clientSecret) {
+                                        toast({
+                                          title: "Card Payment",
+                                          description: "Stripe payment is being set up. Contact us to complete card payment.",
+                                        });
+                                      }
+                                    }}
+                                    className="bg-primary"
+                                  >
+                                    <CreditCard className="w-4 h-4 mr-2" />
+                                    Pay with Card Instead
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </div>
                       )}
 
@@ -539,83 +576,142 @@ const ManageBooking = () => {
                           <p className="text-sm text-foreground font-medium mb-3">Choose how you'd like to pay:</p>
                           <div className="grid gap-3">
                             {/* Pay with Card - Stripe */}
-                            <button
-                              onClick={async () => {
-                                setSelectingPayment(true);
-                                // Create Stripe payment session
-                                const result = await createPaymentIntentByToken(token!, 'invoice');
-                                if (result?.clientSecret) {
-                                  // Redirect to Stripe checkout (or open modal)
-                                  // For now, we'll just show a message
-                                  toast({
-                                    title: "Card Payment",
-                                    description: "Stripe payment is being set up. Contact us to complete card payment.",
-                                  });
-                                }
-                                setSelectingPayment(false);
-                              }}
-                              disabled={selectingPayment}
-                              className="flex items-center gap-3 p-4 bg-white border-2 border-primary rounded-lg hover:bg-primary/5 transition-colors text-left"
-                            >
-                              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                                <CreditCard className="w-6 h-6 text-primary" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="font-semibold text-foreground">Pay with Card</p>
-                                <p className="text-sm text-muted-foreground">Credit/Debit card, Apple Pay, Google Pay</p>
-                              </div>
-                              {selectingPayment && <Loader2 className="w-5 h-5 animate-spin" />}
-                            </button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <button
+                                  disabled={selectingPayment}
+                                  className="flex items-center gap-3 p-4 bg-white border-2 border-primary rounded-lg hover:bg-primary/5 transition-colors text-left"
+                                >
+                                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                                    <CreditCard className="w-6 h-6 text-primary" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-foreground">Pay with Card</p>
+                                    <p className="text-sm text-muted-foreground">Credit/Debit card, Apple Pay, Google Pay</p>
+                                  </div>
+                                </button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Pay ${booking.invoice_amount?.toFixed(2)} with Card?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    You'll be redirected to our secure payment page to complete your payment.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={async () => {
+                                      setSelectingPayment(true);
+                                      const result = await createPaymentIntentByToken(token!, 'invoice');
+                                      if (result?.clientSecret) {
+                                        toast({
+                                          title: "Card Payment",
+                                          description: "Stripe payment is being set up. Contact us to complete card payment.",
+                                        });
+                                      }
+                                      setSelectingPayment(false);
+                                    }}
+                                    className="bg-primary"
+                                  >
+                                    <CreditCard className="w-4 h-4 mr-2" />
+                                    Proceed to Payment
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
 
                             {/* Pay by Check */}
-                            <button
-                              onClick={async () => {
-                                setSelectingPayment(true);
-                                const { error } = await selectPaymentMethodByToken(token!, 'check');
-                                if (error) {
-                                  toast({ title: "Error", description: error.message, variant: "destructive" });
-                                } else {
-                                  toast({ title: "Check Payment Selected", description: "We'll collect your check at the appointment." });
-                                  loadBooking();
-                                }
-                                setSelectingPayment(false);
-                              }}
-                              disabled={selectingPayment}
-                              className="flex items-center gap-3 p-4 bg-white border-2 border-gray-200 rounded-lg hover:border-primary/50 hover:bg-primary/5 transition-colors text-left"
-                            >
-                              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                                <FileText className="w-6 h-6 text-blue-600" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="font-semibold text-foreground">Pay by Check</p>
-                                <p className="text-sm text-muted-foreground">We'll collect at your appointment</p>
-                              </div>
-                            </button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <button
+                                  disabled={selectingPayment}
+                                  className="flex items-center gap-3 p-4 bg-white border-2 border-gray-200 rounded-lg hover:border-primary/50 hover:bg-primary/5 transition-colors text-left"
+                                >
+                                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <FileText className="w-6 h-6 text-blue-600" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-foreground">Pay by Check</p>
+                                    <p className="text-sm text-muted-foreground">We'll collect at your appointment</p>
+                                  </div>
+                                </button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Pay ${booking.invoice_amount?.toFixed(2)} by Check?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Please have your check for <strong>${booking.invoice_amount?.toFixed(2)}</strong> ready. We'll collect it when we arrive for your appointment.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={async () => {
+                                      setSelectingPayment(true);
+                                      const { error } = await selectPaymentMethodByToken(token!, 'check');
+                                      if (error) {
+                                        toast({ title: "Error", description: error.message, variant: "destructive" });
+                                      } else {
+                                        toast({ title: "Check Payment Selected", description: "We'll collect your check at the appointment." });
+                                        loadBooking();
+                                      }
+                                      setSelectingPayment(false);
+                                    }}
+                                    className="bg-blue-600"
+                                  >
+                                    <FileText className="w-4 h-4 mr-2" />
+                                    Confirm Check Payment
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
 
                             {/* Pay with Cash */}
-                            <button
-                              onClick={async () => {
-                                setSelectingPayment(true);
-                                const { error } = await selectPaymentMethodByToken(token!, 'cash');
-                                if (error) {
-                                  toast({ title: "Error", description: error.message, variant: "destructive" });
-                                } else {
-                                  toast({ title: "Cash Payment Selected", description: "We'll collect cash at the appointment." });
-                                  loadBooking();
-                                }
-                                setSelectingPayment(false);
-                              }}
-                              disabled={selectingPayment}
-                              className="flex items-center gap-3 p-4 bg-white border-2 border-gray-200 rounded-lg hover:border-primary/50 hover:bg-primary/5 transition-colors text-left"
-                            >
-                              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                                <Banknote className="w-6 h-6 text-green-600" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="font-semibold text-foreground">Pay with Cash</p>
-                                <p className="text-sm text-muted-foreground">We'll collect at your appointment</p>
-                              </div>
-                            </button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <button
+                                  disabled={selectingPayment}
+                                  className="flex items-center gap-3 p-4 bg-white border-2 border-gray-200 rounded-lg hover:border-primary/50 hover:bg-primary/5 transition-colors text-left"
+                                >
+                                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                    <Banknote className="w-6 h-6 text-green-600" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-foreground">Pay with Cash</p>
+                                    <p className="text-sm text-muted-foreground">We'll collect at your appointment</p>
+                                  </div>
+                                </button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Pay ${booking.invoice_amount?.toFixed(2)} in Cash?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Please have <strong>${booking.invoice_amount?.toFixed(2)} cash</strong> ready. We'll collect it when we arrive for your appointment.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={async () => {
+                                      setSelectingPayment(true);
+                                      const { error } = await selectPaymentMethodByToken(token!, 'cash');
+                                      if (error) {
+                                        toast({ title: "Error", description: error.message, variant: "destructive" });
+                                      } else {
+                                        toast({ title: "Cash Payment Selected", description: "We'll collect cash at the appointment." });
+                                        loadBooking();
+                                      }
+                                      setSelectingPayment(false);
+                                    }}
+                                    className="bg-green-600"
+                                  >
+                                    <Banknote className="w-4 h-4 mr-2" />
+                                    Confirm Cash Payment
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </>
                       )}

@@ -4,6 +4,9 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://pudvngvljwexztxntwnn.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
+// Stripe configuration (publishable key only - safe for frontend)
+export const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // =============================================================================
@@ -1319,6 +1322,28 @@ export async function updateBookingAISummary(
     return { error: null };
   } catch (error) {
     console.error('Error updating AI summary:', error);
+    return { error: error as Error };
+  }
+}
+
+// Delete a booking (admin only)
+export async function deleteBooking(bookingId: string): Promise<{ error: Error | null }> {
+  try {
+    // First delete related records
+    await supabase.from('booking_services').delete().eq('booking_id', bookingId);
+    await supabase.from('booking_history').delete().eq('booking_id', bookingId);
+    await supabase.from('booking_supplies').delete().eq('booking_id', bookingId);
+    
+    // Then delete the booking
+    const { error } = await supabase
+      .from('bookings')
+      .delete()
+      .eq('id', bookingId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error deleting booking:', error);
     return { error: error as Error };
   }
 }

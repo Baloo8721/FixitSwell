@@ -45,7 +45,8 @@ import {
   X,
   ExternalLink,
   Copy,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Trash2
 } from "lucide-react";
 import { format, parseISO, isToday, isTomorrow, isPast } from "date-fns";
 import {
@@ -64,6 +65,7 @@ import {
   addBookingSupply,
   deleteBookingSupply,
   markPaymentCollected,
+  deleteBooking,
   DEFAULT_TIME_SLOTS,
   type BookingWithDetails,
   type Booking,
@@ -71,6 +73,17 @@ import {
   type TimeSlot,
   SERVICE_OPTIONS
 } from "@/lib/supabase";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { addDays, isBefore, startOfToday } from "date-fns";
@@ -206,6 +219,25 @@ const Admin = () => {
       });
     } else {
       toast({ title: `${method === 'check' ? 'Check' : 'Cash'} payment collected!` });
+      loadBookings();
+    }
+  };
+
+  const [deletingBooking, setDeletingBooking] = useState<string | null>(null);
+
+  const handleDeleteBooking = async (bookingId: string) => {
+    setDeletingBooking(bookingId);
+    const { error } = await deleteBooking(bookingId);
+    setDeletingBooking(null);
+    
+    if (error) {
+      toast({
+        title: "Error deleting booking",
+        description: error.message,
+        variant: "destructive"
+      });
+    } else {
+      toast({ title: "Booking deleted", description: "The booking has been permanently removed." });
       loadBookings();
     }
   };
@@ -1249,27 +1281,93 @@ const Admin = () => {
                                     {booking.invoice_status !== 'paid' && (
                                       <div className="flex flex-wrap gap-2 mt-2">
                                         {booking.payment_pending_collection ? (
-                                          // Show "Collected" button for pending cash/check
-                                          <Button 
-                                            size="sm" 
-                                            onClick={() => handleCollectPayment(booking.id, booking.payment_method as 'check' | 'cash')}
-                                            className="bg-green-600 hover:bg-green-700"
-                                          >
-                                            <CheckCircle className="w-4 h-4 mr-1" />
-                                            {booking.payment_method === 'check' ? 'Check Collected' : 'Cash Collected'}
-                                          </Button>
+                                          // Show "Collected" button for pending cash/check with confirmation
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                                                <CheckCircle className="w-4 h-4 mr-1" />
+                                                {booking.payment_method === 'check' ? 'Check Collected' : 'Cash Collected'}
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Confirm Payment Collection</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  <p className="mb-3">Confirm you have collected <strong>${booking.invoice_amount?.toFixed(2)}</strong> via <strong>{booking.payment_method}</strong> from <strong>{booking.client?.name}</strong>?</p>
+                                                  <p className="text-sm text-muted-foreground">This will mark the invoice as paid.</p>
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  onClick={() => handleCollectPayment(booking.id, booking.payment_method as 'check' | 'cash')}
+                                                  className="bg-green-600 hover:bg-green-700"
+                                                >
+                                                  Yes, Payment Collected
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
                                         ) : (
-                                          // Show all payment options
+                                          // Show all payment options with confirmations
                                           <>
-                                            <Button size="sm" variant="outline" onClick={() => handleCollectPayment(booking.id, 'cash')}>
-                                              💵 Collected Cash
-                                            </Button>
-                                            <Button size="sm" variant="outline" onClick={() => handleCollectPayment(booking.id, 'check')}>
-                                              📝 Collected Check
-                                            </Button>
-                                            <Button size="sm" onClick={() => handleMarkPaid(booking.id)}>
-                                              💳 Paid by Card
-                                            </Button>
+                                            <AlertDialog>
+                                              <AlertDialogTrigger asChild>
+                                                <Button size="sm" variant="outline">💵 Collected Cash</Button>
+                                              </AlertDialogTrigger>
+                                              <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                  <AlertDialogTitle>Confirm Cash Payment</AlertDialogTitle>
+                                                  <AlertDialogDescription>
+                                                    Confirm you collected <strong>${booking.invoice_amount?.toFixed(2)} cash</strong> from <strong>{booking.client?.name}</strong>?
+                                                  </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                  <AlertDialogAction onClick={() => handleCollectPayment(booking.id, 'cash')} className="bg-green-600">
+                                                    Yes, Cash Collected
+                                                  </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                              </AlertDialogContent>
+                                            </AlertDialog>
+                                            <AlertDialog>
+                                              <AlertDialogTrigger asChild>
+                                                <Button size="sm" variant="outline">📝 Collected Check</Button>
+                                              </AlertDialogTrigger>
+                                              <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                  <AlertDialogTitle>Confirm Check Payment</AlertDialogTitle>
+                                                  <AlertDialogDescription>
+                                                    Confirm you collected a <strong>${booking.invoice_amount?.toFixed(2)} check</strong> from <strong>{booking.client?.name}</strong>?
+                                                  </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                  <AlertDialogAction onClick={() => handleCollectPayment(booking.id, 'check')} className="bg-green-600">
+                                                    Yes, Check Collected
+                                                  </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                              </AlertDialogContent>
+                                            </AlertDialog>
+                                            <AlertDialog>
+                                              <AlertDialogTrigger asChild>
+                                                <Button size="sm">💳 Paid by Card</Button>
+                                              </AlertDialogTrigger>
+                                              <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                  <AlertDialogTitle>Confirm Card Payment</AlertDialogTitle>
+                                                  <AlertDialogDescription>
+                                                    Confirm <strong>${booking.invoice_amount?.toFixed(2)}</strong> was paid by card (Stripe) by <strong>{booking.client?.name}</strong>?
+                                                  </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                  <AlertDialogAction onClick={() => handleMarkPaid(booking.id)} className="bg-green-600">
+                                                    Yes, Card Payment Received
+                                                  </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                              </AlertDialogContent>
+                                            </AlertDialog>
                                           </>
                                         )}
                                       </div>
@@ -1427,6 +1525,49 @@ const Admin = () => {
                                     }
                                   </p>
                                 )}
+                                
+                                {/* Delete Button - Always visible */}
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-red-500 hover:text-red-700 hover:bg-red-50 ml-auto"
+                                      disabled={deletingBooking === booking.id}
+                                    >
+                                      {deletingBooking === booking.id ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <Trash2 className="w-4 h-4" />
+                                      )}
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent className="border-red-200">
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle className="text-red-600 flex items-center gap-2">
+                                        <Trash2 className="w-5 h-5" />
+                                        Delete Booking?
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription className="space-y-2">
+                                        <p>Are you sure you want to <strong>permanently delete</strong> this booking?</p>
+                                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm">
+                                          <p><strong>{booking.client?.name}</strong></p>
+                                          <p>{format(parseISO(booking.date), 'EEEE, MMMM d, yyyy')} at {booking.time_slot}</p>
+                                        </div>
+                                        <p className="text-red-600 font-medium">⚠️ This action cannot be undone!</p>
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteBooking(booking.id)}
+                                        className="bg-red-600 hover:bg-red-700"
+                                      >
+                                        Yes, Delete Booking
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
                               </div>
                             </div>
                           </CollapsibleContent>
