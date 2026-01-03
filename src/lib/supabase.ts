@@ -1634,6 +1634,7 @@ export async function saveContactMessage(data: {
   message?: string;
 }): Promise<{ data: ContactMessage | null; error: Error | null }> {
   try {
+    // Save the contact message
     const { data: message, error } = await supabase
       .from('contact_messages')
       .insert([{
@@ -1647,6 +1648,26 @@ export async function saveContactMessage(data: {
       .single();
 
     if (error) throw error;
+
+    // Also create a client record if email doesn't already exist
+    const { data: existingClient } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('email', data.email)
+      .single();
+
+    if (!existingClient) {
+      // Create new client from contact message
+      await supabase
+        .from('clients')
+        .insert([{
+          name: data.name,
+          email: data.email,
+          phone: data.phone || null,
+          source: 'contact_form'
+        }]);
+    }
+
     return { data: message as ContactMessage, error: null };
   } catch (error) {
     console.error('Error saving contact message:', error);
@@ -1668,6 +1689,51 @@ export async function updateContactMessageStatus(
     return { error: null };
   } catch (error) {
     console.error('Error updating contact message:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function deleteContactMessage(messageId: string): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('contact_messages')
+      .delete()
+      .eq('id', messageId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error deleting contact message:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function deleteClient(clientId: string): Promise<{ error: Error | null }> {
+  try {
+    // Check if client has any bookings
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('client_id', clientId)
+      .limit(1);
+    
+    if (bookings && bookings.length > 0) {
+      throw new Error('Cannot delete client with existing bookings');
+    }
+
+    // Delete client notes first
+    await supabase.from('client_notes').delete().eq('client_id', clientId);
+
+    // Delete the client
+    const { error } = await supabase
+      .from('clients')
+      .delete()
+      .eq('id', clientId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error deleting client:', error);
     return { error: error as Error };
   }
 }

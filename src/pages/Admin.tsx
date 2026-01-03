@@ -81,6 +81,8 @@ import {
   deleteBooking,
   getContactMessages,
   updateContactMessageStatus,
+  deleteContactMessage,
+  deleteClient,
   getClientsWithStats,
   updateClientFlags,
   getClientNotes,
@@ -317,6 +319,16 @@ const Admin = () => {
   const [newNoteValue, setNewNoteValue] = useState('');
   const [addingNoteFor, setAddingNoteFor] = useState<string | null>(null);
 
+  // Multi-select for contact messages
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
+  const [deletingMessages, setDeletingMessages] = useState(false);
+  const [messageDeleteConfirmText, setMessageDeleteConfirmText] = useState('');
+
+  // Multi-select for clients
+  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
+  const [deletingClients, setDeletingClients] = useState(false);
+  const [clientDeleteConfirmText, setClientDeleteConfirmText] = useState('');
+
   // Toggle booking selection
   const toggleBookingSelection = (bookingId: string) => {
     setSelectedBookings(prev => {
@@ -392,6 +404,72 @@ const Admin = () => {
       toast({ title: "Booking deleted", description: "The booking has been permanently removed." });
       loadBookings();
     }
+  };
+
+  // Bulk delete contact messages
+  const handleBulkDeleteMessages = async () => {
+    if (selectedMessages.size === 0) return;
+    
+    setDeletingMessages(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const msgId of selectedMessages) {
+      const { error } = await deleteContactMessage(msgId);
+      if (error) {
+        errorCount++;
+      } else {
+        successCount++;
+      }
+    }
+
+    setDeletingMessages(false);
+    setSelectedMessages(new Set());
+    setMessageDeleteConfirmText('');
+
+    if (errorCount === 0) {
+      toast({ title: "Messages deleted", description: `Successfully deleted ${successCount} message(s).` });
+    } else {
+      toast({ title: "Partial deletion", description: `Deleted ${successCount}, failed ${errorCount}.`, variant: "destructive" });
+    }
+    
+    loadContactMessages();
+  };
+
+  // Bulk delete clients
+  const handleBulkDeleteClients = async () => {
+    if (selectedClients.size === 0) return;
+    
+    setDeletingClients(true);
+    let successCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+
+    for (const clientId of selectedClients) {
+      const { error } = await deleteClient(clientId);
+      if (error) {
+        errorCount++;
+        errors.push(error.message);
+      } else {
+        successCount++;
+      }
+    }
+
+    setDeletingClients(false);
+    setSelectedClients(new Set());
+    setClientDeleteConfirmText('');
+
+    if (errorCount === 0) {
+      toast({ title: "Clients deleted", description: `Successfully deleted ${successCount} client(s).` });
+    } else {
+      toast({ 
+        title: "Partial deletion", 
+        description: `Deleted ${successCount}, failed ${errorCount}. ${errors[0] || ''}`,
+        variant: "destructive"
+      });
+    }
+    
+    loadClients();
   };
 
   const handleAddSupply = async (bookingId: string) => {
@@ -2121,74 +2199,156 @@ const Admin = () => {
               {contactMessages.length === 0 ? (
                 <p className="text-muted-foreground text-center py-6">No contact messages yet.</p>
               ) : (
-                <div className="space-y-3">
-                  {contactMessages.map(msg => (
-                    <div 
-                      key={msg.id} 
-                      className={`p-4 rounded-lg border ${
-                        msg.status === 'new' ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{msg.name}</span>
-                            <Badge variant="outline" className={
-                              msg.status === 'new' ? 'bg-indigo-100 text-indigo-700' :
-                              msg.status === 'replied' ? 'bg-green-100 text-green-700' :
-                              'bg-orange-100 text-orange-700'
-                            }>
-                              {msg.status === 'new' ? 'New' : msg.status === 'replied' ? 'Replied' : 'Not Replied'}
-                            </Badge>
+                <>
+                  {/* Bulk Actions Bar */}
+                  <div className="flex items-center justify-between mb-4 pb-3 border-b">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={selectedMessages.size === contactMessages.length && contactMessages.length > 0}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedMessages(new Set(contactMessages.map(m => m.id)));
+                          } else {
+                            setSelectedMessages(new Set());
+                          }
+                        }}
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {selectedMessages.size > 0 ? `${selectedMessages.size} selected` : 'Select all'}
+                      </span>
+                    </div>
+                    {selectedMessages.size > 0 && (
+                      <AlertDialog onOpenChange={(open) => { if (!open) setMessageDeleteConfirmText(''); }}>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm" disabled={deletingMessages}>
+                            {deletingMessages ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                            Delete {selectedMessages.size}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="border-red-200">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-red-600 flex items-center gap-2">
+                              <Trash2 className="w-5 h-5" />
+                              Delete {selectedMessages.size} Message{selectedMessages.size > 1 ? 's' : ''}?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription asChild>
+                              <div className="space-y-3">
+                                <p>Are you sure you want to <strong>permanently delete</strong> these messages?</p>
+                                <p className="text-red-600 font-medium">⚠️ This action cannot be undone!</p>
+                                <div className="pt-2">
+                                  <Label className="text-sm text-muted-foreground">
+                                    Type <span className="font-mono font-bold text-red-600">Delete</span> to confirm:
+                                  </Label>
+                                  <Input
+                                    value={messageDeleteConfirmText}
+                                    onChange={(e) => setMessageDeleteConfirmText(e.target.value)}
+                                    placeholder="Delete"
+                                    className="mt-1"
+                                  />
+                                </div>
+                              </div>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel onClick={() => setMessageDeleteConfirmText('')}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleBulkDeleteMessages}
+                              className="bg-red-600 hover:bg-red-700"
+                              disabled={messageDeleteConfirmText !== 'Delete'}
+                            >
+                              Yes, Delete All Selected
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    {contactMessages.map(msg => (
+                      <div 
+                        key={msg.id} 
+                        className={`p-4 rounded-lg border ${
+                          msg.status === 'new' ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-200'
+                        } ${selectedMessages.has(msg.id) ? 'ring-2 ring-indigo-500' : ''}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={selectedMessages.has(msg.id)}
+                            onCheckedChange={(checked) => {
+                              const newSet = new Set(selectedMessages);
+                              if (checked) {
+                                newSet.add(msg.id);
+                              } else {
+                                newSet.delete(msg.id);
+                              }
+                              setSelectedMessages(newSet);
+                            }}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{msg.name}</span>
+                                  <Badge variant="outline" className={
+                                    msg.status === 'new' ? 'bg-indigo-100 text-indigo-700' :
+                                    msg.status === 'replied' ? 'bg-green-100 text-green-700' :
+                                    'bg-orange-100 text-orange-700'
+                                  }>
+                                    {msg.status === 'new' ? 'New' : msg.status === 'replied' ? 'Replied' : 'Not Replied'}
+                                  </Badge>
+                                </div>
+                                {msg.email && (
+                                  <a href={`mailto:${msg.email}`} className="text-sm text-indigo-600 hover:underline flex items-center gap-1">
+                                    <Mail className="w-3 h-3" /> {msg.email}
+                                  </a>
+                                )}
+                                {msg.phone && (
+                                  <a href={`tel:${msg.phone}`} className="text-sm text-indigo-600 hover:underline flex items-center gap-1">
+                                    <Phone className="w-3 h-3" /> {msg.phone}
+                                  </a>
+                                )}
+                                {msg.message && (
+                                  <p className="text-sm text-muted-foreground mt-2">{msg.message}</p>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                  {format(parseISO(msg.created_at), 'MMM d, yyyy h:mm a')}
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                {msg.status === 'new' && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => {
+                                      updateContactMessageStatus(msg.id, 'read');
+                                      loadContactMessages();
+                                    }}
+                                  >
+                                    Mark Read
+                                  </Button>
+                                )}
+                                {msg.status !== 'replied' && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                                    onClick={() => {
+                                      updateContactMessageStatus(msg.id, 'replied');
+                                      loadContactMessages();
+                                    }}
+                                  >
+                                    Mark Replied
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          {msg.email && (
-                            <a href={`mailto:${msg.email}`} className="text-sm text-indigo-600 hover:underline flex items-center gap-1">
-                              <Mail className="w-3 h-3" /> {msg.email}
-                            </a>
-                          )}
-                          {msg.phone && (
-                            <a href={`tel:${msg.phone}`} className="text-sm text-indigo-600 hover:underline flex items-center gap-1">
-                              <Phone className="w-3 h-3" /> {msg.phone}
-                            </a>
-                          )}
-                          {msg.message && (
-                            <p className="text-sm text-muted-foreground mt-2">{msg.message}</p>
-                          )}
-                          <p className="text-xs text-muted-foreground">
-                            {format(parseISO(msg.created_at), 'MMM d, yyyy h:mm a')}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          {msg.status === 'new' && (
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                updateContactMessageStatus(msg.id, 'read');
-                                loadContactMessages();
-                              }}
-                            >
-                              Mark Read
-                            </Button>
-                          )}
-                          {msg.status !== 'replied' && (
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              className="text-orange-600 border-orange-300 hover:bg-orange-50"
-                              onClick={() => {
-                                updateContactMessageStatus(msg.id, 'replied');
-                                loadContactMessages();
-                              }}
-                            >
-                              Mark Replied
-                            </Button>
-                          )}
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </>
               )}
             </CardContent>
           )}
@@ -2217,6 +2377,72 @@ const Admin = () => {
                 onChange={(e) => setClientSearch(e.target.value)}
                 className="mb-4"
               />
+              {/* Bulk Actions Bar */}
+              {clients.length > 0 && (
+                <div className="flex items-center justify-between mb-4 pb-3 border-b">
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={selectedClients.size === clients.length && clients.length > 0}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedClients(new Set(clients.map(c => c.id)));
+                        } else {
+                          setSelectedClients(new Set());
+                        }
+                      }}
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {selectedClients.size > 0 ? `${selectedClients.size} selected` : 'Select all'}
+                    </span>
+                  </div>
+                  {selectedClients.size > 0 && (
+                    <AlertDialog onOpenChange={(open) => { if (!open) setClientDeleteConfirmText(''); }}>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" disabled={deletingClients}>
+                          {deletingClients ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                          Delete {selectedClients.size}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="border-red-200">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="text-red-600 flex items-center gap-2">
+                            <Trash2 className="w-5 h-5" />
+                            Delete {selectedClients.size} Client{selectedClients.size > 1 ? 's' : ''}?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription asChild>
+                            <div className="space-y-3">
+                              <p>Are you sure you want to <strong>permanently delete</strong> these clients?</p>
+                              <p className="text-orange-600 font-medium">⚠️ Clients with existing bookings cannot be deleted.</p>
+                              <p className="text-red-600 font-medium">⚠️ This action cannot be undone!</p>
+                              <div className="pt-2">
+                                <Label className="text-sm text-muted-foreground">
+                                  Type <span className="font-mono font-bold text-red-600">Delete</span> to confirm:
+                                </Label>
+                                <Input
+                                  value={clientDeleteConfirmText}
+                                  onChange={(e) => setClientDeleteConfirmText(e.target.value)}
+                                  placeholder="Delete"
+                                  className="mt-1"
+                                />
+                              </div>
+                            </div>
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel onClick={() => setClientDeleteConfirmText('')}>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleBulkDeleteClients}
+                            className="bg-red-600 hover:bg-red-700"
+                            disabled={clientDeleteConfirmText !== 'Delete'}
+                          >
+                            Yes, Delete All Selected
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
+              )}
               {clients.length === 0 ? (
                 <p className="text-muted-foreground text-center py-6">No clients yet.</p>
               ) : (
@@ -2228,8 +2454,22 @@ const Admin = () => {
                       c.email?.toLowerCase().includes(clientSearch.toLowerCase())
                     )
                     .map(client => (
+                    <div key={client.id} className={`flex items-start gap-3 ${selectedClients.has(client.id) ? 'ring-2 ring-teal-500 rounded-lg' : ''}`}>
+                      <Checkbox
+                        checked={selectedClients.has(client.id)}
+                        onCheckedChange={(checked) => {
+                          const newSet = new Set(selectedClients);
+                          if (checked) {
+                            newSet.add(client.id);
+                          } else {
+                            newSet.delete(client.id);
+                          }
+                          setSelectedClients(newSet);
+                        }}
+                        className="mt-5"
+                      />
                     <Collapsible 
-                      key={client.id}
+                      className="flex-1"
                       open={expandedClient === client.id}
                       onOpenChange={(open) => {
                         setExpandedClient(open ? client.id : null);
@@ -2246,6 +2486,9 @@ const Admin = () => {
                               <div>
                                 <div className="flex items-center gap-2">
                                   <span className="font-medium">{client.name}</span>
+                                  {client.source === 'contact_form' && (
+                                    <Badge variant="outline" className="bg-purple-100 text-purple-700 text-xs">Lead</Badge>
+                                  )}
                                   {client.is_senior && <Star className="w-4 h-4 text-amber-500" title="Senior" />}
                                   {client.is_military && <Shield className="w-4 h-4 text-blue-500" title="Military" />}
                                 </div>
@@ -2372,6 +2615,7 @@ const Admin = () => {
                         </div>
                       </CollapsibleContent>
                     </Collapsible>
+                    </div>
                   ))}
                 </div>
               )}
