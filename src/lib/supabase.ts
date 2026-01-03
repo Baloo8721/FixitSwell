@@ -870,12 +870,14 @@ export async function getBookingStats(): Promise<{
       !b.invoice_amount
     ).length;
     
+    // ALL unpaid invoices (confirmed or completed, not cancelled)
     const allWithInvoice = data?.filter(b => 
       b.invoice_amount && b.invoice_status !== 'paid' && b.status !== 'cancelled'
     ) || [];
     
-    // Total needing attention: unpaid invoices + completed without invoice
-    const needsAttention = completedUnpaid + completedNoInvoice;
+    // Total needing attention: ALL unpaid invoices + completed without invoice
+    // This includes confirmed bookings with pending invoices too
+    const needsAttention = allWithInvoice.length + completedNoInvoice;
     
     const stats = {
       total: data?.length || 0,
@@ -1064,7 +1066,7 @@ export async function createManualBooking(data: CreateManualBookingData): Promis
         time_slot: data.time_slot,
         notes: data.notes || null,
         images: data.images || [],
-        status: 'confirmed', // Admin bookings are auto-confirmed
+        status: 'pending', // Admin bookings also start as pending for review
         created_by: 'admin'
       }])
       .select()
@@ -1565,5 +1567,230 @@ export async function getBookingForAIAnalysis(bookingId: string): Promise<{
   } catch (error) {
     console.error('Error fetching booking for AI:', error);
     return { booking: null, client: null, services: [], images: [] };
+  }
+}
+
+// =============================================================================
+// Contact Messages Functions
+// =============================================================================
+
+export interface ContactMessage {
+  id: string;
+  name: string;
+  phone: string;
+  message: string | null;
+  status: 'new' | 'read' | 'replied';
+  created_at: string;
+}
+
+export async function getContactMessages(): Promise<{ data: ContactMessage[] | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('contact_messages')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data as ContactMessage[], error: null };
+  } catch (error) {
+    console.error('Error fetching contact messages:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function saveContactMessage(data: {
+  name: string;
+  phone: string;
+  message?: string;
+}): Promise<{ data: ContactMessage | null; error: Error | null }> {
+  try {
+    const { data: message, error } = await supabase
+      .from('contact_messages')
+      .insert([{
+        name: data.name,
+        phone: data.phone,
+        message: data.message || null,
+        status: 'new'
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { data: message as ContactMessage, error: null };
+  } catch (error) {
+    console.error('Error saving contact message:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function updateContactMessageStatus(
+  messageId: string,
+  status: 'new' | 'read' | 'replied'
+): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('contact_messages')
+      .update({ status })
+      .eq('id', messageId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating contact message:', error);
+    return { error: error as Error };
+  }
+}
+
+// =============================================================================
+// Client Directory Functions
+// =============================================================================
+
+export interface ClientWithStats extends Client {
+  booking_count: number;
+  last_booking_date: string | null;
+  total_spent: number;
+}
+
+export async function getClientsWithStats(): Promise<{ data: ClientWithStats[] | null; error: Error | null }> {
+  try {
+    // Get all clients
+    const { data: clients, error: clientsError } = await supabase
+      .from('clients')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (clientsError) throw clientsError;
+
+    // Get booking stats for each client
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('client_id, date, invoice_amount, invoice_status');
+
+    const clientStats = clients?.map(client => {
+      const clientBookings = bookings?.filter(b => b.client_id === client.id) || [];
+      const paidBookings = clientBookings.filter(b => b.invoice_status === 'paid');
+      const totalSpent = paidBookings.reduce((sum, b) => sum + (parseFloat(b.invoice_amount) || 0), 0);
+      const lastBooking = clientBookings.sort((a, b) => b.date.localeCompare(a.date))[0];
+
+      return {
+        ...client,
+        booking_count: clientBookings.length,
+        last_booking_date: lastBooking?.date || null,
+        total_spent: totalSpent
+      };
+    }) || [];
+
+    return { data: clientStats as ClientWithStats[], error: null };
+  } catch (error) {
+    console.error('Error fetching clients with stats:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function updateClientFlags(
+  clientId: string,
+  flags: { is_senior?: boolean; is_military?: boolean }
+): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('clients')
+      .update(flags)
+      .eq('id', clientId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating client flags:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function getClientNotes(clientId: string): Promise<{ data: ClientNote[] | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('client_notes')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data as ClientNote[], error: null };
+  } catch (error) {
+    console.error('Error fetching client notes:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export interface ClientNote {
+  id: string;
+  client_id: string;
+  note: string;
+  note_type: 'general' | 'call' | 'visit' | 'follow_up';
+  created_at: string;
+}
+
+export async function addClientNote(
+  clientId: string,
+  note: string,
+  noteType: 'general' | 'call' | 'visit' | 'follow_up' = 'general'
+): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('client_notes')
+      .insert([{ client_id: clientId, note, note_type: noteType }]);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error adding client note:', error);
+    return { error: error as Error };
+  }
+}
+
+// =============================================================================
+// Extended Stats Functions
+// =============================================================================
+
+export interface ExtendedStats {
+  revenueThisMonth: number;
+  jobsCompletedThisMonth: number;
+  averageJobValue: number;
+  newClientsThisMonth: number;
+}
+
+export async function getExtendedStats(): Promise<ExtendedStats> {
+  try {
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+    // Get bookings this month
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('status, invoice_amount, invoice_status, invoice_paid_at')
+      .gte('date', firstOfMonth)
+      .lte('date', endOfMonth);
+
+    // Get clients created this month
+    const { data: clients } = await supabase
+      .from('clients')
+      .select('id, created_at')
+      .gte('created_at', `${firstOfMonth}T00:00:00`)
+      .lte('created_at', `${endOfMonth}T23:59:59`);
+
+    const completedJobs = bookings?.filter(b => b.status === 'completed') || [];
+    const paidInvoices = bookings?.filter(b => b.invoice_status === 'paid') || [];
+    const revenue = paidInvoices.reduce((sum, b) => sum + (parseFloat(b.invoice_amount) || 0), 0);
+    const avgValue = paidInvoices.length > 0 ? revenue / paidInvoices.length : 0;
+
+    return {
+      revenueThisMonth: revenue,
+      jobsCompletedThisMonth: completedJobs.length,
+      averageJobValue: avgValue,
+      newClientsThisMonth: clients?.length || 0
+    };
+  } catch (error) {
+    console.error('Error fetching extended stats:', error);
+    return { revenueThisMonth: 0, jobsCompletedThisMonth: 0, averageJobValue: 0, newClientsThisMonth: 0 };
   }
 }

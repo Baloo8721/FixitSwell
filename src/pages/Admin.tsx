@@ -49,7 +49,15 @@ import {
   Trash2,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Calendar as CalendarIcon,
+  MessageSquare,
+  Users,
+  DollarSign,
+  TrendingUp,
+  UserPlus,
+  Star,
+  Shield
 } from "lucide-react";
 import { format, parseISO, isToday, isTomorrow, isPast } from "date-fns";
 import {
@@ -69,11 +77,22 @@ import {
   deleteBookingSupply,
   markPaymentCollected,
   deleteBooking,
+  getContactMessages,
+  updateContactMessageStatus,
+  getClientsWithStats,
+  updateClientFlags,
+  getClientNotes,
+  addClientNote,
+  getExtendedStats,
   DEFAULT_TIME_SLOTS,
   type BookingWithDetails,
   type Booking,
   type BookingSupply,
   type TimeSlot,
+  type ContactMessage,
+  type ClientWithStats,
+  type ClientNote,
+  type ExtendedStats,
   SERVICE_OPTIONS
 } from "@/lib/supabase";
 import {
@@ -103,7 +122,7 @@ const Admin = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [stats, setStats] = useState({ total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0, completedUnpaid: 0, completedNoInvoice: 0, totalUnpaid: 0, needsAttention: 0 });
+  const [stats, setStats] = useState({ total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0, unpaidConfirmed: 0, completedUnpaid: 0, completedNoInvoice: 0, totalUnpaid: 0, needsAttention: 0 });
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [notesValue, setNotesValue] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -235,6 +254,35 @@ const Admin = () => {
   // Sort state
   const [sortBy, setSortBy] = useState<'scheduled' | 'created'>('scheduled');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Date range filter state
+  type DateRangeFilter = 'all' | 'today' | 'week' | 'month';
+  const [dateRangeFilter, setDateRangeFilter] = useState<DateRangeFilter>('all');
+
+  // Calendar view modal state
+  const [showCalendarView, setShowCalendarView] = useState(false);
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | undefined>(undefined);
+
+  // Extended stats state
+  const [extendedStats, setExtendedStats] = useState<ExtendedStats>({
+    revenueThisMonth: 0,
+    jobsCompletedThisMonth: 0,
+    averageJobValue: 0,
+    newClientsThisMonth: 0
+  });
+
+  // Contact messages state
+  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
+  const [showContactMessages, setShowContactMessages] = useState(false);
+
+  // Clients state
+  const [clients, setClients] = useState<ClientWithStats[]>([]);
+  const [showClients, setShowClients] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
+  const [expandedClient, setExpandedClient] = useState<string | null>(null);
+  const [clientNotes, setClientNotes] = useState<Record<string, ClientNote[]>>({});
+  const [newNoteValue, setNewNoteValue] = useState('');
+  const [addingNoteFor, setAddingNoteFor] = useState<string | null>(null);
 
   // Toggle booking selection
   const toggleBookingSelection = (bookingId: string) => {
@@ -449,12 +497,66 @@ const Admin = () => {
     const statsData = await getBookingStats();
     setStats(statsData);
     
+    // Load extended stats
+    const extStats = await getExtendedStats();
+    setExtendedStats(extStats);
+    
     setIsLoading(false);
+  };
+
+  const loadContactMessages = async () => {
+    const { data } = await getContactMessages();
+    setContactMessages(data || []);
+  };
+
+  const loadClients = async () => {
+    const { data } = await getClientsWithStats();
+    setClients(data || []);
+  };
+
+  const loadClientNotesFor = async (clientId: string) => {
+    const { data } = await getClientNotes(clientId);
+    setClientNotes(prev => ({ ...prev, [clientId]: data || [] }));
   };
 
   useEffect(() => {
     loadBookings();
+    loadContactMessages();
+    loadClients();
   }, [statusFilter]);
+
+  // Date range filter helper
+  const getDateRange = (filter: DateRangeFilter): { start: string; end: string } | null => {
+    const today = new Date();
+    const todayStr = format(today, 'yyyy-MM-dd');
+    
+    switch (filter) {
+      case 'today':
+        return { start: todayStr, end: todayStr };
+      case 'week': {
+        const weekEnd = addDays(today, 7);
+        return { start: todayStr, end: format(weekEnd, 'yyyy-MM-dd') };
+      }
+      case 'month': {
+        const monthEnd = addDays(today, 30);
+        return { start: todayStr, end: format(monthEnd, 'yyyy-MM-dd') };
+      }
+      default:
+        return null;
+    }
+  };
+
+  // Get bookings for a specific date (for calendar view)
+  const getBookingsForDate = (date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return bookings.filter(b => b.date === dateStr);
+  };
+
+  // Get dates with bookings (for calendar highlighting)
+  const datesWithBookings = bookings.reduce((acc, b) => {
+    acc.add(b.date);
+    return acc;
+  }, new Set<string>());
 
   const handleStatusUpdate = async (bookingId: string, newStatus: Booking['status']) => {
     setUpdatingId(bookingId);
@@ -548,6 +650,14 @@ const Admin = () => {
   };
 
   const filteredBookings = bookings.filter(booking => {
+    // Filter by date range
+    const dateRange = getDateRange(dateRangeFilter);
+    if (dateRange) {
+      if (booking.date < dateRange.start || booking.date > dateRange.end) {
+        return false;
+      }
+    }
+
     // Filter by unpaid status (has invoice but not paid)
     if (statusFilter === 'unpaid') {
       if (!booking.invoice_amount || booking.invoice_status === 'paid') {
@@ -777,6 +887,10 @@ const Admin = () => {
                   </div>
                 </DialogContent>
               </Dialog>
+              <Button onClick={() => setShowCalendarView(true)} variant="outline" size="sm" className="gap-2">
+                <CalendarIcon className="w-4 h-4" />
+                Calendar
+              </Button>
               <Button onClick={loadBookings} variant="outline" size="sm" className="gap-2">
                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh
@@ -787,6 +901,62 @@ const Admin = () => {
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-6">
+        {/* Extended Stats Dashboard */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <DollarSign className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-green-700">${extendedStats.revenueThisMonth.toFixed(0)}</p>
+                  <p className="text-xs text-green-600">Revenue This Month</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <CheckCircle className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-blue-700">{extendedStats.jobsCompletedThisMonth}</p>
+                  <p className="text-xs text-blue-600">Jobs This Month</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-purple-50 to-violet-50 border-purple-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <TrendingUp className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-purple-700">${extendedStats.averageJobValue.toFixed(0)}</p>
+                  <p className="text-xs text-purple-600">Avg Job Value</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 rounded-lg">
+                  <UserPlus className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-amber-700">{extendedStats.newClientsThisMonth}</p>
+                  <p className="text-xs text-amber-600">New Clients</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Stats Cards - Clickable to filter */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <Card 
@@ -852,7 +1022,8 @@ const Admin = () => {
               </p>
               {stats.needsAttention > 0 && (
                 <div className="text-xs text-orange-500 mt-1 space-y-0.5">
-                  {stats.completedUnpaid > 0 && <p>{stats.completedUnpaid} unpaid</p>}
+                  {stats.unpaidConfirmed > 0 && <p>{stats.unpaidConfirmed} confirmed unpaid</p>}
+                  {stats.completedUnpaid > 0 && <p>{stats.completedUnpaid} completed unpaid</p>}
                   {stats.completedNoInvoice > 0 && <p>{stats.completedNoInvoice} no invoice</p>}
                 </div>
               )}
@@ -883,6 +1054,50 @@ const Admin = () => {
               <SelectItem value="needs_invoice">⚠️ No Invoice Created</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Date Range Filter */}
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            <button
+              onClick={() => setDateRangeFilter('all')}
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                dateRangeFilter === 'all' 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-background hover:bg-secondary'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setDateRangeFilter('today')}
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                dateRangeFilter === 'today' 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-background hover:bg-secondary'
+              }`}
+            >
+              Today
+            </button>
+            <button
+              onClick={() => setDateRangeFilter('week')}
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                dateRangeFilter === 'week' 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-background hover:bg-secondary'
+              }`}
+            >
+              Week
+            </button>
+            <button
+              onClick={() => setDateRangeFilter('month')}
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                dateRangeFilter === 'month' 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-background hover:bg-secondary'
+              }`}
+            >
+              Month
+            </button>
+          </div>
 
           {/* Sort Toggle */}
           <div className="flex items-center gap-2">
@@ -1810,7 +2025,352 @@ const Admin = () => {
               ))}
           </div>
         )}
+
+        {/* Contact Messages Section */}
+        <Card className="border-indigo-200">
+          <CardHeader 
+            className="cursor-pointer"
+            onClick={() => setShowContactMessages(!showContactMessages)}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <MessageSquare className="w-5 h-5 text-indigo-600" />
+                Contact Messages
+                {contactMessages.filter(m => m.status === 'new').length > 0 && (
+                  <Badge className="bg-indigo-500">{contactMessages.filter(m => m.status === 'new').length} new</Badge>
+                )}
+              </CardTitle>
+              {showContactMessages ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+          </CardHeader>
+          {showContactMessages && (
+            <CardContent className="pt-0">
+              {contactMessages.length === 0 ? (
+                <p className="text-muted-foreground text-center py-6">No contact messages yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {contactMessages.map(msg => (
+                    <div 
+                      key={msg.id} 
+                      className={`p-4 rounded-lg border ${
+                        msg.status === 'new' ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{msg.name}</span>
+                            <Badge variant="outline" className={
+                              msg.status === 'new' ? 'bg-indigo-100 text-indigo-700' :
+                              msg.status === 'read' ? 'bg-gray-100 text-gray-700' :
+                              'bg-green-100 text-green-700'
+                            }>
+                              {msg.status}
+                            </Badge>
+                          </div>
+                          <a href={`tel:${msg.phone}`} className="text-sm text-indigo-600 hover:underline flex items-center gap-1">
+                            <Phone className="w-3 h-3" /> {msg.phone}
+                          </a>
+                          {msg.message && (
+                            <p className="text-sm text-muted-foreground mt-2">{msg.message}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            {format(parseISO(msg.created_at), 'MMM d, yyyy h:mm a')}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          {msg.status === 'new' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                updateContactMessageStatus(msg.id, 'read');
+                                loadContactMessages();
+                              }}
+                            >
+                              Mark Read
+                            </Button>
+                          )}
+                          {msg.status !== 'replied' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="text-green-600 border-green-300 hover:bg-green-50"
+                              onClick={() => {
+                                updateContactMessageStatus(msg.id, 'replied');
+                                loadContactMessages();
+                              }}
+                            >
+                              Replied
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Client Directory Section */}
+        <Card className="border-teal-200">
+          <CardHeader 
+            className="cursor-pointer"
+            onClick={() => setShowClients(!showClients)}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Users className="w-5 h-5 text-teal-600" />
+                Client Directory
+                <Badge variant="outline">{clients.length} clients</Badge>
+              </CardTitle>
+              {showClients ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+          </CardHeader>
+          {showClients && (
+            <CardContent className="pt-0">
+              <Input
+                placeholder="Search clients by name, phone, or email..."
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                className="mb-4"
+              />
+              {clients.length === 0 ? (
+                <p className="text-muted-foreground text-center py-6">No clients yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {clients
+                    .filter(c => 
+                      c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+                      c.phone?.toLowerCase().includes(clientSearch.toLowerCase()) ||
+                      c.email?.toLowerCase().includes(clientSearch.toLowerCase())
+                    )
+                    .map(client => (
+                    <Collapsible 
+                      key={client.id}
+                      open={expandedClient === client.id}
+                      onOpenChange={(open) => {
+                        setExpandedClient(open ? client.id : null);
+                        if (open) loadClientNotesFor(client.id);
+                      }}
+                    >
+                      <CollapsibleTrigger asChild>
+                        <div className="p-4 rounded-lg border bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center">
+                                <User className="w-5 h-5 text-teal-600" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{client.name}</span>
+                                  {client.is_senior && <Star className="w-4 h-4 text-amber-500" title="Senior" />}
+                                  {client.is_military && <Shield className="w-4 h-4 text-blue-500" title="Military" />}
+                                </div>
+                                <p className="text-sm text-muted-foreground">{client.phone || client.email}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-medium">{client.booking_count} bookings</p>
+                              <p className="text-xs text-muted-foreground">
+                                ${client.total_spent.toFixed(0)} total
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="p-4 bg-white border border-t-0 rounded-b-lg space-y-4">
+                          <div className="grid sm:grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <Label className="text-muted-foreground">Phone</Label>
+                              <p>{client.phone || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <Label className="text-muted-foreground">Email</Label>
+                              <p>{client.email || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <Label className="text-muted-foreground">Address</Label>
+                              <p>{client.address || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <Label className="text-muted-foreground">Last Booking</Label>
+                              <p>{client.last_booking_date ? format(parseISO(client.last_booking_date), 'MMM d, yyyy') : 'N/A'}</p>
+                            </div>
+                          </div>
+                          
+                          {/* Flags */}
+                          <div className="flex items-center gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <Checkbox 
+                                checked={client.is_senior || false}
+                                onCheckedChange={(checked) => {
+                                  updateClientFlags(client.id, { is_senior: !!checked });
+                                  loadClients();
+                                }}
+                              />
+                              <Star className="w-4 h-4 text-amber-500" />
+                              <span className="text-sm">Senior</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <Checkbox 
+                                checked={client.is_military || false}
+                                onCheckedChange={(checked) => {
+                                  updateClientFlags(client.id, { is_military: !!checked });
+                                  loadClients();
+                                }}
+                              />
+                              <Shield className="w-4 h-4 text-blue-500" />
+                              <span className="text-sm">Military</span>
+                            </label>
+                          </div>
+
+                          {/* Notes */}
+                          <div>
+                            <Label className="text-muted-foreground mb-2 block">Notes</Label>
+                            {clientNotes[client.id]?.length > 0 ? (
+                              <div className="space-y-2 mb-3">
+                                {clientNotes[client.id].map(note => (
+                                  <div key={note.id} className="p-2 bg-gray-50 rounded border text-sm">
+                                    <p>{note.note}</p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {format(parseISO(note.created_at), 'MMM d, yyyy h:mm a')}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground mb-2">No notes yet.</p>
+                            )}
+                            {addingNoteFor === client.id ? (
+                              <div className="space-y-2">
+                                <Textarea
+                                  value={newNoteValue}
+                                  onChange={(e) => setNewNoteValue(e.target.value)}
+                                  placeholder="Add a note..."
+                                  rows={2}
+                                />
+                                <div className="flex gap-2">
+                                  <Button 
+                                    size="sm"
+                                    onClick={async () => {
+                                      if (newNoteValue.trim()) {
+                                        await addClientNote(client.id, newNoteValue);
+                                        loadClientNotesFor(client.id);
+                                        setNewNoteValue('');
+                                        setAddingNoteFor(null);
+                                      }
+                                    }}
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => {
+                                      setAddingNoteFor(null);
+                                      setNewNoteValue('');
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => setAddingNoteFor(client.id)}
+                              >
+                                <Plus className="w-4 h-4 mr-1" /> Add Note
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
       </main>
+
+      {/* Calendar View Modal */}
+      <Dialog open={showCalendarView} onOpenChange={setShowCalendarView}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5" />
+              Calendar View
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="flex justify-center">
+              <Calendar
+                mode="single"
+                selected={selectedCalendarDate}
+                onSelect={setSelectedCalendarDate}
+                modifiers={{
+                  hasBookings: (date) => datesWithBookings.has(format(date, 'yyyy-MM-dd'))
+                }}
+                modifiersStyles={{
+                  hasBookings: {
+                    backgroundColor: 'hsl(var(--primary) / 0.1)',
+                    fontWeight: 'bold',
+                    borderRadius: '50%'
+                  }
+                }}
+                className="rounded-lg border p-3"
+              />
+            </div>
+            <div>
+              <h3 className="font-medium mb-3">
+                {selectedCalendarDate 
+                  ? `Bookings for ${format(selectedCalendarDate, 'EEEE, MMMM d, yyyy')}`
+                  : 'Select a date to see bookings'
+                }
+              </h3>
+              {selectedCalendarDate && (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {getBookingsForDate(selectedCalendarDate).length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4">No bookings on this date.</p>
+                  ) : (
+                    getBookingsForDate(selectedCalendarDate).map(booking => (
+                      <div 
+                        key={booking.id} 
+                        className={`p-3 rounded-lg border ${
+                          booking.status === 'pending' ? 'bg-yellow-50 border-yellow-200' :
+                          booking.status === 'confirmed' ? 'bg-blue-50 border-blue-200' :
+                          booking.status === 'completed' ? 'bg-green-50 border-green-200' :
+                          'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium">{booking.client?.name}</span>
+                          {getStatusBadge(booking.status)}
+                        </div>
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> {getTimeLabel(booking.time_slot)}
+                        </p>
+                        {booking.client?.phone && (
+                          <a href={`tel:${booking.client.phone}`} className="text-sm text-primary hover:underline flex items-center gap-1">
+                            <Phone className="w-3 h-3" /> {booking.client.phone}
+                          </a>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

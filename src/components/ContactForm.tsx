@@ -3,10 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Send, CheckCircle, AlertCircle } from "lucide-react";
+import { Send, CheckCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { saveContactMessage } from "@/lib/supabase";
 
-// n8n webhook URL for contact form submissions
+// n8n webhook URL for contact form submissions (optional - for future notifications)
 const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_CONTACT_WEBHOOK || '';
 
 const ContactForm = () => {
@@ -30,27 +31,35 @@ const ContactForm = () => {
     setIsSubmitting(true);
 
     try {
-      // If webhook URL is configured, send to n8n
-      if (N8N_WEBHOOK_URL) {
-        const response = await fetch(N8N_WEBHOOK_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...formData,
-            timestamp: new Date().toISOString(),
-            source: 'website_contact_form'
-          }),
-        });
+      // Save to Supabase
+      const { error: saveError } = await saveContactMessage({
+        name: formData.name,
+        phone: formData.phone,
+        message: formData.message || undefined
+      });
 
-        if (!response.ok) {
-          throw new Error('Failed to send message');
+      if (saveError) {
+        throw saveError;
+      }
+
+      // Optionally send to n8n webhook for notifications (if configured)
+      if (N8N_WEBHOOK_URL) {
+        try {
+          await fetch(N8N_WEBHOOK_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              ...formData,
+              timestamp: new Date().toISOString(),
+              source: 'website_contact_form'
+            }),
+          });
+        } catch (webhookError) {
+          // Don't fail the form if webhook fails - message is already saved
+          console.warn('n8n webhook failed (message still saved):', webhookError);
         }
-      } else {
-        // Fallback: just simulate success if no webhook configured
-        console.log('No webhook configured. Form data:', formData);
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       setIsSubmitting(false);
