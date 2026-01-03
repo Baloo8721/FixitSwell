@@ -27,8 +27,25 @@ const ContactForm = () => {
     }));
   };
 
+  // Email validation - requires proper domain with TLD (at least 2 chars)
+  const isValidEmail = (email: string) => {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(email);
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    // Validate email before submitting
+    if (!isValidEmail(formData.email)) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address (e.g., john@email.com)",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsSubmitting(true);
 
     try {
@@ -122,8 +139,11 @@ const ContactForm = () => {
           onChange={handleChange}
           placeholder="e.g., john@email.com" 
           required
-          className="h-14 text-lg rounded-lg"
+          className={`h-14 text-lg rounded-lg ${formData.email && !isValidEmail(formData.email) ? 'border-red-500 focus:ring-red-500' : ''}`}
         />
+        {formData.email && !isValidEmail(formData.email) && (
+          <p className="text-sm text-red-500">Please enter a valid email (e.g., john@email.com)</p>
+        )}
       </div>
 
       <div className="space-y-2">
