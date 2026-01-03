@@ -704,17 +704,19 @@ const Admin = () => {
       }
     }
     
-    // Filter by needs attention (completed: either unpaid or no invoice)
+    // Filter by needs attention (confirmed or completed with unpaid invoice, or completed with no invoice)
     if (statusFilter === 'needs_attention') {
-      if (booking.status !== 'completed') {
-        return false;
-      }
-      // Must be either: has invoice but unpaid, OR no invoice at all
       const hasUnpaidInvoice = booking.invoice_amount && booking.invoice_status !== 'paid';
-      const hasNoInvoice = !booking.invoice_amount;
-      if (!hasUnpaidInvoice && !hasNoInvoice) {
-        return false;
+      const isCompletedNoInvoice = booking.status === 'completed' && !booking.invoice_amount;
+      
+      // Show: confirmed/completed with unpaid invoice, OR completed with no invoice
+      if (hasUnpaidInvoice && (booking.status === 'confirmed' || booking.status === 'completed')) {
+        return true; // Keep this booking
       }
+      if (isCompletedNoInvoice) {
+        return true; // Keep this booking
+      }
+      return false; // Filter out everything else
     }
     
     // Filter by search query
