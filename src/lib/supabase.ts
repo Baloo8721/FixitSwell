@@ -1756,6 +1756,7 @@ export interface ExtendedStats {
   jobsCompletedThisMonth: number;
   averageJobValue: number;
   newClientsThisMonth: number;
+  suppliesCostThisMonth: number;
 }
 
 export async function getExtendedStats(): Promise<ExtendedStats> {
@@ -1767,7 +1768,7 @@ export async function getExtendedStats(): Promise<ExtendedStats> {
     // Get bookings this month
     const { data: bookings } = await supabase
       .from('bookings')
-      .select('status, invoice_amount, invoice_status, invoice_paid_at')
+      .select('id, status, invoice_amount, invoice_status, invoice_paid_at')
       .gte('date', firstOfMonth)
       .lte('date', endOfMonth);
 
@@ -1778,6 +1779,19 @@ export async function getExtendedStats(): Promise<ExtendedStats> {
       .gte('created_at', `${firstOfMonth}T00:00:00`)
       .lte('created_at', `${endOfMonth}T23:59:59`);
 
+    // Get supplies/materials cost for bookings this month
+    const bookingIds = bookings?.map(b => b.id) || [];
+    let suppliesCost = 0;
+    
+    if (bookingIds.length > 0) {
+      const { data: supplies } = await supabase
+        .from('booking_supplies')
+        .select('cost, quantity')
+        .in('booking_id', bookingIds);
+      
+      suppliesCost = supplies?.reduce((sum, s) => sum + (parseFloat(s.cost) * (s.quantity || 1)), 0) || 0;
+    }
+
     const completedJobs = bookings?.filter(b => b.status === 'completed') || [];
     const paidInvoices = bookings?.filter(b => b.invoice_status === 'paid') || [];
     const revenue = paidInvoices.reduce((sum, b) => sum + (parseFloat(b.invoice_amount) || 0), 0);
@@ -1787,10 +1801,11 @@ export async function getExtendedStats(): Promise<ExtendedStats> {
       revenueThisMonth: revenue,
       jobsCompletedThisMonth: completedJobs.length,
       averageJobValue: avgValue,
-      newClientsThisMonth: clients?.length || 0
+      newClientsThisMonth: clients?.length || 0,
+      suppliesCostThisMonth: suppliesCost
     };
   } catch (error) {
     console.error('Error fetching extended stats:', error);
-    return { revenueThisMonth: 0, jobsCompletedThisMonth: 0, averageJobValue: 0, newClientsThisMonth: 0 };
+    return { revenueThisMonth: 0, jobsCompletedThisMonth: 0, averageJobValue: 0, newClientsThisMonth: 0, suppliesCostThisMonth: 0 };
   }
 }

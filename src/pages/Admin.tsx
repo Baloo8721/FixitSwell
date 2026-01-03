@@ -250,6 +250,7 @@ const Admin = () => {
   // Bulk selection state
   const [selectedBookings, setSelectedBookings] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState('');
 
   // Sort state
   const [sortBy, setSortBy] = useState<'scheduled' | 'created'>('scheduled');
@@ -268,7 +269,8 @@ const Admin = () => {
     revenueThisMonth: 0,
     jobsCompletedThisMonth: 0,
     averageJobValue: 0,
-    newClientsThisMonth: 0
+    newClientsThisMonth: 0,
+    suppliesCostThisMonth: 0
   });
 
   // Contact messages state
@@ -887,13 +889,11 @@ const Admin = () => {
                   </div>
                 </DialogContent>
               </Dialog>
-              <Button onClick={() => setShowCalendarView(true)} variant="outline" size="sm" className="gap-2">
+              <Button onClick={() => setShowCalendarView(true)} variant="outline" size="icon" className="h-9 w-9" title="Calendar View">
                 <CalendarIcon className="w-4 h-4" />
-                Calendar
               </Button>
-              <Button onClick={loadBookings} variant="outline" size="sm" className="gap-2">
+              <Button onClick={loadBookings} variant="outline" size="icon" className="h-9 w-9" title="Refresh">
                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                Refresh
               </Button>
             </div>
           </div>
@@ -901,60 +901,33 @@ const Admin = () => {
       </header>
 
       <main className="container mx-auto px-4 py-6 space-y-6">
-        {/* Extended Stats Dashboard */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <DollarSign className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-green-700">${extendedStats.revenueThisMonth.toFixed(0)}</p>
-                  <p className="text-xs text-green-600">Revenue This Month</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <CheckCircle className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-blue-700">{extendedStats.jobsCompletedThisMonth}</p>
-                  <p className="text-xs text-blue-600">Jobs This Month</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-purple-50 to-violet-50 border-purple-200">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <TrendingUp className="w-5 h-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-purple-700">${extendedStats.averageJobValue.toFixed(0)}</p>
-                  <p className="text-xs text-purple-600">Avg Job Value</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-100 rounded-lg">
-                  <UserPlus className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-amber-700">{extendedStats.newClientsThisMonth}</p>
-                  <p className="text-xs text-amber-600">New Clients</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Extended Stats - Simple inline display */}
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground border-b border-border pb-4">
+          <div className="flex items-center gap-1.5">
+            <DollarSign className="w-4 h-4 text-green-600" />
+            <span className="font-semibold text-foreground">${extendedStats.revenueThisMonth.toFixed(0)}</span>
+            <span>income</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Wrench className="w-4 h-4 text-red-500" />
+            <span className="font-semibold text-foreground">${extendedStats.suppliesCostThisMonth.toFixed(0)}</span>
+            <span>costs</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <CheckCircle className="w-4 h-4 text-blue-600" />
+            <span className="font-semibold text-foreground">{extendedStats.jobsCompletedThisMonth}</span>
+            <span>jobs</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <TrendingUp className="w-4 h-4 text-purple-600" />
+            <span className="font-semibold text-foreground">${extendedStats.averageJobValue.toFixed(0)}</span>
+            <span>avg</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <UserPlus className="w-4 h-4 text-amber-600" />
+            <span className="font-semibold text-foreground">{extendedStats.newClientsThisMonth}</span>
+            <span>new clients</span>
+          </div>
         </div>
 
         {/* Stats Cards - Clickable to filter */}
@@ -1168,7 +1141,7 @@ const Admin = () => {
             
             {/* Bulk Delete Button */}
             {selectedBookings.size > 0 && (
-              <AlertDialog>
+              <AlertDialog onOpenChange={(open) => { if (!open) setBulkDeleteConfirmText(''); }}>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" size="sm" disabled={bulkDeleting}>
                     {bulkDeleting ? (
@@ -1185,16 +1158,31 @@ const Admin = () => {
                       <Trash2 className="w-5 h-5" />
                       Delete {selectedBookings.size} Booking{selectedBookings.size > 1 ? 's' : ''}?
                     </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      <p className="mb-2">Are you sure you want to <strong>permanently delete</strong> these bookings?</p>
-                      <p className="text-red-600 font-medium">⚠️ This action cannot be undone!</p>
+                    <AlertDialogDescription asChild>
+                      <div className="space-y-3">
+                        <p>Are you sure you want to <strong>permanently delete</strong> these bookings?</p>
+                        <p className="text-red-600 font-medium">⚠️ This action cannot be undone!</p>
+                        <div className="pt-2">
+                          <Label htmlFor="delete-confirm" className="text-sm text-muted-foreground">
+                            Type <span className="font-mono font-bold text-red-600">Delete</span> to confirm:
+                          </Label>
+                          <Input
+                            id="delete-confirm"
+                            value={bulkDeleteConfirmText}
+                            onChange={(e) => setBulkDeleteConfirmText(e.target.value)}
+                            placeholder="Delete"
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel onClick={() => setBulkDeleteConfirmText('')}>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleBulkDelete}
                       className="bg-red-600 hover:bg-red-700"
+                      disabled={bulkDeleteConfirmText !== 'Delete'}
                     >
                       Yes, Delete All Selected
                     </AlertDialogAction>
