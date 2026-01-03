@@ -1847,7 +1847,7 @@ const Admin = () => {
                                             </AlertDialog>
                                             <AlertDialog>
                                               <AlertDialogTrigger asChild>
-                                                <Button size="sm">💳 Paid by Card</Button>
+                                                <Button size="sm" variant="outline">💳 Paid by Card</Button>
                                               </AlertDialogTrigger>
                                               <AlertDialogContent>
                                                 <AlertDialogHeader>
