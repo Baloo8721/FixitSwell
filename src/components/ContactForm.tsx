@@ -15,6 +15,7 @@ const ContactForm = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
+    email: '',
     phone: '',
     message: ''
   });
@@ -34,7 +35,8 @@ const ContactForm = () => {
       // Save to Supabase
       const { error: saveError } = await saveContactMessage({
         name: formData.name,
-        phone: formData.phone,
+        email: formData.email,
+        phone: formData.phone || undefined,
         message: formData.message || undefined
       });
 
@@ -111,7 +113,21 @@ const ContactForm = () => {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="phone" className="text-lg">Phone Number</Label>
+        <Label htmlFor="email" className="text-lg">Your Email</Label>
+        <Input 
+          id="email" 
+          name="email"
+          type="email"
+          value={formData.email}
+          onChange={handleChange}
+          placeholder="e.g., john@email.com" 
+          required
+          className="h-14 text-lg rounded-lg"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="phone" className="text-lg">Phone Number <span className="text-muted-foreground text-sm">(optional)</span></Label>
         <Input 
           id="phone" 
           name="phone"
@@ -119,7 +135,6 @@ const ContactForm = () => {
           value={formData.phone}
           onChange={handleChange}
           placeholder="e.g., (555) 123-4567" 
-          required
           className="h-14 text-lg rounded-lg"
         />
       </div>

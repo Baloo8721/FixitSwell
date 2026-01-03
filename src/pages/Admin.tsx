@@ -72,6 +72,7 @@ import {
   getAvailableTimeSlots,
   createInvoice,
   updateInvoiceStatus,
+  updateInvoiceAmount,
   getBookingSupplies,
   addBookingSupply,
   deleteBookingSupply,
@@ -173,6 +174,8 @@ const Admin = () => {
   const [invoiceAmount, setInvoiceAmount] = useState('');
   const [depositAmount, setDepositAmount] = useState('');
   const [creatingInvoice, setCreatingInvoice] = useState(false);
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const [editInvoiceAmount, setEditInvoiceAmount] = useState('');
   const [supplies, setSupplies] = useState<Record<string, BookingSupply[]>>({});
   const [newSupply, setNewSupply] = useState({ item: '', cost: '', quantity: '1', notes: '' });
   const [addingSupply, setAddingSupply] = useState<string | null>(null);
@@ -213,6 +216,33 @@ const Admin = () => {
       setInvoiceBookingId(null);
       setInvoiceAmount('');
       setDepositAmount('');
+      loadBookings();
+    }
+  };
+
+  const handleUpdateInvoiceAmount = async (bookingId: string) => {
+    const amount = parseFloat(editInvoiceAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid amount",
+        description: "Please enter a valid amount.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const { error } = await updateInvoiceAmount(bookingId, amount);
+    
+    if (error) {
+      toast({
+        title: "Error updating invoice",
+        description: error.message,
+        variant: "destructive"
+      });
+    } else {
+      toast({ title: "Invoice updated", description: `Amount changed to $${amount.toFixed(2)}` });
+      setEditingInvoiceId(null);
+      setEditInvoiceAmount('');
       loadBookings();
     }
   };
@@ -1237,7 +1267,8 @@ const Admin = () => {
                   <div className="space-y-3">
                     {dateBookings.map((booking) => (
                       <Card 
-                        key={booking.id} 
+                        key={booking.id}
+                        id={`booking-${booking.id}`}
                         className={`overflow-hidden border-l-4 ${
                           booking.status === 'pending' ? 'border-l-yellow-500 bg-yellow-50/30' :
                           booking.status === 'confirmed' ? 'border-l-blue-500 bg-blue-50/30' :
@@ -1299,7 +1330,7 @@ const Admin = () => {
                                         💵 Paid {booking.payment_method && `(${booking.payment_method})`}
                                       </Badge>
                                     ) : booking.payment_pending_collection ? (
-                                      <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 text-xs animate-pulse">
+                                      <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 text-xs animate-pulse">
                                         {booking.payment_method === 'check' ? '📝' : '💵'} Collect ${booking.invoice_amount}
                                       </Badge>
                                     ) : (
@@ -1694,8 +1725,39 @@ const Admin = () => {
                                   // Show Invoice Details
                                   <div className="p-4 bg-secondary/50 rounded-lg">
                                     <div className="flex items-center justify-between mb-2">
-                                      <span className="font-medium">Invoice: ${booking.invoice_amount?.toFixed(2)}</span>
-                                      <Badge variant={booking.invoice_status === 'paid' ? 'default' : 'secondary'}>
+                                      {editingInvoiceId === booking.id ? (
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm">$</span>
+                                          <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={editInvoiceAmount}
+                                            onChange={(e) => setEditInvoiceAmount(e.target.value)}
+                                            className="w-24 h-8"
+                                            placeholder={booking.invoice_amount?.toString()}
+                                          />
+                                          <Button size="sm" onClick={() => handleUpdateInvoiceAmount(booking.id)}>Save</Button>
+                                          <Button size="sm" variant="outline" onClick={() => { setEditingInvoiceId(null); setEditInvoiceAmount(''); }}>Cancel</Button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-medium">Invoice: ${booking.invoice_amount?.toFixed(2)}</span>
+                                          {booking.invoice_status !== 'paid' && (
+                                            <Button 
+                                              size="sm" 
+                                              variant="ghost" 
+                                              className="h-6 px-2 text-xs"
+                                              onClick={() => {
+                                                setEditingInvoiceId(booking.id);
+                                                setEditInvoiceAmount(booking.invoice_amount?.toString() || '');
+                                              }}
+                                            >
+                                              Edit
+                                            </Button>
+                                          )}
+                                        </div>
+                                      )}
+                                      <Badge variant={booking.invoice_status === 'paid' ? 'default' : 'secondary'} className={booking.invoice_status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}>
                                         {booking.invoice_status === 'paid' ? '✓ Paid' : booking.invoice_status === 'partial' ? 'Partial' : 'Pending'}
                                       </Badge>
                                     </div>
@@ -2050,15 +2112,22 @@ const Admin = () => {
                             <span className="font-medium">{msg.name}</span>
                             <Badge variant="outline" className={
                               msg.status === 'new' ? 'bg-indigo-100 text-indigo-700' :
-                              msg.status === 'read' ? 'bg-gray-100 text-gray-700' :
-                              'bg-green-100 text-green-700'
+                              msg.status === 'replied' ? 'bg-green-100 text-green-700' :
+                              'bg-orange-100 text-orange-700'
                             }>
-                              {msg.status}
+                              {msg.status === 'new' ? 'New' : msg.status === 'replied' ? 'Replied' : 'Not Replied'}
                             </Badge>
                           </div>
-                          <a href={`tel:${msg.phone}`} className="text-sm text-indigo-600 hover:underline flex items-center gap-1">
-                            <Phone className="w-3 h-3" /> {msg.phone}
-                          </a>
+                          {msg.email && (
+                            <a href={`mailto:${msg.email}`} className="text-sm text-indigo-600 hover:underline flex items-center gap-1">
+                              <Mail className="w-3 h-3" /> {msg.email}
+                            </a>
+                          )}
+                          {msg.phone && (
+                            <a href={`tel:${msg.phone}`} className="text-sm text-indigo-600 hover:underline flex items-center gap-1">
+                              <Phone className="w-3 h-3" /> {msg.phone}
+                            </a>
+                          )}
                           {msg.message && (
                             <p className="text-sm text-muted-foreground mt-2">{msg.message}</p>
                           )}
@@ -2083,13 +2152,13 @@ const Admin = () => {
                             <Button 
                               size="sm" 
                               variant="outline"
-                              className="text-green-600 border-green-300 hover:bg-green-50"
+                              className="text-orange-600 border-orange-300 hover:bg-orange-50"
                               onClick={() => {
                                 updateContactMessageStatus(msg.id, 'replied');
                                 loadContactMessages();
                               }}
                             >
-                              Replied
+                              Mark Replied
                             </Button>
                           )}
                         </div>
@@ -2331,12 +2400,20 @@ const Admin = () => {
                     getBookingsForDate(selectedCalendarDate).map(booking => (
                       <div 
                         key={booking.id} 
-                        className={`p-3 rounded-lg border ${
+                        className={`p-3 rounded-lg border cursor-pointer hover:ring-2 hover:ring-primary transition-all ${
                           booking.status === 'pending' ? 'bg-yellow-50 border-yellow-200' :
                           booking.status === 'confirmed' ? 'bg-blue-50 border-blue-200' :
                           booking.status === 'completed' ? 'bg-green-50 border-green-200' :
                           'bg-gray-50 border-gray-200'
                         }`}
+                        onClick={() => {
+                          setShowCalendarView(false);
+                          setExpandedBooking(booking.id);
+                          // Scroll to booking after a brief delay
+                          setTimeout(() => {
+                            document.getElementById(`booking-${booking.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          }, 100);
+                        }}
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-medium">{booking.client?.name}</span>
@@ -2346,10 +2423,30 @@ const Admin = () => {
                           <Clock className="w-3 h-3" /> {getTimeLabel(booking.time_slot)}
                         </p>
                         {booking.client?.phone && (
-                          <a href={`tel:${booking.client.phone}`} className="text-sm text-primary hover:underline flex items-center gap-1">
+                          <p className="text-sm text-muted-foreground flex items-center gap-1">
                             <Phone className="w-3 h-3" /> {booking.client.phone}
-                          </a>
+                          </p>
                         )}
+                        {booking.client?.email && (
+                          <p className="text-sm text-muted-foreground flex items-center gap-1">
+                            <Mail className="w-3 h-3" /> {booking.client.email}
+                          </p>
+                        )}
+                        {booking.services && booking.services.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {booking.services.map((service: { id: string; name: string }) => (
+                              <Badge key={service.id} variant="secondary" className="text-xs">
+                                {service.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        {booking.notes && (
+                          <p className="text-xs text-muted-foreground mt-2 line-clamp-2 italic">
+                            "{booking.notes}"
+                          </p>
+                        )}
+                        <p className="text-xs text-primary mt-2">Click to view details →</p>
                       </div>
                     ))
                   )}

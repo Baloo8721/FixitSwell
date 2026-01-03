@@ -1167,6 +1167,34 @@ export async function updateInvoiceStatus(
   }
 }
 
+export async function updateInvoiceAmount(
+  bookingId: string,
+  amount: number
+): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('bookings')
+      .update({ invoice_amount: amount })
+      .eq('id', bookingId);
+
+    if (error) throw error;
+
+    await supabase
+      .from('booking_history')
+      .insert([{
+        booking_id: bookingId,
+        action: 'invoice_updated',
+        new_data: { amount },
+        changed_by: 'staff'
+      }]);
+
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating invoice amount:', error);
+    return { error: error as Error };
+  }
+}
+
 // =============================================================================
 // Supplies Management
 // =============================================================================
@@ -1577,7 +1605,8 @@ export async function getBookingForAIAnalysis(bookingId: string): Promise<{
 export interface ContactMessage {
   id: string;
   name: string;
-  phone: string;
+  email: string | null;
+  phone: string | null;
   message: string | null;
   status: 'new' | 'read' | 'replied';
   created_at: string;
@@ -1600,7 +1629,8 @@ export async function getContactMessages(): Promise<{ data: ContactMessage[] | n
 
 export async function saveContactMessage(data: {
   name: string;
-  phone: string;
+  email: string;
+  phone?: string;
   message?: string;
 }): Promise<{ data: ContactMessage | null; error: Error | null }> {
   try {
@@ -1608,7 +1638,8 @@ export async function saveContactMessage(data: {
       .from('contact_messages')
       .insert([{
         name: data.name,
-        phone: data.phone,
+        email: data.email,
+        phone: data.phone || null,
         message: data.message || null,
         status: 'new'
       }])
