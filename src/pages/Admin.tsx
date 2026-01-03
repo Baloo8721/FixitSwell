@@ -57,7 +57,8 @@ import {
   TrendingUp,
   UserPlus,
   Star,
-  Shield
+  Shield,
+  Bell
 } from "lucide-react";
 import { format, parseISO, isToday, isTomorrow, isPast } from "date-fns";
 import {
@@ -921,6 +922,26 @@ const Admin = () => {
                   </div>
                 </DialogContent>
               </Dialog>
+              {/* Messages Notification */}
+              <Button 
+                onClick={() => {
+                  setShowContactMessages(true);
+                  setTimeout(() => {
+                    document.getElementById('contact-messages-section')?.scrollIntoView({ behavior: 'smooth' });
+                  }, 100);
+                }} 
+                variant="outline" 
+                size="icon" 
+                className="h-9 w-9 relative" 
+                title="Contact Messages"
+              >
+                <Bell className="w-4 h-4" />
+                {contactMessages.filter(m => m.status === 'new').length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                    {contactMessages.filter(m => m.status === 'new').length}
+                  </span>
+                )}
+              </Button>
               <Button onClick={() => setShowCalendarView(true)} variant="outline" size="icon" className="h-9 w-9" title="Calendar View">
                 <CalendarIcon className="w-4 h-4" />
               </Button>
@@ -2079,7 +2100,7 @@ const Admin = () => {
         )}
 
         {/* Contact Messages Section */}
-        <Card className="border-indigo-200">
+        <Card id="contact-messages-section" className="border-indigo-200">
           <CardHeader 
             className="cursor-pointer"
             onClick={() => setShowContactMessages(!showContactMessages)}
