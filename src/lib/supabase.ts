@@ -1670,20 +1670,36 @@ export async function getBookingStats(): Promise<{
 // Legacy SERVICE_OPTIONS for backward compatibility with BookingCalendar
 // =============================================================================
 
-export const SERVICE_OPTIONS = [
-  { id: 'assembly', label: 'Assembly, Mounting & Setup', category: 'service' },
-  { id: 'tech', label: 'Technology & WiFi Help', category: 'service' },
-  { id: 'repairs', label: 'Repairs & Honey-Do Fixes', category: 'service' },
-  { id: 'safety', label: 'Safety & Senior Support', category: 'service' },
-  { id: 'outdoor', label: 'Outdoor & Seasonal', category: 'service' },
-  { id: 'organizing', label: 'Organizing & Extras', category: 'service' },
-  { id: 'tune-up', label: 'Basic Home Tune-Up Package', category: 'package' },
-  { id: 'seasonal', label: 'Seasonal Prep Bundle', category: 'package' },
-  { id: 'move-assist', label: 'Move-In/Move-Out Assist', category: 'package' },
-  { id: 'peace-of-mind', label: 'Home Check & Peace-of-Mind (Monthly)', category: 'monthly' },
-  { id: 'tech-support', label: 'Tech + Home Support (Monthly)', category: 'monthly' },
-  { id: 'helper-plan', label: 'Trusted Helper Plan (Monthly)', category: 'monthly' },
-];
+// Legacy SERVICE_OPTIONS for backwards compatibility - now fetched dynamically
+export const SERVICE_OPTIONS: { id: string; label: string; category: string }[] = [];
+
+// Fetch all services from database for autocomplete/quick add
+export async function getAllServicesForDropdown(): Promise<{ 
+  data: { id: string; label: string; category: string; price_min: number | null }[] | null; 
+  error: Error | null 
+}> {
+  try {
+    const { data, error } = await supabase
+      .from('services')
+      .select('id, name, category, price_min')
+      .eq('is_active', true)
+      .order('name');
+
+    if (error) throw error;
+    
+    const options = data?.map(s => ({
+      id: s.name,
+      label: s.name,
+      category: s.category,
+      price_min: s.price_min
+    })) || [];
+
+    return { data: options, error: null };
+  } catch (error) {
+    console.error('Error fetching services for dropdown:', error);
+    return { data: null, error: error as Error };
+  }
+}
 
 // =============================================================================
 // Image Upload Functions
@@ -2891,11 +2907,44 @@ export interface ContactMessage {
   email: string | null;
   phone: string | null;
   message: string | null;
+  message_type: 'contact' | 'quote_request';
   status: 'new' | 'read' | 'replied';
   reply: string | null;
   replied_at: string | null;
   replied_by: string | null;
   created_at: string;
+}
+
+export async function submitQuoteRequest(data: {
+  name: string;
+  email?: string;
+  phone?: string;
+  services: string[];
+  estimatedTotal: number;
+  estimatedTime: string;
+}): Promise<{ data: ContactMessage | null; error: Error | null }> {
+  try {
+    const message = `Custom Monthly Plan Quote Request:\n\nServices requested:\n${data.services.map(s => `• ${s}`).join('\n')}\n\nEstimated: $${data.estimatedTotal}/month\nEstimated time: ${data.estimatedTime}`;
+    
+    const { data: result, error } = await supabase
+      .from('contact_messages')
+      .insert([{
+        name: data.name,
+        email: data.email || null,
+        phone: data.phone || null,
+        message: message,
+        message_type: 'quote_request',
+        status: 'new'
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { data: result as ContactMessage, error: null };
+  } catch (error) {
+    console.error('Error submitting quote request:', error);
+    return { data: null, error: error as Error };
+  }
 }
 
 export async function getContactMessages(): Promise<{ data: ContactMessage[] | null; error: Error | null }> {
@@ -3086,10 +3135,20 @@ export async function deleteClient(clientId: string): Promise<{ error: Error | n
 // Client Directory Functions
 // =============================================================================
 
+export interface ClientBookingSummary {
+  id: string;
+  date: string;
+  time_slot: string;
+  status: string;
+  invoice_amount: number | null;
+  invoice_status: string;
+}
+
 export interface ClientWithStats extends Client {
   booking_count: number;
   last_booking_date: string | null;
   total_spent: number;
+  all_bookings: ClientBookingSummary[];
 }
 
 export async function getClientsWithStats(): Promise<{ data: ClientWithStats[] | null; error: Error | null }> {
@@ -3102,22 +3161,31 @@ export async function getClientsWithStats(): Promise<{ data: ClientWithStats[] |
 
     if (clientsError) throw clientsError;
 
-    // Get booking stats for each client
+    // Get booking stats for each client - include more fields for booking history
     const { data: bookings } = await supabase
       .from('bookings')
-      .select('client_id, date, invoice_amount, invoice_status');
+      .select('id, client_id, date, time_slot, status, invoice_amount, invoice_status')
+      .order('date', { ascending: false });
 
     const clientStats = clients?.map(client => {
       const clientBookings = bookings?.filter(b => b.client_id === client.id) || [];
       const paidBookings = clientBookings.filter(b => b.invoice_status === 'paid');
-      const totalSpent = paidBookings.reduce((sum, b) => sum + (parseFloat(b.invoice_amount) || 0), 0);
-      const lastBooking = clientBookings.sort((a, b) => b.date.localeCompare(a.date))[0];
+      const totalSpent = paidBookings.reduce((sum, b) => sum + (parseFloat(b.invoice_amount as string) || 0), 0);
+      const lastBooking = clientBookings[0]; // Already sorted by date desc
 
       return {
         ...client,
         booking_count: clientBookings.length,
         last_booking_date: lastBooking?.date || null,
-        total_spent: totalSpent
+        total_spent: totalSpent,
+        all_bookings: clientBookings.map(b => ({
+          id: b.id,
+          date: b.date,
+          time_slot: b.time_slot,
+          status: b.status,
+          invoice_amount: b.invoice_amount,
+          invoice_status: b.invoice_status
+        }))
       };
     }) || [];
 

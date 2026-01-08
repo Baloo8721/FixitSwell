@@ -10,68 +10,149 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 const serviceCategories = [
   {
-    category: "Assembly, Mounting & Setup",
+    category: "Tech & Security",
     services: [
-      "Furniture Assembly — Beds, desks, shelves, outdoor sets ($50–$150)",
-      "TV & Wall Mounting — TVs, shelves, mirrors, soundbars ($75–$200)",
-      "Appliance Hookups — Washers, dryers, microwaves, dishwashers ($80–$200)",
-      "Blinds & Curtain Rod Installation",
+      "Video Doorbell / Ring Install — $125",
+      "Smart Door Lock / Deadbolt Install — $115",
+      "Security Camera / Wifi Cam Setup — $110",
+      "Smart Thermostat Setup — $140",
+      "Wifi Extender / Mesh Setup — $150",
+      "Tech Troubleshooting / Help — $95/hr",
+      "Streaming / TV App / Remote Setup — $120",
+      "Phone / Tablet / Device Help — $85",
+      "Scam & Fraud Awareness Training — $100",
     ],
   },
   {
-    category: "Technology & WiFi Help",
+    category: "Mounting",
     services: [
-      "Smart Device Setup — Doorbells, cameras, lights, Wi-Fi extenders ($75–$200)",
-      "Home Network & WiFi Troubleshooting",
-      "Streaming, Remote & App Setup ($50–$150)",
-      "Scam Awareness Tips",
+      "TV Mount (Up to 65\") — $175",
+      "TV Mount (70\"+ or Brick/Stone) — $250",
+      "Soundbar / Speaker Mount — $85",
+      "Large Mirror / Heavy Art — $110",
+      "Small Picture / Art Hanging — $45",
     ],
   },
   {
-    category: "Repairs & Honey-Do Fixes",
+    category: "Assembly",
     services: [
-      "Door & Window Adjustments — Squeaks, alignment, weather strips ($50–$200)",
-      "Screen Repair & Replacement",
-      "Minor Repairs — Hinges, knobs, caulking, small holes ($50–$150)",
-      "Drywall Patching (small holes, touch-ups)",
-      "Skirting & Exterior Fixes — Vinyl skirting, mailbox, porch rails ($80–$200)",
-      "Interior/Exterior Touch-Up Painting ($150–$500)",
-      "Minor Furniture Repair — Glue, sand scratches, tighten wobbles",
+      "Desk / Table / Shelf Assembly — $135",
+      "Bed Frame Assembly — $160",
+      "Patio Set / Outdoor Furniture — $225",
+      "Custom Carpentry (Tables/Desks) — $650",
+    ],
+  },
+  {
+    category: "Plumbing",
+    services: [
+      "Faucet Replacement — $165",
+      "Shower Head Replacement — $75",
+      "Garbage Disposal Install — $185",
+      "Toilet Repair (Valve/Flapper/Grout) — $135",
+      "Toilet Replacement (Full Install) — $275",
+      "Drain Snaking / Clog Removal — $110",
+      "Caulking (Tub/Shower/Kitchen) — $160",
+    ],
+  },
+  {
+    category: "Electrical",
+    services: [
+      "Ceiling Fan Install — $185",
+      "Light Fixture Swap / Exterior Light — $125",
+      "Outlet or Switch Replacement — $55",
+      "Light Bulb Replacement (High/Hard) — $75",
+      "Smoke Detector Unit Swap — $75",
+      "Smoke Detector Battery (Whole House) — $95",
+      "Flood Light / Motion Sensor — $155",
+    ],
+  },
+  {
+    category: "Interior Repair",
+    services: [
+      "Drywall Patch / Wall Repair — $115",
+      "Door Lock / Deadbolt Swap — $85",
+      "Closet Door Repair / Track Adjust — $95",
+      "Blind / Curtain Rod Install — $75",
+      "Baseboard / Trim Repair — $140",
+      "Cabinet Hinge Repair / Adjust — $45",
+      "Furniture Repair (Glue/Sand/Tighten) — $85",
+      "Door Sweep / Window Strip / Barrier — $85",
+    ],
+  },
+  {
+    category: "Painting",
+    services: [
+      "Wall Painting (Small Room) — $375",
+      "Wall Painting (Large Room) — $550",
+      "Ceiling Painting — $225",
+      "Cabinet Painting / Refinishing — $110/door",
+      "Furniture Paint & Seal — $175",
+      "Interior/Exterior Trim Touchups — $150",
+      "Whole House Interior — $2.50/sq ft",
+      "Whole House Exterior — $3.50/sq ft",
+    ],
+  },
+  {
+    category: "Appliance Care",
+    services: [
+      "Appliance Install (Fridge/Micro/DW) — $150",
+      "Washer / Dryer Hookup — $165",
+      "Old Appliance / Trash Removal — $95",
+      "Dryer Vent Clean (Pipe & Filter) — $145",
+      "Appliance Deep Clean (Oven/Fridge) — $125",
+      "Filter Service (HVAC/Water/Fridge) — $85",
+      "HVAC Drip Line (Vac & Vinegar) — $120",
+    ],
+  },
+  {
+    category: "Outdoor",
+    services: [
+      "Gutter Cleaning & Minor Repair — $195",
+      "Pressure Wash Driveway — $225",
+      "Pressure Wash Windows / Exterior — $450",
+      "Fence / Gate / Deck Repair — $185",
+      "Irrigation / Sprinkler Repair — $135",
+      "Roof Debris Clean & Leak Patch — $250",
+      "Roof Elastic / Waterproof Coating — $1,800",
+    ],
+  },
+  {
+    category: "Seasonal",
+    services: [
+      "Storm Prep (Boards/Bags/Tie Downs) — $350",
+      "Storm Takedown & Storage — $200",
+      "Holiday Light Setup — $300",
+      "Holiday Takedown & Packing — $150",
+    ],
+  },
+  {
+    category: "Cleaning & Organizing",
+    services: [
+      "Kitchen / Cupboard / Pantry Org — $250",
+      "Closet / Utility / Laundry Org — $185",
+      "Garage / Shed / Item Sort — $300",
+      "Junk Removal (Small Load) — $150",
+      "Furniture Rearrange / Declutter — $75/hr",
+      "Item Valuation / Garage Sale Help — $85/hr",
+      "Standard House Clean (Sweep/Mop/Vac) — $175",
     ],
   },
   {
     category: "Safety & Senior Support",
     services: [
-      "Grab Bars & Fall Prevention — Grab bars, non-slip mats, night lights ($100–$300)",
-      "Light Bulb & Battery Changes — Hard-to-reach, smoke detectors ($40–$100)",
-      "Filter Replacements — AC, water filters",
-      "Pest Barrier Setup — Door sweeps, window strips",
-      "Errands & Personal Assistance — Pharmacy/store runs, mail sorting ($30–$100/hr)",
-      "Wait-at-Home Help — Wait for contractors/deliveries ($50–$150)",
+      "Grab Bar / Handrail Install — $125",
+      "Fire Extinguisher Mount & Check — $65",
+      "Home Hazard Audit (Trip/Elec/Fire) — $150",
+      "Non-Slip Mats / Night Light Setup — $95",
     ],
   },
   {
-    category: "Outdoor & Seasonal",
+    category: "Concierge & Extras",
     services: [
-      "Window Washing — Interior & exterior",
-      "Pressure Washing — Driveways, patios, skirting ($80–$300)",
-      "Gutter Cleaning — Single-story, ladder access ($100–$250)",
-      "Awning & Canopy Cleaning",
-      "Light Yard Cleanup — Trimming, weeding, mulch ($100–$300)",
-      "Plant Care — Water & trim porch plants",
-      "Fence & Gate Minor Repairs",
-      "Storm & Hurricane Prep — Ties, covers, window films ($100–$300)",
-      "Holiday Light Hanging & Take-Down",
-    ],
-  },
-  {
-    category: "Organizing & Extras",
-    services: [
-      "Interior & Garage Organizing — Closets, kitchens, sheds ($75–$500)",
-      "Junk Sorting & Valuation — Declutter, price for sales",
-      "Bicycle & Scooter Tune-Ups — Lube, inflate, adjust ($40–$100)",
-      "Pet Gate & Enclosure Setup ($80–$150)",
-      "Quick Home Photos & Video Tours",
+      "Delivery / Contractor Wait Time — $65/hr",
+      "Real Estate Photo / Video / Drone — $450",
+      "Pet Gate / Enclosure / Custom Home — $115",
+      "Monthly Yard / Litter Clean — $75",
     ],
   },
 ];
@@ -138,8 +219,8 @@ export const ServicesOverlayProvider = ({ children }: { children: ReactNode }) =
               {/* Pricing note */}
               <div className="bg-secondary/50 rounded-lg p-4 mt-6">
                 <p className="text-sm text-muted-foreground">
-                  <strong className="text-foreground">Pricing Note:</strong> Most jobs are $50–$200. 
-                  Larger projects quoted upfront. Senior & military discount: 10% off.
+                  <strong className="text-foreground">Pricing Note:</strong> Prices shown are labor only. 
+                  Materials/parts extra. Senior & military discount: 10% off.
                 </p>
               </div>
             </div>

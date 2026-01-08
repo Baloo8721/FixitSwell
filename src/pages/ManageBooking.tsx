@@ -66,7 +66,9 @@ import {
   uploadBookingImage,
   createCheckoutSession,
   selectPaymentMethodByToken,
-  SERVICE_OPTIONS,
+  getAllServicesForDropdown,
+  addServiceToBooking,
+  removeServiceFromBooking,
   DEFAULT_TIME_SLOTS,
   type Booking,
   type Client,
@@ -136,6 +138,12 @@ const ManageBooking = () => {
   const [bookingHistory, setBookingHistory] = useState<Booking[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  
+  // Quick add service state
+  const [allServices, setAllServices] = useState<{ id: string; label: string; category: string; price_min: number | null }[]>([]);
+  const [quickServiceInput, setQuickServiceInput] = useState('');
+  const [showServiceSuggestions, setShowServiceSuggestions] = useState(false);
+  const [addingService, setAddingService] = useState(false);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!token || !e.target.files || e.target.files.length === 0) return;
@@ -254,6 +262,10 @@ const ManageBooking = () => {
 
   useEffect(() => {
     loadBooking();
+    // Load all services for quick add
+    getAllServicesForDropdown().then(({ data }) => {
+      if (data) setAllServices(data);
+    });
   }, [token]);
 
   // Load available time slots when date changes
@@ -586,21 +598,122 @@ const ManageBooking = () => {
                 </div>
 
                 {/* Services */}
-                {booking.services && booking.services.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
-                      <Wrench className="w-5 h-5 text-primary" />
-                      Services Requested
-                    </h3>
+                <div className="space-y-3">
+                  <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
+                    <Wrench className="w-5 h-5 text-primary" />
+                    Services Requested
+                  </h3>
+                  {booking.services && booking.services.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {booking.services.map((service, i) => (
-                        <Badge key={i} variant="secondary">
-                          {SERVICE_OPTIONS.find(opt => opt.id === service.id || opt.id === service.name)?.label || service.name || 'Service'}
-                        </Badge>
+                        <div key={i} className="flex items-center gap-1">
+                          <Badge variant="secondary" className="pr-1">
+                            {service.name || 'Service'}
+                            {canModify && (
+                              <button
+                                onClick={async () => {
+                                  if (service.id) {
+                                    await removeServiceFromBooking(booking.id, service.id);
+                                    loadBooking();
+                                  }
+                                }}
+                                className="ml-1 hover:text-destructive"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </Badge>
+                        </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">No services selected yet</p>
+                  )}
+                  
+                  {/* Quick Add Service */}
+                  {canModify && (
+                    <div className="relative pt-2">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Search services to add..."
+                          value={quickServiceInput}
+                          onChange={(e) => {
+                            setQuickServiceInput(e.target.value);
+                            setShowServiceSuggestions(e.target.value.length > 0);
+                          }}
+                          onFocus={() => setShowServiceSuggestions(quickServiceInput.length > 0)}
+                          onBlur={() => setTimeout(() => setShowServiceSuggestions(false), 200)}
+                          className="text-sm"
+                        />
+                        <Button
+                          size="sm"
+                          disabled={!quickServiceInput.trim() || addingService}
+                          onClick={async () => {
+                            if (!quickServiceInput.trim()) return;
+                            setAddingService(true);
+                            const { error } = await addServiceToBooking(booking.id, quickServiceInput.trim());
+                            setAddingService(false);
+                            if (!error) {
+                              setQuickServiceInput('');
+                              setShowServiceSuggestions(false);
+                              loadBooking();
+                              toast({ title: "Service added" });
+                            } else {
+                              toast({ title: "Error", description: "Failed to add service", variant: "destructive" });
+                            }
+                          }}
+                        >
+                          {addingService ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                      
+                      {/* Suggestions dropdown */}
+                      {showServiceSuggestions && quickServiceInput.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {allServices
+                            .filter(s => 
+                              s.label.toLowerCase().includes(quickServiceInput.toLowerCase()) &&
+                              !booking.services?.some(bs => bs.name === s.id)
+                            )
+                            .slice(0, 8)
+                            .map((service) => (
+                              <button
+                                key={service.id}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors"
+                                onMouseDown={async (e) => {
+                                  e.preventDefault();
+                                  setAddingService(true);
+                                  const { error } = await addServiceToBooking(booking.id, service.id);
+                                  setAddingService(false);
+                                  if (!error) {
+                                    setQuickServiceInput('');
+                                    setShowServiceSuggestions(false);
+                                    loadBooking();
+                                    toast({ title: "Service added" });
+                                  }
+                                }}
+                              >
+                                {service.label}
+                                {service.price_min && (
+                                  <span className="text-muted-foreground ml-2">
+                                    ${(service.price_min / 100).toFixed(0)}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          {allServices.filter(s => 
+                            s.label.toLowerCase().includes(quickServiceInput.toLowerCase()) &&
+                            !booking.services?.some(bs => bs.name === s.id)
+                          ).length === 0 && (
+                            <div className="px-3 py-2 text-sm text-muted-foreground">
+                              No matching services found
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Notes */}
                 {booking.notes && (
@@ -1130,12 +1243,22 @@ const ManageBooking = () => {
 
                 {/* Services Selection */}
                 <div className="space-y-3">
-                  <Label className="text-base font-medium">Services</Label>
-                  <div className="grid sm:grid-cols-2 gap-2">
-                    {SERVICE_OPTIONS.filter(s => s.category === 'service').map((service) => (
+                  <Label className="text-base font-medium">Services (type to search)</Label>
+                  <Input
+                    placeholder="Search services..."
+                    value={quickServiceInput}
+                    onChange={(e) => setQuickServiceInput(e.target.value)}
+                    className="mb-2"
+                  />
+                  <div className="grid sm:grid-cols-2 gap-1 max-h-48 overflow-y-auto">
+                    {allServices
+                      .filter(s => s.category === 'service' && 
+                        (quickServiceInput === '' || s.label.toLowerCase().includes(quickServiceInput.toLowerCase())))
+                      .slice(0, 20)
+                      .map((service) => (
                       <label
                         key={service.id}
-                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                        className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all text-sm ${
                           editServices.includes(service.id)
                             ? 'border-primary bg-primary/5'
                             : 'border-border hover:border-primary/30 bg-card'
@@ -1145,10 +1268,13 @@ const ManageBooking = () => {
                           checked={editServices.includes(service.id)}
                           onCheckedChange={() => handleServiceToggle(service.id)}
                         />
-                        <span className="text-sm">{service.label}</span>
+                        <span className="text-xs leading-tight">{service.label}</span>
                       </label>
                     ))}
                   </div>
+                  {editServices.length > 0 && (
+                    <p className="text-xs text-muted-foreground">{editServices.length} service(s) selected</p>
+                  )}
                 </div>
 
                 {/* Notes */}

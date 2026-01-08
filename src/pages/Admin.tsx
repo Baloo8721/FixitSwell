@@ -84,7 +84,8 @@ import {
   Lock,
   LogOut,
   Eye,
-  EyeOff
+  EyeOff,
+  ChevronRight
 } from "lucide-react";
 import { format, parseISO, isToday, isTomorrow, isPast } from "date-fns";
 import { supabase } from "@/lib/supabase";
@@ -163,7 +164,8 @@ import {
   type ClientWithStats,
   type ClientNote,
   type ExtendedStats,
-  SERVICE_OPTIONS
+  SERVICE_OPTIONS,
+  getAllServicesForDropdown
 } from "@/lib/supabase";
 import {
   AlertDialog,
@@ -277,6 +279,7 @@ const Admin = () => {
   // Quick entry service state
   const [quickServiceInput, setQuickServiceInput] = useState<Record<string, string>>({});
   const [showServiceSuggestions, setShowServiceSuggestions] = useState<string | null>(null);
+  const [allServices, setAllServices] = useState<{ id: string; label: string; category: string; price_min: number | null }[]>([]);
   const [uploadingImageFor, setUploadingImageFor] = useState<string | null>(null);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -299,6 +302,7 @@ const Admin = () => {
     notes: '',
     source: 'phone' as 'website' | 'phone' | 'in_person' | 'referral' | 'subscription' | 'other'
   });
+  const [newBookingServiceSearch, setNewBookingServiceSearch] = useState('');
 
   const handleNewBookingDateChange = async (date: Date | undefined) => {
     setNewBooking(prev => ({ ...prev, date, timeSlot: '' }));
@@ -464,13 +468,12 @@ const Admin = () => {
     }
   };
 
-  // Get filtered service suggestions
+  // Get filtered service suggestions from all services in database
   const getServiceSuggestions = (input: string, bookingServices: { service: { name: string } | null }[]) => {
     const currentServiceNames = bookingServices.map(s => s.service?.name || '').filter(Boolean);
-    return SERVICE_OPTIONS.filter(opt => 
+    return allServices.filter(opt => 
       !currentServiceNames.includes(opt.id) && 
-      (opt.label.toLowerCase().includes(input.toLowerCase()) || 
-       opt.id.toLowerCase().includes(input.toLowerCase()))
+      opt.label.toLowerCase().includes(input.toLowerCase())
     );
   };
 
@@ -636,6 +639,10 @@ const Admin = () => {
   const [showTemplates, setShowTemplates] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [templateClientName, setTemplateClientName] = useState('');
+  const [templateAmount, setTemplateAmount] = useState('');
+  const [templateDate, setTemplateDate] = useState('');
+  const [templateTime, setTemplateTime] = useState('');
+  const [templateBookingId, setTemplateBookingId] = useState<string>('');
   
   // Pre-defined message templates
   const MESSAGE_TEMPLATES = [
@@ -1373,6 +1380,11 @@ Questions? Call us anytime.
       loadContactMessages();
       loadClients();
       loadSubscriptions();
+      loadMasterSupplies(); // Load supply stats for collapsed view header
+      // Load all services for quick add dropdown
+      getAllServicesForDropdown().then(({ data }) => {
+        if (data) setAllServices(data);
+      });
     }
   }, [statusFilter, isAuthenticated]);
 
@@ -1697,10 +1709,10 @@ Questions? Call us anytime.
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       {/* Header */}
       <header className="border-b border-border bg-card sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-3">
+        <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">
@@ -1848,12 +1860,22 @@ Questions? Call us anytime.
 
                     {/* Services */}
                     <div className="space-y-2">
-                      <Label>Services</Label>
-                      <div className="grid sm:grid-cols-2 gap-2">
-                        {SERVICE_OPTIONS.filter(s => s.category === 'service').map((service) => (
+                      <Label>Services (type to search)</Label>
+                      <Input
+                        placeholder="Search services..."
+                        value={newBookingServiceSearch}
+                        onChange={(e) => setNewBookingServiceSearch(e.target.value)}
+                        className="mb-2"
+                      />
+                      <div className="grid sm:grid-cols-2 gap-1 max-h-48 overflow-y-auto">
+                        {allServices
+                          .filter(s => s.category === 'service' && 
+                            (newBookingServiceSearch === '' || s.label.toLowerCase().includes(newBookingServiceSearch.toLowerCase())))
+                          .slice(0, 20)
+                          .map((service) => (
                           <label
                             key={service.id}
-                            className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
+                            className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all text-sm ${
                               newBooking.services.includes(service.id)
                                 ? 'border-primary bg-primary/5'
                                 : 'border-border hover:border-primary/30'
@@ -1863,10 +1885,13 @@ Questions? Call us anytime.
                               checked={newBooking.services.includes(service.id)}
                               onCheckedChange={() => handleNewBookingServiceToggle(service.id)}
                             />
-                            <span className="text-sm">{service.label}</span>
+                            <span className="text-xs leading-tight">{service.label}</span>
                           </label>
                         ))}
                       </div>
+                      {newBooking.services.length > 0 && (
+                        <p className="text-xs text-muted-foreground">{newBooking.services.length} service(s) selected</p>
+                      )}
                     </div>
 
                     {/* Notes */}
@@ -2325,88 +2350,67 @@ Questions? Call us anytime.
                           booking.status === 'no_show' ? 'border-l-gray-500 bg-gray-50/30' : ''
                         }`}
                       >
-                        <Collapsible
-                          open={expandedBooking === booking.id}
-                          onOpenChange={async () => {
-                            const isExpanding = expandedBooking !== booking.id;
-                            setExpandedBooking(isExpanding ? booking.id : null);
-                            if (isExpanding) {
-                              // Load time entries when expanding
-                              const { data: entries } = await getTimeEntries(booking.id);
-                              setTimeEntries(prev => ({ ...prev, [booking.id]: entries }));
-                              const { data: active } = await getActiveTimeEntry(booking.id);
-                              setActiveTimers(prev => ({ ...prev, [booking.id]: active }));
-                            }
+                        <div 
+                          className="p-2 sm:p-4 cursor-pointer hover:bg-secondary/30 transition-colors"
+                          onClick={async () => {
+                            setExpandedBooking(booking.id);
+                            // Load time entries when opening
+                            const { data: entries } = await getTimeEntries(booking.id);
+                            setTimeEntries(prev => ({ ...prev, [booking.id]: entries }));
+                            const { data: active } = await getActiveTimeEntry(booking.id);
+                            setActiveTimers(prev => ({ ...prev, [booking.id]: active }));
                           }}
                         >
-                          <CollapsibleTrigger asChild>
-                            <div className="p-4 cursor-pointer hover:bg-secondary/30 transition-colors">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
+                              <div className="flex items-start sm:items-center justify-between gap-2">
+                                {/* Left side - Main info */}
+                                <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
                                   {/* Selection Checkbox */}
-                                  <div onClick={(e) => e.stopPropagation()}>
+                                  <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
                                     <Checkbox
                                       checked={selectedBookings.has(booking.id)}
                                       onCheckedChange={() => toggleBookingSelection(booking.id)}
                                     />
                                   </div>
-                                  {/* Show scheduled date when sorting by created */}
+                                  {/* Time - compact on mobile */}
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
+                                    <span className="font-medium text-sm sm:text-base whitespace-nowrap">{booking.time_slot}</span>
+                                  </div>
+                                  {/* Client name */}
+                                  <div className="flex items-center gap-1 min-w-0">
+                                    <User className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
+                                    <span className="font-medium text-sm sm:text-base truncate">{booking.client?.name || 'Unknown'}</span>
+                                  </div>
+                                  {/* Follow-up indicator - mobile friendly button */}
+                                  {booking.is_follow_up && booking.follow_up_from && (
+                                    <button 
+                                      className="flex-shrink-0 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 hover:bg-blue-100 active:bg-blue-200"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setExpandedBooking(booking.follow_up_from!);
+                                      }}
+                                    >
+                                      <RotateCcw className="w-3 h-3 inline mr-0.5" />
+                                      <span className="hidden sm:inline">View </span>Original
+                                    </button>
+                                  )}
+                                  {/* Desktop only info */}
                                   {sortBy === 'created' && (
-                                    <div className="flex items-center gap-1 min-w-[90px] text-xs text-muted-foreground">
+                                    <div className="hidden lg:flex items-center gap-1 text-xs text-muted-foreground">
                                       <CalendarDays className="w-3 h-3" />
                                       <span>{format(parseISO(booking.date), 'MMM d')}</span>
                                     </div>
                                   )}
-                                  <div className="flex items-center gap-2 min-w-[100px]">
-                                    <Clock className="w-4 h-4 text-primary" />
-                                    <span className="font-medium">{getTimeLabel(booking.time_slot)}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <User className="w-4 h-4 text-muted-foreground" />
-                                    <span className="font-medium">{booking.client?.name || 'Unknown'}</span>
-                                  </div>
-                                  {/* Show created date when sorting by created */}
-                                  {sortBy === 'created' && (
-                                    <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
-                                      <span>Created: {format(parseISO(booking.created_at), 'MMM d, h:mm a')}</span>
-                                    </div>
-                                  )}
                                   {booking.client?.address && (
-                                    <div className="hidden md:flex items-center gap-2 text-muted-foreground">
+                                    <div className="hidden lg:flex items-center gap-2 text-muted-foreground">
                                       <MapPin className="w-4 h-4" />
                                       <span className="text-sm truncate max-w-[200px]">{booking.client.address}</span>
                                     </div>
                                   )}
-                                  {/* Booking Source */}
-                                  {booking.booking_source && booking.booking_source !== 'website' && (
-                                    <Badge variant="outline" className="text-xs hidden sm:flex">
-                                      {booking.booking_source === 'phone' && '📞'}
-                                      {booking.booking_source === 'in_person' && '🏠'}
-                                      {booking.booking_source === 'referral' && '👥'}
-                                      {booking.booking_source === 'subscription' && '📋'}
-                                      {booking.booking_source === 'other' && '📝'}
-                                      {' '}{booking.booking_source.replace('_', ' ')}
-                                    </Badge>
-                                  )}
-                                  {/* Follow-up indicator with link to original */}
-                                  {booking.is_follow_up && booking.follow_up_from && (
-                                    <Badge 
-                                      variant="outline" 
-                                      className="text-xs bg-blue-50 text-blue-700 border-blue-200 cursor-pointer hover:bg-blue-100"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setExpandedBooking(booking.follow_up_from!);
-                                        setTimeout(() => {
-                                          document.getElementById(`booking-${booking.follow_up_from}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                        }, 100);
-                                      }}
-                                    >
-                                      <RotateCcw className="w-3 h-3 mr-1" />
-                                      View Original
-                                    </Badge>
-                                  )}
                                 </div>
-                                <div className="flex items-center gap-2 flex-wrap justify-end">
+                                {/* Right side - Badges */}
+                                <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 flex-wrap justify-end max-w-[45%] sm:max-w-none">
                                   {/* Payment Status Indicator */}
                                   {booking.invoice_amount ? (
                                     booking.invoice_status === 'paid' ? (
@@ -2431,23 +2435,20 @@ Questions? Call us anytime.
                                   {booking.is_follow_up && (
                                     <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 text-xs flex items-center gap-1">
                                       <RotateCcw className="w-3 h-3" />
-                                      Follow-up
+                                      <span className="hidden sm:inline">Follow-up</span>
+                                      <span className="sm:hidden">F/U</span>
                                     </Badge>
                                   )}
-                                  {expandedBooking === booking.id ? (
-                                    <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                                  ) : (
-                                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                                  )}
+                                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                                 </div>
                               </div>
                               
-                              {/* Services preview */}
+                              {/* Services preview - hidden on mobile in collapsed view */}
                               {booking.services && booking.services.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-1">
+                                <div className="mt-2 hidden sm:flex flex-wrap gap-1">
                                   {booking.services.slice(0, 3).map((s, i) => (
                                     <Badge key={i} variant="outline" className="text-xs">
-                                      {SERVICE_OPTIONS.find(opt => opt.id === s.service?.name)?.label || s.service?.name || 'Service'}
+                                      {s.service?.name || 'Service'}
                                     </Badge>
                                   ))}
                                   {booking.services.length > 3 && (
@@ -2457,12 +2458,32 @@ Questions? Call us anytime.
                                   )}
                                 </div>
                               )}
-                            </div>
-                          </CollapsibleTrigger>
-                          
-                          <CollapsibleContent>
-                            <div className="px-4 pb-4 pt-2 border-t border-border bg-secondary/10">
-                              <div className="grid md:grid-cols-2 gap-6">
+                        </div>
+                        
+                        {/* Booking Details Modal */}
+                          <Dialog open={expandedBooking === booking.id} onOpenChange={(open) => setExpandedBooking(open ? booking.id : null)}>
+                            <DialogContent className={`w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden border-l-4 ${
+                              booking.status === 'pending' ? 'border-l-yellow-500' :
+                              booking.status === 'confirmed' ? 'border-l-blue-500' :
+                              booking.status === 'completed' ? 'border-l-green-500' :
+                              booking.status === 'cancelled' ? 'border-l-red-500' :
+                              booking.status === 'no_show' ? 'border-l-gray-500' : ''
+                            } [&_*]:max-w-full [&_input]:min-w-0 [&_textarea]:min-w-0`}>
+                              <DialogHeader className={`pb-3 border-b ${
+                                booking.status === 'pending' ? 'border-yellow-200 bg-yellow-50/50' :
+                                booking.status === 'confirmed' ? 'border-blue-200 bg-blue-50/50' :
+                                booking.status === 'completed' ? 'border-green-200 bg-green-50/50' :
+                                booking.status === 'cancelled' ? 'border-red-200 bg-red-50/50' :
+                                booking.status === 'no_show' ? 'border-gray-200 bg-gray-50/50' : ''
+                              } -mx-6 -mt-6 px-6 pt-6 rounded-t-lg`}>
+                                <DialogTitle className="flex items-center gap-2">
+                                  <CalendarDays className="w-5 h-5" />
+                                  {booking.client?.name} - {format(parseISO(booking.date), 'MMM d, yyyy')} @ {booking.time_slot}
+                                  {getStatusBadge(booking.status, booking.cancelled_by)}
+                                </DialogTitle>
+                              </DialogHeader>
+                              <div className="space-y-6 w-full min-w-0">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                                 {/* Client Details */}
                                 <div className="space-y-3">
                                   <h4 className="font-heading font-semibold text-foreground flex items-center gap-2">
@@ -2643,7 +2664,7 @@ Questions? Call us anytime.
                                                 className={isCompleted ? 'bg-green-600 border-green-600' : ''}
                                               />
                                               <span className={isCompleted ? 'line-through text-muted-foreground' : ''}>
-                                                {SERVICE_OPTIONS.find(opt => opt.id === s.service?.name)?.label || s.service?.name || 'Service'}
+                                                {s.service?.name || 'Service'}
                                               </span>
                                             </div>
                                             {isCompleted && (
@@ -2931,8 +2952,9 @@ Questions? Call us anytime.
                                 </div>
 
                                 {/* Add New Note */}
-                                <div className="flex gap-2">
+                                <div className="flex flex-col sm:flex-row gap-2">
                                   <Input
+                                    className="flex-1 min-w-0"
                                     placeholder="Add a note..."
                                     value={newNoteContent[booking.id] || ''}
                                     onChange={(e) => setNewNoteContent(prev => ({ 
@@ -3008,8 +3030,9 @@ Questions? Call us anytime.
                                 </div>
 
                                 {/* Add New Suggestion */}
-                                <div className="flex gap-2">
+                                <div className="flex flex-col sm:flex-row gap-2">
                                   <Input
+                                    className="flex-1 min-w-0"
                                     placeholder="Add future repair suggestion..."
                                     value={newRepairContent[booking.id] || ''}
                                     onChange={(e) => setNewRepairContent(prev => ({ 
@@ -3395,10 +3418,10 @@ Questions? Call us anytime.
                                   {supplies[booking.id]?.length > 0 && (
                                     <ul className="space-y-1 mb-2">
                                       {supplies[booking.id].map(supply => (
-                                        <li key={supply.id} className="flex items-center justify-between text-sm p-2 bg-white rounded border">
-                                          <div>
-                                            <span className="font-medium">{supply.item}</span>
-                                            <span className="text-muted-foreground"> (×{supply.quantity}) — ${supply.cost.toFixed(2)}</span>
+                                        <li key={supply.id} className="flex flex-wrap items-center justify-between gap-1 text-sm p-2 bg-white rounded border">
+                                          <div className="min-w-0 flex-1">
+                                            <span className="font-medium break-words">{supply.item}</span>
+                                            <span className="text-muted-foreground text-xs"> ×{supply.quantity} — ${supply.cost.toFixed(2)}</span>
                                             {(supply.store_name || supply.receipt_number) && (
                                               <p className="text-xs text-muted-foreground">
                                                 {supply.store_name && <span>📍 {supply.store_name}</span>}
@@ -3775,8 +3798,8 @@ Questions? Call us anytime.
                                 </AlertDialog>
                               </div>
                             </div>
-                          </CollapsibleContent>
-                        </Collapsible>
+                          </DialogContent>
+                        </Dialog>
                       </Card>
                     ))}
                   </div>
@@ -4037,6 +4060,9 @@ Questions? Call us anytime.
                 {contactMessages.filter(m => m.status === 'new').length > 0 && (
                   <Badge className="bg-indigo-500">{contactMessages.filter(m => m.status === 'new').length} new</Badge>
                 )}
+                {contactMessages.filter(m => m.message_type === 'quote_request').length > 0 && (
+                  <Badge className="bg-purple-500">{contactMessages.filter(m => m.message_type === 'quote_request').length} quotes</Badge>
+                )}
               </CardTitle>
               {showContactMessages ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
             </div>
@@ -4115,7 +4141,11 @@ Questions? Call us anytime.
                       <div 
                         key={msg.id} 
                         className={`p-4 rounded-lg border ${
-                          msg.status === 'new' ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50 border-gray-200'
+                          msg.message_type === 'quote_request' 
+                            ? 'bg-purple-50 border-purple-200 border-l-4 border-l-purple-500' 
+                            : msg.status === 'new' 
+                            ? 'bg-indigo-50 border-indigo-200' 
+                            : 'bg-gray-50 border-gray-200'
                         } ${selectedMessages.has(msg.id) ? 'ring-2 ring-indigo-500' : ''}`}
                       >
                         <div className="flex items-start gap-3">
@@ -4135,8 +4165,13 @@ Questions? Call us anytime.
                           <div className="flex-1">
                             <div className="flex items-start justify-between">
                               <div className="space-y-1">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-medium">{msg.name}</span>
+                                  {msg.message_type === 'quote_request' && (
+                                    <Badge className="bg-purple-100 text-purple-700 border-purple-300">
+                                      📦 Package Quote
+                                    </Badge>
+                                  )}
                                   <Badge variant="outline" className={
                                     msg.status === 'new' ? 'bg-indigo-100 text-indigo-700' :
                                     msg.status === 'replied' ? 'bg-green-100 text-green-700' :
@@ -4267,15 +4302,74 @@ Questions? Call us anytime.
           </CardHeader>
           {showTemplates && (
             <CardContent className="pt-0 space-y-4">
-              {/* Quick Fill Client Name */}
-              <div className="p-3 bg-cyan-50 rounded-lg">
-                <Label className="text-sm text-cyan-700 mb-2 block">Quick Fill: Client Name</Label>
-                <Input
-                  placeholder="Enter client name to fill templates..."
-                  value={templateClientName}
-                  onChange={(e) => setTemplateClientName(e.target.value)}
-                  className="bg-white"
-                />
+              {/* Auto-fill from Booking */}
+              <div className="p-3 bg-cyan-50 rounded-lg space-y-3">
+                <Label className="text-sm text-cyan-700 font-medium">Auto-fill from Booking</Label>
+                <Select
+                  value={templateBookingId}
+                  onValueChange={(bookingId) => {
+                    setTemplateBookingId(bookingId);
+                    const booking = bookings.find(b => b.id === bookingId);
+                    if (booking) {
+                      setTemplateClientName(booking.client?.name || '');
+                      setTemplateDate(format(parseISO(booking.date), 'MMMM d'));
+                      setTemplateTime(booking.time_slot);
+                      setTemplateAmount(booking.invoice_amount ? `$${booking.invoice_amount}` : '');
+                    }
+                  }}
+                >
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Select a booking to auto-fill..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bookings.slice(0, 20).map(b => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.client?.name} - {format(parseISO(b.date), 'MMM d')} @ {b.time_slot}
+                        {b.invoice_amount && ` ($${b.invoice_amount})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Editable fields */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div>
+                    <Label className="text-xs text-cyan-600">Name</Label>
+                    <Input
+                      placeholder="Client name"
+                      value={templateClientName}
+                      onChange={(e) => setTemplateClientName(e.target.value)}
+                      className="bg-white h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-cyan-600">Date</Label>
+                    <Input
+                      placeholder="Jan 15"
+                      value={templateDate}
+                      onChange={(e) => setTemplateDate(e.target.value)}
+                      className="bg-white h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-cyan-600">Time</Label>
+                    <Input
+                      placeholder="9:00 AM"
+                      value={templateTime}
+                      onChange={(e) => setTemplateTime(e.target.value)}
+                      className="bg-white h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-cyan-600">Amount</Label>
+                    <Input
+                      placeholder="$150"
+                      value={templateAmount}
+                      onChange={(e) => setTemplateAmount(e.target.value)}
+                      className="bg-white h-8 text-sm"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Templates Grid */}
@@ -4283,9 +4377,9 @@ Questions? Call us anytime.
                 {MESSAGE_TEMPLATES.map((template) => {
                   const filledTemplate = template.template
                     .replace('{name}', templateClientName || '[Name]')
-                    .replace('{date}', format(new Date(), 'MMMM d'))
-                    .replace('{time}', '9:00 AM')
-                    .replace('{amount}', '$150');
+                    .replace('{date}', templateDate || format(new Date(), 'MMMM d'))
+                    .replace('{time}', templateTime || '9:00 AM')
+                    .replace('{amount}', templateAmount || '$___');
                   
                   return (
                     <div 
@@ -4936,9 +5030,72 @@ Questions? Call us anytime.
                               <p>{client.address || 'N/A'}</p>
                             </div>
                             <div>
-                              <Label className="text-muted-foreground">Last Booking</Label>
-                              <p>{client.last_booking_date ? format(parseISO(client.last_booking_date), 'MMM d, yyyy') : 'N/A'}</p>
+                              <Label className="text-muted-foreground">Community</Label>
+                              <p>{client.community || 'N/A'}</p>
                             </div>
+                          </div>
+
+                          {/* Pet Info */}
+                          {client.pet_info && (client.pet_info.has_pets || client.pet_info.dogs > 0 || client.pet_info.cats > 0) && (
+                            <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                              <Label className="text-amber-700 flex items-center gap-2 mb-2">
+                                🐾 Pet Information
+                              </Label>
+                              <div className="text-sm space-y-1">
+                                {client.pet_info.dogs > 0 && (
+                                  <p>🐕 Dogs: {client.pet_info.dogs}</p>
+                                )}
+                                {client.pet_info.cats > 0 && (
+                                  <p>🐱 Cats: {client.pet_info.cats}</p>
+                                )}
+                                {client.pet_info.names && (
+                                  <p className="text-muted-foreground">Names: {client.pet_info.names}</p>
+                                )}
+                                {client.pet_info.breeds && (
+                                  <p className="text-muted-foreground">Breeds: {client.pet_info.breeds}</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Booking History */}
+                          <div>
+                            <Label className="text-muted-foreground mb-2 block">Booking History ({client.booking_count})</Label>
+                            {client.all_bookings && client.all_bookings.length > 0 ? (
+                              <div className="max-h-40 overflow-y-auto space-y-1 bg-gray-50 rounded-lg p-2">
+                                {client.all_bookings.map(booking => (
+                                  <button
+                                    key={booking.id}
+                                    className="w-full text-left p-2 bg-white rounded border hover:bg-blue-50 hover:border-blue-200 transition-colors text-sm flex items-center justify-between gap-2"
+                                    onClick={() => {
+                                      setShowClients(false);
+                                      setExpandedBooking(booking.id);
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <CalendarDays className="w-3 h-3 text-muted-foreground" />
+                                      <span>{format(parseISO(booking.date), 'MMM d, yyyy')}</span>
+                                      <span className="text-muted-foreground">@ {booking.time_slot}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Badge variant="outline" className={`text-xs ${
+                                        booking.status === 'completed' ? 'bg-green-50 text-green-700' :
+                                        booking.status === 'confirmed' ? 'bg-blue-50 text-blue-700' :
+                                        booking.status === 'cancelled' ? 'bg-red-50 text-red-700' :
+                                        'bg-yellow-50 text-yellow-700'
+                                      }`}>
+                                        {booking.status}
+                                      </Badge>
+                                      {booking.invoice_amount && (
+                                        <span className="text-xs text-muted-foreground">${booking.invoice_amount}</span>
+                                      )}
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">No bookings yet.</p>
+                            )}
                           </div>
                           
                           {/* Flags */}
@@ -5145,10 +5302,6 @@ Questions? Call us anytime.
                         onClick={() => {
                           setShowCalendarView(false);
                           setExpandedBooking(booking.id);
-                          // Scroll to booking after a brief delay
-                          setTimeout(() => {
-                            document.getElementById(`booking-${booking.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          }, 100);
                         }}
                       >
                         <div className="flex items-center justify-between mb-1">
