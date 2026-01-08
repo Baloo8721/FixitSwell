@@ -43,7 +43,9 @@ const AboutUsOverlay = ({ open, onOpenChange }: AboutUsOverlayProps) => {
               with over 30 years of hands-on experience</span>.
             </p>
             <p className="text-lg text-muted-foreground leading-relaxed">
-              We're local. Our family lives here. This isn't just a business — 
+              We're local. Our family lives here — in fact, 
+              <span className="text-primary font-semibold"> we have multiple family 
+              members who live in this community</span>. This isn't just a business — 
               it's our way of giving back to the neighbors we care about.
             </p>
           </div>

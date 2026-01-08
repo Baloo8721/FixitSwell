@@ -54,7 +54,7 @@ const HeroSection = () => {
         <div className="flex flex-wrap justify-center gap-4 md:gap-8 text-muted-foreground mb-6">
           <div className="flex items-center gap-2">
             <MapPin className="w-5 h-5 text-primary" />
-            <span>Local Florida Service</span>
+            <span>Local Service</span>
           </div>
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-primary" />

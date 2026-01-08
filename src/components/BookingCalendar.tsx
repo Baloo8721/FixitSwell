@@ -141,6 +141,7 @@ interface BookingData {
   date: Date | undefined;
   timeSlot: string;
   timeLabel: string;
+  durationHours: number;
   services: string[];
   customNotes: string;
   name: string;
@@ -151,6 +152,13 @@ interface BookingData {
   notes: string;
   images: UploadedImage[];
 }
+
+const DURATION_OPTIONS = [
+  { hours: 1, label: '1 hour' },
+  { hours: 2, label: '2 hours' },
+  { hours: 3, label: '3 hours' },
+  { hours: 4, label: '4 hours' },
+];
 
 const MAX_IMAGES = 10;
 
@@ -167,6 +175,7 @@ const BookingCalendar = () => {
     date: undefined,
     timeSlot: '',
     timeLabel: '',
+    durationHours: 1,
     services: [],
     customNotes: '',
     name: '',
@@ -180,12 +189,13 @@ const BookingCalendar = () => {
   const [uploadingImages, setUploadingImages] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch available time slots when date changes
+  // Fetch available time slots when date or duration changes
   useEffect(() => {
     if (bookingData.date) {
       setIsLoading(true);
       const dateStr = format(bookingData.date, 'yyyy-MM-dd');
-      getAvailableTimeSlots(dateStr)
+      const durationMinutes = bookingData.durationHours * 60;
+      getAvailableTimeSlots(dateStr, durationMinutes)
         .then(slots => {
           setAvailableSlots(slots);
           setIsLoading(false);
@@ -199,7 +209,17 @@ const BookingCalendar = () => {
           setIsLoading(false);
         });
     }
-  }, [bookingData.date]);
+  }, [bookingData.date, bookingData.durationHours]);
+
+  // Clear selected time slot if it becomes unavailable when duration changes
+  useEffect(() => {
+    if (bookingData.timeSlot && availableSlots.length > 0) {
+      const selectedSlot = availableSlots.find(s => s.time === bookingData.timeSlot);
+      if (selectedSlot && !selectedSlot.available) {
+        setBookingData(prev => ({ ...prev, timeSlot: '', timeLabel: '' }));
+      }
+    }
+  }, [availableSlots, bookingData.timeSlot]);
 
   const steps: { id: BookingStep; label: string; icon: React.ReactNode }[] = [
     { id: 'datetime', label: 'Date & Time', icon: <CalendarDays className="w-5 h-5" /> },
@@ -274,6 +294,7 @@ const BookingCalendar = () => {
       phone: bookingData.phone,
       date: format(bookingData.date, 'yyyy-MM-dd'),
       time_slot: bookingData.timeSlot,
+      duration_minutes: bookingData.durationHours * 60,
       services: bookingData.services,
       notes: allNotes || undefined,
       address: bookingData.address,
@@ -436,7 +457,7 @@ const BookingCalendar = () => {
             <h4 className="font-heading text-lg text-foreground mb-3">Your Appointment Details:</h4>
             <ul className="space-y-2 text-lg">
               <li><strong>Date:</strong> {bookingData.date && format(bookingData.date, 'EEEE, MMMM d, yyyy')}</li>
-              <li><strong>Time:</strong> {bookingData.timeLabel}</li>
+              <li><strong>Time:</strong> {bookingData.timeLabel} ({bookingData.durationHours}hr block)</li>
               <li><strong>Address:</strong> {bookingData.address}</li>
               {bookingData.services.length > 0 && (
                 <li><strong>Services:</strong> {bookingData.services.map(s => 
@@ -453,6 +474,7 @@ const BookingCalendar = () => {
                 date: undefined,
                 timeSlot: '',
                 timeLabel: '',
+                durationHours: 1,
                 services: [],
                 customNotes: '',
                 name: '',
@@ -540,13 +562,13 @@ const BookingCalendar = () => {
             
             <div className="grid md:grid-cols-2 gap-6 md:gap-8 items-start">
               {/* Calendar */}
-              <div className="flex justify-center overflow-x-auto">
+              <div className="flex justify-center overflow-x-auto px-2">
                 <Calendar
                   mode="single"
                   selected={bookingData.date}
                   onSelect={(date) => setBookingData(prev => ({ ...prev, date, timeSlot: '', timeLabel: '' }))}
                   disabled={(date) => isBefore(date, startOfToday()) || isBefore(addDays(new Date(), 60), date)}
-                  className="rounded-xl border-2 border-border p-2 sm:p-4 bg-background pointer-events-auto w-full max-w-[100%] sm:max-w-[360px]"
+                  className="rounded-xl border-2 border-border p-3 sm:p-4 bg-background pointer-events-auto w-full min-w-[320px] max-w-[360px]"
                   classNames={{
                     months: "flex flex-col space-y-4",
                     month: "space-y-4",
@@ -558,10 +580,10 @@ const BookingCalendar = () => {
                     nav_button_next: "absolute right-1",
                     table: "w-full border-collapse",
                     head_row: "flex justify-between",
-                    head_cell: "text-muted-foreground rounded-md w-9 sm:w-10 font-medium text-xs sm:text-sm text-center",
+                    head_cell: "text-muted-foreground rounded-md w-10 sm:w-11 font-medium text-xs sm:text-sm text-center",
                     row: "flex w-full mt-1 justify-between",
-                    cell: "h-9 w-9 sm:h-10 sm:w-10 text-center text-sm sm:text-base p-0 relative focus-within:relative focus-within:z-20",
-                    day: "h-9 w-9 sm:h-10 sm:w-10 p-0 font-medium aria-selected:opacity-100 hover:bg-primary/10 rounded-lg transition-colors",
+                    cell: "h-10 w-10 sm:h-11 sm:w-11 text-center text-sm sm:text-base p-0 relative focus-within:relative focus-within:z-20",
+                    day: "h-10 w-10 sm:h-11 sm:w-11 p-0 font-medium aria-selected:opacity-100 hover:bg-primary/10 rounded-lg transition-colors",
                     day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground rounded-lg",
                     day_today: "bg-accent/20 text-accent-foreground font-bold",
                     day_outside: "text-muted-foreground opacity-50",
@@ -582,6 +604,31 @@ const BookingCalendar = () => {
                       <p className="text-sm text-muted-foreground">Choose an available time:</p>
                     </div>
                     
+                    {/* Duration Selection - Show first */}
+                    <div className="mb-4">
+                      <p className="text-sm text-muted-foreground mb-2 text-center md:text-left">
+                        How long do you need?
+                      </p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {DURATION_OPTIONS.map((option) => (
+                          <button
+                            key={option.hours}
+                            onClick={() => setBookingData(prev => ({ 
+                              ...prev, 
+                              durationHours: option.hours 
+                            }))}
+                            className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                              bookingData.durationHours === option.hours
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'border-border bg-card hover:border-primary/50 hover:bg-primary/5 text-foreground'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     {isLoading ? (
                       <div className="flex justify-center py-8">
                         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -615,9 +662,9 @@ const BookingCalendar = () => {
                     )}
 
                     {bookingData.timeSlot && (
-                      <div className="bg-primary/10 rounded-xl p-4 text-center">
+                      <div className="bg-primary/10 rounded-xl p-4 text-center mt-4">
                         <p className="text-primary font-medium">
-                          Selected: {format(bookingData.date, 'MMM d')} at {bookingData.timeLabel}
+                          Selected: {format(bookingData.date, 'MMM d')} at {bookingData.timeLabel} ({bookingData.durationHours}hr block)
                         </p>
                       </div>
                     )}
@@ -1008,6 +1055,22 @@ const BookingCalendar = () => {
               </p>
             </div>
 
+            {/* Edit Button - Jump back to step 1 */}
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setCurrentStep('datetime');
+                  scrollToTop();
+                }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Edit Booking
+              </Button>
+            </div>
+
             <div className="bg-secondary/50 rounded-xl p-6 space-y-4">
               <div className="flex justify-between items-start border-b border-border pb-3">
                 <span className="text-muted-foreground text-lg">Date:</span>
@@ -1018,7 +1081,7 @@ const BookingCalendar = () => {
               
               <div className="flex justify-between items-start border-b border-border pb-3">
                 <span className="text-muted-foreground text-lg">Time:</span>
-                <span className="text-foreground text-lg font-medium">{bookingData.timeLabel}</span>
+                <span className="text-foreground text-lg font-medium">{bookingData.timeLabel} ({bookingData.durationHours}hr block)</span>
               </div>
 
               <div className="flex justify-between items-start border-b border-border pb-3">

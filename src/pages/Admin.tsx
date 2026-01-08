@@ -24,6 +24,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   CalendarDays,
   Clock,
   User,
@@ -52,13 +57,30 @@ import {
   ArrowDown,
   Calendar as CalendarIcon,
   MessageSquare,
+  Mic,
+  MicOff,
+  Sparkles,
+  Wand2,
+  Package,
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
+  Target,
+  Repeat,
+  FileText,
+  Printer,
+  Send,
+  RotateCcw,
   Users,
   DollarSign,
-  TrendingUp,
   UserPlus,
   Star,
   Shield,
-  Bell
+  Bell,
+  Play,
+  Square,
+  Timer,
+  Edit2
 } from "lucide-react";
 import { format, parseISO, isToday, isTomorrow, isPast } from "date-fns";
 import {
@@ -71,6 +93,8 @@ import {
   getBookingStats,
   createManualBooking,
   getAvailableTimeSlots,
+  getBookingsForDate as fetchBookingsForDate,
+  getOriginalBooking,
   createInvoice,
   updateInvoiceStatus,
   updateInvoiceAmount,
@@ -81,17 +105,54 @@ import {
   deleteBooking,
   getContactMessages,
   updateContactMessageStatus,
+  replyToContactMessage,
   deleteContactMessage,
+  generateSupplySuggestions,
+  generateAndSaveSupplySuggestions,
+  generateFullAIEstimate,
+  SuggestedSupply,
+  getAllSupplies,
+  getSupplyStats,
+  SupplyWithBooking,
+  getAnalyticsDashboard,
+  AnalyticsDashboard,
+  addNewClient,
   deleteClient,
   getClientsWithStats,
   updateClientFlags,
   getClientNotes,
   addClientNote,
   getExtendedStats,
+  startJob,
+  stopJob,
+  getTimeEntries,
+  getActiveTimeEntry,
+  deleteTimeEntry,
+  TimeEntry,
+  getBookingNotes,
+  addBookingNote,
+  updateBookingNote,
+  deleteBookingNote,
+  addFutureRepair,
+  removeFutureRepair,
+  updateClientPetInfo,
+  toggleServiceCompletion,
+  addServiceToBooking,
+  removeServiceFromBooking,
+  getSubscriptionPlans,
+  getAllSubscriptions,
+  createSubscription,
+  updateSubscriptionStatus,
+  updateSubscriptionPrice,
+  getSubscriptionStats,
   DEFAULT_TIME_SLOTS,
+  type SubscriptionPlan,
+  type SubscriptionWithDetails,
   type BookingWithDetails,
   type Booking,
   type BookingSupply,
+  type BookingNote,
+  type PetInfo,
   type TimeSlot,
   type ContactMessage,
   type ClientWithStats,
@@ -126,10 +187,35 @@ const Admin = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [timeEntries, setTimeEntries] = useState<Record<string, TimeEntry[]>>({});
+  const [activeTimers, setActiveTimers] = useState<Record<string, TimeEntry | null>>({});
   const [stats, setStats] = useState({ total: 0, pending: 0, confirmed: 0, completed: 0, cancelled: 0, unpaidConfirmed: 0, completedUnpaid: 0, completedNoInvoice: 0, totalUnpaid: 0, needsAttention: 0 });
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [notesValue, setNotesValue] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  
+  // Booking notes state (individual notes per booking)
+  const [bookingNotes, setBookingNotes] = useState<Record<string, BookingNote[]>>({});
+  const [newNoteContent, setNewNoteContent] = useState<Record<string, string>>({});
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteContent, setEditingNoteContent] = useState('');
+  
+  // Future repairs state
+  const [newRepairContent, setNewRepairContent] = useState<Record<string, string>>({});
+  
+  // Pet info state
+  const [editingPetInfo, setEditingPetInfo] = useState<string | null>(null);
+  const [petInfoForm, setPetInfoForm] = useState<PetInfo>({
+    has_pets: false,
+    dogs: 0,
+    cats: 0,
+    names: '',
+    breeds: ''
+  });
+  
+  // Quick entry service state
+  const [quickServiceInput, setQuickServiceInput] = useState<Record<string, string>>({});
+  const [showServiceSuggestions, setShowServiceSuggestions] = useState<string | null>(null);
   const [uploadingImageFor, setUploadingImageFor] = useState<string | null>(null);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -149,7 +235,8 @@ const Admin = () => {
     date: undefined as Date | undefined,
     timeSlot: '',
     services: [] as string[],
-    notes: ''
+    notes: '',
+    source: 'phone' as 'website' | 'phone' | 'in_person' | 'referral' | 'subscription' | 'other'
   });
 
   const handleNewBookingDateChange = async (date: Date | undefined) => {
@@ -180,12 +267,150 @@ const Admin = () => {
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   const [editInvoiceAmount, setEditInvoiceAmount] = useState('');
   const [supplies, setSupplies] = useState<Record<string, BookingSupply[]>>({});
-  const [newSupply, setNewSupply] = useState({ item: '', cost: '', quantity: '1', notes: '' });
+  const [newSupply, setNewSupply] = useState({ 
+    item: '', 
+    cost: '', 
+    quantity: '1', 
+    notes: '',
+    receipt_number: '',
+    store_name: ''
+  });
   const [addingSupply, setAddingSupply] = useState<string | null>(null);
 
   const loadSupplies = async (bookingId: string) => {
     const data = await getBookingSupplies(bookingId);
     setSupplies(prev => ({ ...prev, [bookingId]: data }));
+  };
+
+  // Load booking notes
+  const loadBookingNotes = async (bookingId: string) => {
+    const { data } = await getBookingNotes(bookingId);
+    setBookingNotes(prev => ({ ...prev, [bookingId]: data || [] }));
+  };
+
+  // Add a new note to a booking
+  const handleAddNote = async (bookingId: string) => {
+    const content = newNoteContent[bookingId]?.trim();
+    if (!content) return;
+    
+    const { error } = await addBookingNote(bookingId, content);
+    if (error) {
+      toast({ title: "Error", description: "Failed to add note", variant: "destructive" });
+    } else {
+      toast({ title: "Note added" });
+      setNewNoteContent(prev => ({ ...prev, [bookingId]: '' }));
+      loadBookingNotes(bookingId);
+    }
+  };
+
+  // Update an existing note
+  const handleUpdateNote = async (noteId: string, bookingId: string) => {
+    if (!editingNoteContent.trim()) return;
+    
+    const { error } = await updateBookingNote(noteId, editingNoteContent);
+    if (error) {
+      toast({ title: "Error", description: "Failed to update note", variant: "destructive" });
+    } else {
+      toast({ title: "Note updated" });
+      setEditingNoteId(null);
+      setEditingNoteContent('');
+      loadBookingNotes(bookingId);
+    }
+  };
+
+  // Delete a note
+  const handleDeleteNote = async (noteId: string, bookingId: string) => {
+    const { error } = await deleteBookingNote(noteId);
+    if (error) {
+      toast({ title: "Error", description: "Failed to delete note", variant: "destructive" });
+    } else {
+      toast({ title: "Note deleted" });
+      loadBookingNotes(bookingId);
+    }
+  };
+
+  // Add a future repair suggestion
+  const handleAddFutureRepair = async (bookingId: string) => {
+    const content = newRepairContent[bookingId]?.trim();
+    if (!content) return;
+    
+    const { error } = await addFutureRepair(bookingId, content);
+    if (error) {
+      toast({ title: "Error", description: "Failed to add repair suggestion", variant: "destructive" });
+    } else {
+      toast({ title: "Repair suggestion added" });
+      setNewRepairContent(prev => ({ ...prev, [bookingId]: '' }));
+      loadBookings();
+    }
+  };
+
+  // Remove a future repair suggestion
+  const handleRemoveFutureRepair = async (bookingId: string, index: number) => {
+    const { error } = await removeFutureRepair(bookingId, index);
+    if (error) {
+      toast({ title: "Error", description: "Failed to remove suggestion", variant: "destructive" });
+    } else {
+      loadBookings();
+    }
+  };
+
+  // Save pet info for a client
+  const handleSavePetInfo = async (clientId: string) => {
+    const { error } = await updateClientPetInfo(clientId, petInfoForm.has_pets ? petInfoForm : null);
+    if (error) {
+      toast({ title: "Error", description: "Failed to save pet info", variant: "destructive" });
+    } else {
+      toast({ title: "Pet info saved" });
+      setEditingPetInfo(null);
+      loadBookings();
+    }
+  };
+
+  // Start editing pet info
+  const startEditingPetInfo = (clientId: string, currentPetInfo: PetInfo | null) => {
+    setEditingPetInfo(clientId);
+    setPetInfoForm(currentPetInfo || {
+      has_pets: false,
+      dogs: 0,
+      cats: 0,
+      names: '',
+      breeds: ''
+    });
+  };
+
+  // Quick add service to booking
+  const handleQuickAddService = async (bookingId: string, serviceName: string) => {
+    if (!serviceName.trim()) return;
+    
+    const { error } = await addServiceToBooking(bookingId, serviceName);
+    if (error) {
+      toast({ title: "Error", description: "Failed to add service", variant: "destructive" });
+    } else {
+      toast({ title: "Service added" });
+      setQuickServiceInput(prev => ({ ...prev, [bookingId]: '' }));
+      setShowServiceSuggestions(null);
+      loadBookings();
+    }
+  };
+
+  // Remove service from booking
+  const handleRemoveService = async (bookingId: string, serviceId: string) => {
+    const { error } = await removeServiceFromBooking(bookingId, serviceId);
+    if (error) {
+      toast({ title: "Error", description: "Failed to remove service", variant: "destructive" });
+    } else {
+      loadBookings();
+    }
+  };
+
+  // Get filtered service suggestions
+  const getServiceSuggestions = (input: string, bookingServices: { service: { name: string } | null }[]) => {
+    const currentServiceNames = bookingServices.map(s => s.service?.name || '').filter(Boolean);
+    return SERVICE_OPTIONS.filter(opt => 
+      !currentServiceNames.includes(opt.id) && 
+      (opt.label.toLowerCase().includes(input.toLowerCase()) || 
+       opt.id.toLowerCase().includes(input.toLowerCase()))
+    );
   };
 
   const handleCreateInvoice = async (bookingId: string) => {
@@ -290,7 +515,7 @@ const Admin = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Date range filter state
-  type DateRangeFilter = 'all' | 'today' | 'week' | 'month';
+  type DateRangeFilter = 'all' | 'past' | 'today' | 'week' | 'month';
   const [dateRangeFilter, setDateRangeFilter] = useState<DateRangeFilter>('all');
 
   // Calendar view modal state
@@ -309,6 +534,96 @@ const Admin = () => {
   // Contact messages state
   const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [showContactMessages, setShowContactMessages] = useState(false);
+  const [replyingToMessage, setReplyingToMessage] = useState<string | null>(null);
+  const [replyContent, setReplyContent] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
+
+  // AI Suggestions state
+  const [aiSuggestions, setAiSuggestions] = useState<Record<string, SuggestedSupply[]>>({});
+  const [generatingAI, setGeneratingAI] = useState<string | null>(null);
+
+  // Master Supplies state
+  const [showMasterSupplies, setShowMasterSupplies] = useState(false);
+  const [allSupplies, setAllSupplies] = useState<SupplyWithBooking[]>([]);
+  const [supplyStats, setSupplyStats] = useState<{
+    totalSpent: number;
+    thisMonthSpent: number;
+    itemCount: number;
+    topItems: { item: string; count: number; totalCost: number }[];
+  }>({ totalSpent: 0, thisMonthSpent: 0, itemCount: 0, topItems: [] });
+
+  // Analytics Dashboard state
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsDashboard | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+  // Quote/Invoice state
+  const [showQuoteDialog, setShowQuoteDialog] = useState(false);
+  const [quoteBooking, setQuoteBooking] = useState<BookingWithDetails | null>(null);
+  const [quoteType, setQuoteType] = useState<'quote' | 'invoice'>('quote');
+
+  // Follow-up booking state
+  const [showFollowUpDialog, setShowFollowUpDialog] = useState(false);
+  const [followUpBooking, setFollowUpBooking] = useState<BookingWithDetails | null>(null);
+  const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
+  const [followUpNotes, setFollowUpNotes] = useState('');
+  const [followUpTimeSlot, setFollowUpTimeSlot] = useState<string>('');
+  const [followUpAvailableSlots, setFollowUpAvailableSlots] = useState<TimeSlot[]>([]);
+  const [followUpDateBookings, setFollowUpDateBookings] = useState<BookingWithDetails[]>([]);
+
+  // Message templates state
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [templateClientName, setTemplateClientName] = useState('');
+  
+  // Pre-defined message templates
+  const MESSAGE_TEMPLATES = [
+    {
+      id: 'booking-confirm',
+      name: '📅 Booking Confirmation',
+      template: `Hi {name}! Your FixitSwell appointment is confirmed for {date} at {time}. We'll see you then! Questions? Just reply to this message.`
+    },
+    {
+      id: 'on-the-way',
+      name: '🚗 On My Way',
+      template: `Hi {name}! This is your FixitSwell handyman. I'm on my way and should arrive in about 15-20 minutes. See you soon!`
+    },
+    {
+      id: 'job-complete',
+      name: '✅ Job Complete',
+      template: `Hi {name}! Your service is complete. Total: ${'{amount}'}. Thank you for choosing FixitSwell! We appreciate your business. 🔧`
+    },
+    {
+      id: 'follow-up',
+      name: '👋 Follow-up Check',
+      template: `Hi {name}! Just checking in after our recent visit. How's everything working? Let us know if you need anything else!`
+    },
+    {
+      id: 'reminder',
+      name: '⏰ Appointment Reminder',
+      template: `Hi {name}! Friendly reminder: Your FixitSwell appointment is tomorrow at {time}. See you then!`
+    },
+    {
+      id: 'review-request',
+      name: '⭐ Review Request',
+      template: `Hi {name}! Thank you for choosing FixitSwell! If you were happy with our service, we'd really appreciate a quick review. It helps other neighbors find us! 🙏`
+    },
+    {
+      id: 'promo-seasonal',
+      name: '🌴 Seasonal Promo',
+      template: `Hi {name}! Time for seasonal home prep! FixitSwell is offering 10% off gutter cleaning and AC filter changes this month. Book now while slots are available!`
+    },
+    {
+      id: 'monthly-plan',
+      name: '📋 Monthly Plan Pitch',
+      template: `Hi {name}! Did you know we offer monthly maintenance plans starting at $99/mo? Includes filter changes, safety checks & priority scheduling. Want details?`
+    }
+  ];
+
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingFor, setRecordingFor] = useState<{ bookingId: string; field: 'notes' | 'internal' } | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   // Clients state
   const [clients, setClients] = useState<ClientWithStats[]>([]);
@@ -318,6 +633,28 @@ const Admin = () => {
   const [clientNotes, setClientNotes] = useState<Record<string, ClientNote[]>>({});
   const [newNoteValue, setNewNoteValue] = useState('');
   const [addingNoteFor, setAddingNoteFor] = useState<string | null>(null);
+  
+  // New client form state
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newClientLoading, setNewClientLoading] = useState(false);
+  const [newClient, setNewClient] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: '',
+    community: '',
+    is_senior: false,
+    is_military: false
+  });
+  
+  // Subscriptions state
+  const [showSubscriptions, setShowSubscriptions] = useState(false);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionWithDetails[]>([]);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
+  const [subscriptionStats, setSubscriptionStats] = useState({ activeCount: 0, pausedCount: 0, cancelledCount: 0, monthlyRecurring: 0 });
+  const [subscriptionFilter, setSubscriptionFilter] = useState<'all' | 'active' | 'paused' | 'cancelled'>('active');
+  const [showNewSubscription, setShowNewSubscription] = useState(false);
+  const [newSubscription, setNewSubscription] = useState({ clientId: '', planId: '', price: '' });
 
   // Multi-select for contact messages
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
@@ -485,7 +822,13 @@ const Admin = () => {
       return;
     }
 
-    const { error } = await addBookingSupply(bookingId, newSupply.item, cost, quantity, newSupply.notes || undefined);
+    const receiptInfo = {
+      receipt_number: newSupply.receipt_number || undefined,
+      store_name: newSupply.store_name || undefined,
+      purchase_date: new Date().toISOString().split('T')[0]
+    };
+
+    const { error } = await addBookingSupply(bookingId, newSupply.item, cost, quantity, newSupply.notes || undefined, receiptInfo);
     if (error) {
       toast({
         title: "Error adding supply",
@@ -493,7 +836,7 @@ const Admin = () => {
         variant: "destructive"
       });
     } else {
-      setNewSupply({ item: '', cost: '', quantity: '1', notes: '' });
+      setNewSupply({ item: '', cost: '', quantity: '1', notes: '', receipt_number: '', store_name: '' });
       setAddingSupply(null);
       loadSupplies(bookingId);
     }
@@ -524,7 +867,8 @@ const Admin = () => {
       date: format(newBooking.date, 'yyyy-MM-dd'),
       time_slot: newBooking.timeSlot,
       services: newBooking.services,
-      notes: newBooking.notes
+      notes: newBooking.notes,
+      booking_source: newBooking.source
     });
 
     setNewBookingLoading(false);
@@ -550,7 +894,8 @@ const Admin = () => {
         date: undefined,
         timeSlot: '',
         services: [],
-        notes: ''
+        notes: '',
+        source: 'phone'
       });
       loadBookings();
     }
@@ -560,37 +905,49 @@ const Admin = () => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    // Prevent double uploads
+    if (uploadingImageFor === booking.id) return;
+
     setUploadingImageFor(booking.id);
-    const currentImages = booking.images || [];
-    const newImageUrls: string[] = [];
+    
+    // Reset the input immediately to allow re-selection of same file
+    const inputElement = e.target;
+    
+    try {
+      const currentImages = booking.images || [];
+      const newImageUrls: string[] = [];
 
-    for (const file of Array.from(files)) {
-      const { data } = await uploadBookingImage(file, booking.id);
-      if (data) {
-        newImageUrls.push(data.url);
+      for (const file of Array.from(files)) {
+        const { data } = await uploadBookingImage(file, booking.id);
+        if (data) {
+          newImageUrls.push(data.url);
+        }
       }
-    }
 
-    if (newImageUrls.length > 0) {
-      const { error } = await updateBookingImages(booking.id, [...currentImages, ...newImageUrls]);
-      if (error) {
-        toast({
-          title: "Error uploading images",
-          description: error.message,
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: "Images uploaded",
-          description: `${newImageUrls.length} image(s) added to booking.`
-        });
-        loadBookings();
+      if (newImageUrls.length > 0) {
+        const { error } = await updateBookingImages(booking.id, [...currentImages, ...newImageUrls]);
+        if (error) {
+          toast({
+            title: "Error uploading images",
+            description: error.message,
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Images uploaded",
+            description: `${newImageUrls.length} image(s) added to booking.`
+          });
+          await loadBookings();
+        }
       }
-    }
-
-    setUploadingImageFor(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    } finally {
+      setUploadingImageFor(null);
+      setActiveUploadBookingId(null);
+      // Reset file input
+      inputElement.value = '';
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -620,9 +977,281 @@ const Admin = () => {
     setContactMessages(data || []);
   };
 
+  // Handle replying to a contact message
+  const handleSendReply = async (messageId: string) => {
+    if (!replyContent.trim()) return;
+    
+    setSendingReply(true);
+    const { error } = await replyToContactMessage(messageId, replyContent);
+    setSendingReply(false);
+    
+    if (error) {
+      toast({ title: "Error", description: "Failed to save reply", variant: "destructive" });
+    } else {
+      toast({ title: "Reply saved" });
+      setReplyingToMessage(null);
+      setReplyContent('');
+      loadContactMessages();
+    }
+  };
+
+  // Generate AI supply suggestions and time estimate for a booking
+  const handleGenerateAISuggestions = async (booking: BookingWithDetails) => {
+    setGeneratingAI(booking.id);
+    
+    // Gather all notes
+    const clientNotes = booking.notes || '';
+    const adminNotesText = bookingNotes[booking.id]?.map(n => n.content).join(' ') || '';
+    const serviceNames = booking.services?.map(s => s.name) || [];
+    
+    const { estimate, suggestions, error } = await generateFullAIEstimate(
+      booking.id,
+      clientNotes,
+      adminNotesText,
+      serviceNames
+    );
+    
+    setGeneratingAI(null);
+    
+    if (error) {
+      toast({ title: "Error", description: "Failed to generate AI estimate", variant: "destructive" });
+    } else {
+      setAiSuggestions(prev => ({ ...prev, [booking.id]: suggestions }));
+      toast({ 
+        title: "AI Estimate generated", 
+        description: `~${estimate.totalHours}h, $${estimate.totalEstimate} total, ${suggestions.length} supplies` 
+      });
+      loadBookings(); // Refresh to get saved estimate
+    }
+  };
+
+  // Voice-to-text handlers
+  const startVoiceRecording = (bookingId: string, field: 'notes' | 'internal') => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      toast({ title: "Not supported", description: "Voice recognition not available in this browser", variant: "destructive" });
+      return;
+    }
+
+    const SpeechRecognition = (window as typeof window & { SpeechRecognition?: typeof window.SpeechRecognition; webkitSpeechRecognition?: typeof window.SpeechRecognition }).SpeechRecognition || (window as typeof window & { webkitSpeechRecognition?: typeof window.SpeechRecognition }).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let finalTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript + ' ';
+        }
+      }
+      
+      if (finalTranscript) {
+        // Append to existing content
+        if (field === 'notes') {
+          const booking = bookings.find(b => b.id === bookingId);
+          if (booking) {
+            const newNotes = (booking.notes || '') + ' ' + finalTranscript.trim();
+            updateBooking(bookingId, { notes: newNotes });
+          }
+        } else {
+          setNewNoteContent(prev => prev + ' ' + finalTranscript.trim());
+        }
+      }
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error('Speech recognition error:', event.error);
+      setIsRecording(false);
+      setRecordingFor(null);
+      toast({ title: "Voice error", description: event.error, variant: "destructive" });
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      setRecordingFor(null);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
+    setRecordingFor({ bookingId, field });
+    toast({ title: "Listening...", description: "Speak now - your words will be transcribed" });
+  };
+
+  const stopVoiceRecording = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsRecording(false);
+    setRecordingFor(null);
+  };
+
   const loadClients = async () => {
     const { data } = await getClientsWithStats();
     setClients(data || []);
+  };
+
+  // Create a new client
+  const handleCreateClient = async () => {
+    if (!newClient.name.trim()) {
+      toast({ title: "Name required", variant: "destructive" });
+      return;
+    }
+
+    setNewClientLoading(true);
+    const { data, error } = await addNewClient({
+      name: newClient.name,
+      phone: newClient.phone || undefined,
+      email: newClient.email || undefined,
+      address: newClient.address || undefined,
+      community: newClient.community || undefined,
+      is_senior: newClient.is_senior,
+      is_military: newClient.is_military,
+      source: 'admin'
+    });
+
+    setNewClientLoading(false);
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Client added", description: `${newClient.name} has been added` });
+      setShowNewClient(false);
+      setNewClient({ name: '', phone: '', email: '', address: '', community: '', is_senior: false, is_military: false });
+      loadClients();
+    }
+  };
+
+  const loadMasterSupplies = async () => {
+    const [suppliesResult, statsResult] = await Promise.all([
+      getAllSupplies(),
+      getSupplyStats()
+    ]);
+    setAllSupplies(suppliesResult.data || []);
+    setSupplyStats(statsResult);
+  };
+
+  const loadAnalytics = async () => {
+    setLoadingAnalytics(true);
+    const data = await getAnalyticsDashboard();
+    setAnalyticsData(data);
+    setLoadingAnalytics(false);
+  };
+
+  // Generate quote/invoice text for sharing
+  const generateQuoteText = (booking: BookingWithDetails, type: 'quote' | 'invoice') => {
+    const services = booking.services?.map(s => s.name) || [];
+    const suppliesList = supplies[booking.id] || [];
+    const laborTotal = booking.invoice_amount || booking.ai_summary?.estimated_labor || 0;
+    const materialsTotal = suppliesList.reduce((sum, s) => sum + (s.cost * s.quantity), 0) || booking.ai_summary?.estimated_materials || 0;
+    const total = laborTotal + materialsTotal;
+    
+    const isInvoice = type === 'invoice';
+    const title = isInvoice ? 'INVOICE' : 'SERVICE QUOTE';
+    const dateLabel = isInvoice ? 'Service Date' : 'Scheduled Date';
+    
+    let text = `
+═══════════════════════════════════
+       FIXITSWELL HANDYMAN
+         ${title}
+═══════════════════════════════════
+
+Customer: ${booking.client?.name || 'N/A'}
+Phone: ${booking.client?.phone || 'N/A'}
+Address: ${booking.client?.address || 'N/A'}
+${dateLabel}: ${format(parseISO(booking.date), 'MMMM d, yyyy')}
+Time: ${getTimeLabel(booking.time_slot)}
+
+───────────────────────────────────
+SERVICES
+───────────────────────────────────
+${services.length > 0 ? services.map(s => `• ${s}`).join('\n') : '• General handyman services'}
+
+${booking.notes ? `\nNotes: ${booking.notes}` : ''}
+
+───────────────────────────────────
+${isInvoice ? 'CHARGES' : 'ESTIMATED COSTS'}
+───────────────────────────────────
+Labor: $${laborTotal.toFixed(2)}
+${materialsTotal > 0 ? `Materials: $${materialsTotal.toFixed(2)}` : ''}
+${suppliesList.length > 0 ? suppliesList.map(s => `  - ${s.item}: $${(s.cost * s.quantity).toFixed(2)}`).join('\n') : ''}
+
+═══════════════════════════════════
+TOTAL: $${total.toFixed(2)}
+═══════════════════════════════════
+
+${isInvoice ? 'Payment due upon completion.' : 'This is an estimate. Final price may vary.'}
+
+Thank you for choosing FixitSwell!
+Questions? Call us anytime.
+───────────────────────────────────
+    `.trim();
+    
+    return text;
+  };
+
+  // Handle creating a follow-up booking
+  const handleCreateFollowUp = async () => {
+    if (!followUpBooking || !followUpDate || !followUpTimeSlot) return;
+    
+    const { data, error } = await createManualBooking({
+      name: followUpBooking.client?.name || '',
+      email: followUpBooking.client?.email || '',
+      phone: followUpBooking.client?.phone || '',
+      address: followUpBooking.client?.address,
+      community: followUpBooking.client?.community,
+      date: format(followUpDate, 'yyyy-MM-dd'),
+      time_slot: followUpTimeSlot,
+      services: followUpBooking.services?.map(s => s.service?.name || s.name).filter(Boolean) || [],
+      notes: followUpNotes || `Follow-up from ${format(parseISO(followUpBooking.date), 'MMM d')} booking`,
+      booking_source: 'phone',
+      follow_up_from: followUpBooking.id,
+      is_follow_up: true
+    });
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Follow-up created", description: `Scheduled for ${format(followUpDate, 'MMM d, yyyy')} at ${followUpTimeSlot}` });
+      setShowFollowUpDialog(false);
+      setFollowUpBooking(null);
+      setFollowUpDate(undefined);
+      setFollowUpTimeSlot('');
+      setFollowUpNotes('');
+      setFollowUpAvailableSlots([]);
+      setFollowUpDateBookings([]);
+      loadBookings();
+    }
+  };
+
+  // Load bookings and available slots when follow-up date changes
+  const loadFollowUpDateInfo = async (date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const { data: bookings } = await fetchBookingsForDate(dateStr);
+    setFollowUpDateBookings(bookings || []);
+    const slots = await getAvailableTimeSlots(dateStr);
+    setFollowUpAvailableSlots(slots);
+    // Pre-select the same time slot if available
+    const availableSlotTimes = slots.filter(s => s.available).map(s => s.time);
+    if (followUpBooking && availableSlotTimes.includes(followUpBooking.time_slot)) {
+      setFollowUpTimeSlot(followUpBooking.time_slot);
+    } else if (availableSlotTimes.length > 0) {
+      setFollowUpTimeSlot(availableSlotTimes[0]);
+    }
+  };
+
+  // Copy text to clipboard
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Copied!", description: "Text copied to clipboard" });
+    } catch {
+      toast({ title: "Error", description: "Failed to copy", variant: "destructive" });
+    }
   };
 
   const loadClientNotesFor = async (clientId: string) => {
@@ -630,11 +1259,66 @@ const Admin = () => {
     setClientNotes(prev => ({ ...prev, [clientId]: data || [] }));
   };
 
+  // Load subscriptions data
+  const loadSubscriptions = async () => {
+    const [subsResult, plansResult, statsResult] = await Promise.all([
+      getAllSubscriptions(),
+      getSubscriptionPlans(),
+      getSubscriptionStats()
+    ]);
+    setSubscriptions(subsResult.data || []);
+    setSubscriptionPlans(plansResult.data || []);
+    setSubscriptionStats(statsResult);
+  };
+
+  // Create new subscription
+  const handleCreateSubscription = async () => {
+    if (!newSubscription.clientId || !newSubscription.planId || !newSubscription.price) {
+      toast({ title: "Error", description: "Please fill all fields", variant: "destructive" });
+      return;
+    }
+    
+    const { error } = await createSubscription({
+      client_id: newSubscription.clientId,
+      plan_id: newSubscription.planId,
+      monthly_price: parseInt(newSubscription.price)
+    });
+    
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Subscription created!" });
+      setShowNewSubscription(false);
+      setNewSubscription({ clientId: '', planId: '', price: '' });
+      loadSubscriptions();
+    }
+  };
+
+  // Update subscription status
+  const handleSubscriptionStatusChange = async (subId: string, status: 'active' | 'paused' | 'cancelled', reason?: string) => {
+    const { error } = await updateSubscriptionStatus(subId, status, reason);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: `Subscription ${status}` });
+      loadSubscriptions();
+    }
+  };
+
   useEffect(() => {
     loadBookings();
     loadContactMessages();
     loadClients();
+    loadSubscriptions();
   }, [statusFilter]);
+
+  // Load supplies and notes when a booking is expanded
+  useEffect(() => {
+    if (expandedBooking) {
+      loadSupplies(expandedBooking);
+      loadBookingNotes(expandedBooking);
+    }
+  }, [expandedBooking]);
 
   // Date range filter helper
   const getDateRange = (filter: DateRangeFilter): { start: string; end: string } | null => {
@@ -642,6 +1326,11 @@ const Admin = () => {
     const todayStr = format(today, 'yyyy-MM-dd');
     
     switch (filter) {
+      case 'past': {
+        const pastStart = addDays(today, -365); // Last year
+        const yesterday = addDays(today, -1);
+        return { start: format(pastStart, 'yyyy-MM-dd'), end: format(yesterday, 'yyyy-MM-dd') };
+      }
       case 'today':
         return { start: todayStr, end: todayStr };
       case 'week': {
@@ -696,23 +1385,32 @@ const Admin = () => {
   };
 
   const handleNotesSave = async (bookingId: string) => {
+    // Prevent double saves
+    if (savingNotes) return;
+    
     setSavingNotes(true);
-    const { error } = await updateBookingNotes(bookingId, notesValue);
-    setSavingNotes(false);
+    const noteToSave = notesValue; // Capture current value
+    
+    try {
+      const { error } = await updateBookingNotes(bookingId, noteToSave);
 
-    if (error) {
-      toast({
-        title: "Error saving notes",
-        description: error.message || "Failed to save notes. Please try again.",
-        variant: "destructive"
-      });
-    } else {
-      toast({
-        title: "Notes saved",
-        description: "Internal notes have been updated.",
-      });
-      setEditingNotes(null);
-      loadBookings();
+      if (error) {
+        toast({
+          title: "Error saving notes",
+          description: error.message || "Failed to save notes. Please try again.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Notes saved",
+          description: "Internal notes have been updated.",
+        });
+        setEditingNotes(null);
+        setNotesValue('');
+        await loadBookings();
+      }
+    } finally {
+      setSavingNotes(false);
     }
   };
 
@@ -863,6 +1561,46 @@ const Admin = () => {
                     <DialogTitle>Create New Booking</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-6 py-4">
+                    {/* Existing Client Selector */}
+                    <div className="p-3 bg-secondary/50 rounded-lg">
+                      <Label className="text-sm mb-2 block">Quick Select Existing Client</Label>
+                      <Select
+                        value=""
+                        onValueChange={(clientId) => {
+                          const client = clients.find(c => c.id === clientId);
+                          if (client) {
+                            setNewBooking(prev => ({
+                              ...prev,
+                              name: client.name,
+                              email: client.email || '',
+                              phone: client.phone || '',
+                              address: client.address || '',
+                              community: client.community || ''
+                            }));
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Search existing clients..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {clients.slice(0, 20).map(client => (
+                            <SelectItem key={client.id} value={client.id}>
+                              <span className="font-medium">{client.name}</span>
+                              <span className="text-muted-foreground ml-2">
+                                {client.phone || client.email || ''}
+                              </span>
+                            </SelectItem>
+                          ))}
+                          {clients.length > 20 && (
+                            <SelectItem value="more" disabled>
+                              ...and {clients.length - 20} more
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
                     {/* Customer Info */}
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -981,6 +1719,29 @@ const Admin = () => {
                         placeholder="What does the customer need help with?"
                         rows={3}
                       />
+                    </div>
+
+                    {/* Source */}
+                    <div className="space-y-2">
+                      <Label>Booking Source</Label>
+                      <Select 
+                        value={newBooking.source} 
+                        onValueChange={(v: 'website' | 'phone' | 'in_person' | 'referral' | 'subscription' | 'other') => 
+                          setNewBooking(prev => ({ ...prev, source: v }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="phone">📞 Phone Call</SelectItem>
+                          <SelectItem value="in_person">🏠 In Person</SelectItem>
+                          <SelectItem value="website">🌐 Website</SelectItem>
+                          <SelectItem value="referral">👥 Referral</SelectItem>
+                          <SelectItem value="subscription">📋 Subscription</SelectItem>
+                          <SelectItem value="other">📝 Other</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     {/* Submit */}
@@ -1170,6 +1931,16 @@ const Admin = () => {
               }`}
             >
               All
+            </button>
+            <button
+              onClick={() => setDateRangeFilter('past')}
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                dateRangeFilter === 'past' 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-background hover:bg-secondary'
+              }`}
+            >
+              Past
             </button>
             <button
               onClick={() => setDateRangeFilter('today')}
@@ -1380,9 +2151,17 @@ const Admin = () => {
                       >
                         <Collapsible
                           open={expandedBooking === booking.id}
-                          onOpenChange={() => setExpandedBooking(
-                            expandedBooking === booking.id ? null : booking.id
-                          )}
+                          onOpenChange={async () => {
+                            const isExpanding = expandedBooking !== booking.id;
+                            setExpandedBooking(isExpanding ? booking.id : null);
+                            if (isExpanding) {
+                              // Load time entries when expanding
+                              const { data: entries } = await getTimeEntries(booking.id);
+                              setTimeEntries(prev => ({ ...prev, [booking.id]: entries }));
+                              const { data: active } = await getActiveTimeEntry(booking.id);
+                              setActiveTimers(prev => ({ ...prev, [booking.id]: active }));
+                            }
+                          }}
                         >
                           <CollapsibleTrigger asChild>
                             <div className="p-4 cursor-pointer hover:bg-secondary/30 transition-colors">
@@ -1422,6 +2201,34 @@ const Admin = () => {
                                       <span className="text-sm truncate max-w-[200px]">{booking.client.address}</span>
                                     </div>
                                   )}
+                                  {/* Booking Source */}
+                                  {booking.booking_source && booking.booking_source !== 'website' && (
+                                    <Badge variant="outline" className="text-xs hidden sm:flex">
+                                      {booking.booking_source === 'phone' && '📞'}
+                                      {booking.booking_source === 'in_person' && '🏠'}
+                                      {booking.booking_source === 'referral' && '👥'}
+                                      {booking.booking_source === 'subscription' && '📋'}
+                                      {booking.booking_source === 'other' && '📝'}
+                                      {' '}{booking.booking_source.replace('_', ' ')}
+                                    </Badge>
+                                  )}
+                                  {/* Follow-up indicator with link to original */}
+                                  {booking.is_follow_up && booking.follow_up_from && (
+                                    <Badge 
+                                      variant="outline" 
+                                      className="text-xs bg-blue-50 text-blue-700 border-blue-200 cursor-pointer hover:bg-blue-100"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedBooking(booking.follow_up_from!);
+                                        setTimeout(() => {
+                                          document.getElementById(`booking-${booking.follow_up_from}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        }, 100);
+                                      }}
+                                    >
+                                      <RotateCcw className="w-3 h-3 mr-1" />
+                                      View Original
+                                    </Badge>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-2 flex-wrap justify-end">
                                   {/* Payment Status Indicator */}
@@ -1445,6 +2252,12 @@ const Admin = () => {
                                     </Badge>
                                   ) : null}
                                   {getStatusBadge(booking.status, booking.cancelled_by)}
+                                  {booking.is_follow_up && (
+                                    <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 text-xs flex items-center gap-1">
+                                      <RotateCcw className="w-3 h-3" />
+                                      Follow-up
+                                    </Badge>
+                                  )}
                                   {expandedBooking === booking.id ? (
                                     <ChevronUp className="w-5 h-5 text-muted-foreground" />
                                   ) : (
@@ -1508,27 +2321,242 @@ const Admin = () => {
                                         </span>
                                       </p>
                                     )}
+                                    
+                                    {/* Pet Info Section */}
+                                    {booking.client && (
+                                      <div className="mt-3 pt-3 border-t border-border">
+                                        <p className="text-xs font-medium text-muted-foreground mb-2">🐾 Pet Info</p>
+                                        {editingPetInfo === booking.client.id ? (
+                                          <div className="space-y-2 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                                            <div className="flex items-center gap-2">
+                                              <Checkbox 
+                                                checked={petInfoForm.has_pets}
+                                                onCheckedChange={(checked) => 
+                                                  setPetInfoForm(prev => ({ ...prev, has_pets: !!checked }))
+                                                }
+                                              />
+                                              <span className="text-sm">Has pets</span>
+                                            </div>
+                                            {petInfoForm.has_pets && (
+                                              <>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                  <div>
+                                                    <label className="text-xs text-muted-foreground">Dogs</label>
+                                                    <Input 
+                                                      type="number" 
+                                                      min="0" 
+                                                      value={petInfoForm.dogs}
+                                                      onChange={(e) => setPetInfoForm(prev => ({ ...prev, dogs: parseInt(e.target.value) || 0 }))}
+                                                      className="h-8"
+                                                    />
+                                                  </div>
+                                                  <div>
+                                                    <label className="text-xs text-muted-foreground">Cats</label>
+                                                    <Input 
+                                                      type="number" 
+                                                      min="0" 
+                                                      value={petInfoForm.cats}
+                                                      onChange={(e) => setPetInfoForm(prev => ({ ...prev, cats: parseInt(e.target.value) || 0 }))}
+                                                      className="h-8"
+                                                    />
+                                                  </div>
+                                                </div>
+                                                <div>
+                                                  <label className="text-xs text-muted-foreground">Pet Names</label>
+                                                  <Input 
+                                                    value={petInfoForm.names}
+                                                    onChange={(e) => setPetInfoForm(prev => ({ ...prev, names: e.target.value }))}
+                                                    placeholder="e.g., Buddy, Whiskers"
+                                                    className="h-8"
+                                                  />
+                                                </div>
+                                                <div>
+                                                  <label className="text-xs text-muted-foreground">Breeds</label>
+                                                  <Input 
+                                                    value={petInfoForm.breeds}
+                                                    onChange={(e) => setPetInfoForm(prev => ({ ...prev, breeds: e.target.value }))}
+                                                    placeholder="e.g., Golden Retriever, Tabby"
+                                                    className="h-8"
+                                                  />
+                                                </div>
+                                              </>
+                                            )}
+                                            <div className="flex gap-2 pt-1">
+                                              <Button size="sm" onClick={() => handleSavePetInfo(booking.client!.id)}>
+                                                Save
+                                              </Button>
+                                              <Button size="sm" variant="outline" onClick={() => setEditingPetInfo(null)}>
+                                                Cancel
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div 
+                                            className="text-sm cursor-pointer hover:bg-secondary/50 p-2 rounded-lg transition-colors"
+                                            onClick={() => startEditingPetInfo(booking.client!.id, booking.client!.pet_info)}
+                                          >
+                                            {booking.client.pet_info?.has_pets ? (
+                                              <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                  {booking.client.pet_info.dogs > 0 && (
+                                                    <Badge variant="outline" className="text-xs">
+                                                      🐕 {booking.client.pet_info.dogs} dog{booking.client.pet_info.dogs > 1 ? 's' : ''}
+                                                    </Badge>
+                                                  )}
+                                                  {booking.client.pet_info.cats > 0 && (
+                                                    <Badge variant="outline" className="text-xs">
+                                                      🐈 {booking.client.pet_info.cats} cat{booking.client.pet_info.cats > 1 ? 's' : ''}
+                                                    </Badge>
+                                                  )}
+                                                </div>
+                                                {booking.client.pet_info.names && (
+                                                  <p className="text-xs text-muted-foreground">
+                                                    Names: {booking.client.pet_info.names}
+                                                  </p>
+                                                )}
+                                                {booking.client.pet_info.breeds && (
+                                                  <p className="text-xs text-muted-foreground">
+                                                    Breeds: {booking.client.pet_info.breeds}
+                                                  </p>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              <span className="text-muted-foreground italic">Click to add pet info</span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
 
-                                {/* Services & Notes */}
+                                {/* Services Checklist */}
                                 <div className="space-y-3">
                                   <h4 className="font-heading font-semibold text-foreground flex items-center gap-2">
                                     <Wrench className="w-4 h-4" />
-                                    Services Requested
+                                    Services Checklist
+                                    {booking.services && booking.services.length > 0 && (
+                                      <span className="text-sm font-normal text-muted-foreground">
+                                        ({(booking.completed_services || []).length}/{booking.services.length} done)
+                                      </span>
+                                    )}
                                   </h4>
                                   {booking.services && booking.services.length > 0 ? (
-                                    <ul className="space-y-1 text-sm">
-                                      {booking.services.map((s, i) => (
-                                        <li key={i} className="flex items-center gap-2">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                                          {SERVICE_OPTIONS.find(opt => opt.id === s.service?.name)?.label || s.service?.name || 'Service'}
-                                        </li>
-                                      ))}
+                                    <ul className="space-y-2 text-sm">
+                                      {booking.services.map((s, i) => {
+                                        const serviceId = s.service?.id || s.service?.name || `service-${i}`;
+                                        const isCompleted = (booking.completed_services || []).includes(serviceId);
+                                        return (
+                                          <li 
+                                            key={i} 
+                                            className={`flex items-center gap-3 p-2 rounded-lg transition-colors group ${
+                                              isCompleted 
+                                                ? 'bg-green-50 border border-green-200' 
+                                                : 'bg-background border border-border hover:border-primary/50'
+                                            }`}
+                                          >
+                                            <div 
+                                              className="flex items-center gap-3 flex-1 cursor-pointer"
+                                              onClick={async () => {
+                                                await toggleServiceCompletion(booking.id, serviceId);
+                                                loadBookings();
+                                              }}
+                                            >
+                                              <Checkbox 
+                                                checked={isCompleted}
+                                                className={isCompleted ? 'bg-green-600 border-green-600' : ''}
+                                              />
+                                              <span className={isCompleted ? 'line-through text-muted-foreground' : ''}>
+                                                {SERVICE_OPTIONS.find(opt => opt.id === s.service?.name)?.label || s.service?.name || 'Service'}
+                                              </span>
+                                            </div>
+                                            {isCompleted && (
+                                              <CheckCircle className="w-4 h-4 text-green-600" />
+                                            )}
+                                            {s.service?.id && (
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleRemoveService(booking.id, s.service!.id);
+                                                }}
+                                              >
+                                                <X className="w-3 h-3" />
+                                              </Button>
+                                            )}
+                                          </li>
+                                        );
+                                      })}
                                     </ul>
                                   ) : (
                                     <p className="text-sm text-muted-foreground">No services selected</p>
                                   )}
+                                  
+                                  {/* Quick Add Service */}
+                                  <div className="relative">
+                                    <div className="flex gap-2">
+                                      <Input
+                                        placeholder="Quick add service..."
+                                        value={quickServiceInput[booking.id] || ''}
+                                        onChange={(e) => {
+                                          setQuickServiceInput(prev => ({ ...prev, [booking.id]: e.target.value }));
+                                          if (e.target.value.length > 0) {
+                                            setShowServiceSuggestions(booking.id);
+                                          } else {
+                                            setShowServiceSuggestions(null);
+                                          }
+                                        }}
+                                        onFocus={() => {
+                                          if ((quickServiceInput[booking.id] || '').length > 0) {
+                                            setShowServiceSuggestions(booking.id);
+                                          }
+                                        }}
+                                        onBlur={() => {
+                                          // Delay to allow click on suggestion
+                                          setTimeout(() => setShowServiceSuggestions(null), 200);
+                                        }}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' && quickServiceInput[booking.id]?.trim()) {
+                                            e.preventDefault();
+                                            handleQuickAddService(booking.id, quickServiceInput[booking.id]);
+                                          }
+                                        }}
+                                        className="text-sm"
+                                      />
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleQuickAddService(booking.id, quickServiceInput[booking.id] || '')}
+                                        disabled={!quickServiceInput[booking.id]?.trim()}
+                                      >
+                                        <Plus className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                    
+                                    {/* Autocomplete Suggestions */}
+                                    {showServiceSuggestions === booking.id && (quickServiceInput[booking.id] || '').length > 0 && (
+                                      <div className="absolute z-10 w-full mt-1 bg-card border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                        {getServiceSuggestions(quickServiceInput[booking.id] || '', booking.services || []).slice(0, 8).map((opt) => (
+                                          <button
+                                            key={opt.id}
+                                            className="w-full text-left px-3 py-2 text-sm hover:bg-secondary transition-colors"
+                                            onMouseDown={(e) => {
+                                              e.preventDefault();
+                                              handleQuickAddService(booking.id, opt.id);
+                                            }}
+                                          >
+                                            {opt.label}
+                                          </button>
+                                        ))}
+                                        {getServiceSuggestions(quickServiceInput[booking.id] || '', booking.services || []).length === 0 && (
+                                          <div className="px-3 py-2 text-sm text-muted-foreground">
+                                            Press Enter to add as custom service
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                   
                                   {booking.notes && (
                                     <div className="mt-3">
@@ -1645,62 +2673,189 @@ const Admin = () => {
                                 </div>
                               )}
 
-                              {/* Internal Notes Section */}
+                              {/* Staff Notes Section - Individual Notes */}
                               <div className="mt-4 pt-4 border-t border-border">
-                                <h4 className="font-heading font-semibold text-foreground mb-2 flex items-center gap-2">
+                                <h4 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
                                   <AlertCircle className="w-4 h-4 text-muted-foreground" />
-                                  Internal Notes (Staff Only)
+                                  Staff Notes ({(bookingNotes[booking.id] || []).length})
                                 </h4>
-                                {editingNotes === booking.id ? (
-                                  <div className="space-y-2">
-                                    <Textarea
-                                      value={notesValue}
-                                      onChange={(e) => setNotesValue(e.target.value)}
-                                      placeholder="Add internal notes about this booking..."
-                                      rows={3}
-                                      className="text-sm"
-                                    />
-                                    <div className="flex gap-2">
-                                      <Button
-                                        size="sm"
-                                        onClick={() => handleNotesSave(booking.id)}
-                                        disabled={savingNotes}
+                                
+                                {/* Existing Notes List */}
+                                <div className="space-y-2 mb-3">
+                                  {(bookingNotes[booking.id] || []).length > 0 ? (
+                                    (bookingNotes[booking.id] || []).map((note) => (
+                                      <div 
+                                        key={note.id} 
+                                        className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg group"
                                       >
-                                        {savingNotes ? (
-                                          <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                                        {editingNoteId === note.id ? (
+                                          <div className="space-y-2">
+                                            <Textarea
+                                              value={editingNoteContent}
+                                              onChange={(e) => setEditingNoteContent(e.target.value)}
+                                              rows={2}
+                                              className="text-sm"
+                                            />
+                                            <div className="flex gap-2">
+                                              <Button
+                                                size="sm"
+                                                onClick={() => handleUpdateNote(note.id, booking.id)}
+                                              >
+                                                <CheckCircle className="w-3 h-3 mr-1" />
+                                                Save
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => {
+                                                  setEditingNoteId(null);
+                                                  setEditingNoteContent('');
+                                                }}
+                                              >
+                                                Cancel
+                                              </Button>
+                                            </div>
+                                          </div>
                                         ) : (
-                                          <CheckCircle className="w-4 h-4 mr-1" />
+                                          <>
+                                            <p className="text-sm">{note.content}</p>
+                                            <div className="flex items-center justify-between mt-2">
+                                              <span className="text-xs text-muted-foreground">
+                                                {format(parseISO(note.created_at), 'MMM d, h:mm a')}
+                                              </span>
+                                              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                                <Button
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  className="h-6 px-2"
+                                                  onClick={() => {
+                                                    setEditingNoteId(note.id);
+                                                    setEditingNoteContent(note.content);
+                                                  }}
+                                                >
+                                                  <Edit2 className="w-3 h-3" />
+                                                </Button>
+                                                <Button
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  className="h-6 px-2 text-red-500 hover:text-red-700"
+                                                  onClick={() => handleDeleteNote(note.id, booking.id)}
+                                                >
+                                                  <Trash2 className="w-3 h-3" />
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          </>
                                         )}
-                                        Save
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={handleNotesCancel}
-                                        disabled={savingNotes}
-                                      >
-                                        Cancel
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="space-y-2">
-                                    {booking.internal_notes ? (
-                                      <p className="text-sm p-2 bg-yellow-50 border border-yellow-200 rounded">
-                                        {booking.internal_notes}
-                                      </p>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <p className="text-sm text-muted-foreground italic">No notes yet</p>
+                                  )}
+                                </div>
+
+                                {/* Add New Note */}
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="Add a note..."
+                                    value={newNoteContent[booking.id] || ''}
+                                    onChange={(e) => setNewNoteContent(prev => ({ 
+                                      ...prev, 
+                                      [booking.id]: e.target.value 
+                                    }))}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleAddNote(booking.id);
+                                      }
+                                    }}
+                                    className="text-sm"
+                                  />
+                                  {/* Voice Recording Button */}
+                                  <Button
+                                    size="sm"
+                                    variant={isRecording && recordingFor?.bookingId === booking.id && recordingFor?.field === 'internal' ? 'destructive' : 'outline'}
+                                    onClick={() => {
+                                      if (isRecording && recordingFor?.bookingId === booking.id) {
+                                        stopVoiceRecording();
+                                      } else {
+                                        startVoiceRecording(booking.id, 'internal');
+                                      }
+                                    }}
+                                    title="Voice to text"
+                                  >
+                                    {isRecording && recordingFor?.bookingId === booking.id && recordingFor?.field === 'internal' ? (
+                                      <MicOff className="w-4 h-4" />
                                     ) : (
-                                      <p className="text-sm text-muted-foreground italic">No internal notes</p>
+                                      <Mic className="w-4 h-4" />
                                     )}
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => handleNotesEdit(booking)}
-                                    >
-                                      {booking.internal_notes ? 'Edit Notes' : 'Add Notes'}
-                                    </Button>
-                                  </div>
-                                )}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleAddNote(booking.id)}
+                                    disabled={!newNoteContent[booking.id]?.trim()}
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {/* Future Repairs Suggestions */}
+                              <div className="mt-4 pt-4 border-t border-border">
+                                <h4 className="font-heading font-semibold text-foreground mb-3 flex items-center gap-2">
+                                  <Wrench className="w-4 h-4 text-orange-500" />
+                                  Future Repair Suggestions
+                                </h4>
+                                
+                                {/* Existing Suggestions */}
+                                <div className="space-y-2 mb-3">
+                                  {(booking.future_repairs || []).length > 0 ? (
+                                    (booking.future_repairs || []).map((repair, idx) => (
+                                      <div 
+                                        key={idx}
+                                        className="flex items-center justify-between p-2 bg-orange-50 border border-orange-200 rounded-lg text-sm group"
+                                      >
+                                        <span>{repair}</span>
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-6 px-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700"
+                                          onClick={() => handleRemoveFutureRepair(booking.id, idx)}
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </Button>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <p className="text-sm text-muted-foreground italic">No suggestions yet</p>
+                                  )}
+                                </div>
+
+                                {/* Add New Suggestion */}
+                                <div className="flex gap-2">
+                                  <Input
+                                    placeholder="Add future repair suggestion..."
+                                    value={newRepairContent[booking.id] || ''}
+                                    onChange={(e) => setNewRepairContent(prev => ({ 
+                                      ...prev, 
+                                      [booking.id]: e.target.value 
+                                    }))}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleAddFutureRepair(booking.id);
+                                      }
+                                    }}
+                                    className="text-sm"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleAddFutureRepair(booking.id)}
+                                    disabled={!newRepairContent[booking.id]?.trim()}
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </Button>
+                                </div>
                               </div>
 
                               {/* Images Section */}
@@ -1972,6 +3127,76 @@ const Admin = () => {
                                   </div>
                                 )}
 
+                                {/* Time Entries Section */}
+                                <div className="mb-4">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-medium flex items-center gap-2">
+                                      <Timer className="w-4 h-4 text-blue-600" />
+                                      Time Tracking:
+                                      {booking.actual_duration_minutes != null && (
+                                        <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                                          Total: {Math.floor(booking.actual_duration_minutes / 60)}h {booking.actual_duration_minutes % 60}m
+                                        </Badge>
+                                      )}
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={async () => {
+                                        const { data: entries } = await getTimeEntries(booking.id);
+                                        setTimeEntries(prev => ({ ...prev, [booking.id]: entries }));
+                                        const { data: active } = await getActiveTimeEntry(booking.id);
+                                        setActiveTimers(prev => ({ ...prev, [booking.id]: active }));
+                                      }}
+                                    >
+                                      <RefreshCw className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                  {timeEntries[booking.id]?.length > 0 ? (
+                                    <div className="space-y-1 bg-blue-50/50 rounded-lg p-2">
+                                      {timeEntries[booking.id].map((entry, idx) => (
+                                        <div key={entry.id} className="flex items-center justify-between text-sm bg-white rounded px-2 py-1">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-muted-foreground">#{idx + 1}</span>
+                                            <span>{format(parseISO(entry.started_at), 'h:mm a')}</span>
+                                            <span className="text-muted-foreground">→</span>
+                                            {entry.stopped_at ? (
+                                              <>
+                                                <span>{format(parseISO(entry.stopped_at), 'h:mm a')}</span>
+                                                <Badge variant="secondary" className="text-xs">
+                                                  {entry.duration_minutes}m
+                                                </Badge>
+                                              </>
+                                            ) : (
+                                              <Badge className="bg-orange-500 text-white text-xs animate-pulse">
+                                                Running...
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          {entry.stopped_at && (
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                              onClick={async () => {
+                                                await deleteTimeEntry(entry.id, booking.id);
+                                                const { data: entries } = await getTimeEntries(booking.id);
+                                                setTimeEntries(prev => ({ ...prev, [booking.id]: entries }));
+                                                await loadBookings();
+                                                toast({ title: "Deleted", description: "Time entry removed" });
+                                              }}
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </Button>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-muted-foreground italic">No time entries recorded yet. Click "Start Timer" to begin.</p>
+                                  )}
+                                </div>
+
                                 {/* Supplies List */}
                                 <div>
                                   <div className="flex items-center justify-between mb-2">
@@ -1995,9 +3220,16 @@ const Admin = () => {
                                     <ul className="space-y-1 mb-2">
                                       {supplies[booking.id].map(supply => (
                                         <li key={supply.id} className="flex items-center justify-between text-sm p-2 bg-white rounded border">
-                                          <span>
-                                            {supply.item} (×{supply.quantity}) — ${supply.cost.toFixed(2)}
-                                          </span>
+                                          <div>
+                                            <span className="font-medium">{supply.item}</span>
+                                            <span className="text-muted-foreground"> (×{supply.quantity}) — ${supply.cost.toFixed(2)}</span>
+                                            {(supply.store_name || supply.receipt_number) && (
+                                              <p className="text-xs text-muted-foreground">
+                                                {supply.store_name && <span>📍 {supply.store_name}</span>}
+                                                {supply.receipt_number && <span className="ml-2">🧾 #{supply.receipt_number}</span>}
+                                              </p>
+                                            )}
+                                          </div>
                                           <Button
                                             size="sm"
                                             variant="ghost"
@@ -2030,6 +3262,18 @@ const Admin = () => {
                                           onChange={(e) => setNewSupply(prev => ({ ...prev, cost: e.target.value }))}
                                         />
                                       </div>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <Input
+                                          placeholder="Store (Home Depot, etc)"
+                                          value={newSupply.store_name}
+                                          onChange={(e) => setNewSupply(prev => ({ ...prev, store_name: e.target.value }))}
+                                        />
+                                        <Input
+                                          placeholder="Receipt #"
+                                          value={newSupply.receipt_number}
+                                          onChange={(e) => setNewSupply(prev => ({ ...prev, receipt_number: e.target.value }))}
+                                        />
+                                      </div>
                                       <div className="flex gap-2">
                                         <Button size="sm" onClick={() => handleAddSupply(booking.id)}>
                                           Add Supply
@@ -2039,6 +3283,96 @@ const Admin = () => {
                                         </Button>
                                       </div>
                                     </div>
+                                  )}
+                                </div>
+
+                                {/* AI Supply Suggestions */}
+                                <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-medium text-purple-800 flex items-center gap-1">
+                                      <Sparkles className="w-4 h-4" />
+                                      AI Supply Suggestions
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-purple-600 border-purple-300 hover:bg-purple-100"
+                                      onClick={() => handleGenerateAISuggestions(booking)}
+                                      disabled={generatingAI === booking.id}
+                                    >
+                                      {generatingAI === booking.id ? (
+                                        <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                                      ) : (
+                                        <Wand2 className="w-4 h-4 mr-1" />
+                                      )}
+                                      {booking.ai_summary?.suggested_supplies?.length ? 'Regenerate' : 'Generate'}
+                                    </Button>
+                                  </div>
+                                  
+                                  {/* Show saved suggestions */}
+                                  {booking.ai_summary?.suggested_supplies?.length ? (
+                                    <div className="space-y-1">
+                                      {booking.ai_summary.suggested_supplies.map((suggestion, idx) => (
+                                        <div 
+                                          key={idx} 
+                                          className={`flex items-center justify-between text-sm p-2 rounded ${
+                                            suggestion.source === 'admin' 
+                                              ? 'bg-blue-100 border border-blue-200' 
+                                              : 'bg-white border'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <Badge 
+                                              variant="outline" 
+                                              className={`text-xs ${
+                                                suggestion.confidence === 'high' ? 'bg-green-100 text-green-700' :
+                                                suggestion.confidence === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                                'bg-gray-100 text-gray-600'
+                                              }`}
+                                            >
+                                              {suggestion.confidence}
+                                            </Badge>
+                                            <span>{suggestion.item}</span>
+                                            {suggestion.source === 'admin' && (
+                                              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-600">admin</Badge>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-muted-foreground">
+                                              ~${suggestion.estimated_cost || 0}
+                                            </span>
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              className="h-6 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                              onClick={() => {
+                                                setNewSupply({
+                                                  item: suggestion.item,
+                                                  cost: String(suggestion.estimated_cost || 0),
+                                                  quantity: '1',
+                                                  notes: '',
+                                                  receipt_number: '',
+                                                  store_name: ''
+                                                });
+                                                setAddingSupply(booking.id);
+                                              }}
+                                            >
+                                              <Plus className="w-3 h-3 mr-1" />
+                                              Add
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                      {booking.ai_summary.generated_at && (
+                                        <p className="text-xs text-purple-500 mt-2">
+                                          Generated {format(parseISO(booking.ai_summary.generated_at), 'MMM d, h:mm a')}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-purple-600">
+                                      Click generate to analyze notes and suggest supplies
+                                    </p>
                                   )}
                                 </div>
                               </div>
@@ -2073,18 +3407,78 @@ const Admin = () => {
                                 )}
                                 {booking.status === 'confirmed' && (
                                   <>
+                                    {/* Start/Stop Job Timer - Multiple Entries */}
+                                    {!activeTimers[booking.id] ? (
+                                      <Button
+                                        size="sm"
+                                        onClick={async () => {
+                                          setUpdatingId(booking.id);
+                                          const { data, error } = await startJob(booking.id);
+                                          if (error) {
+                                            toast({ title: "Error", description: error.message, variant: "destructive" });
+                                          } else {
+                                            setActiveTimers(prev => ({ ...prev, [booking.id]: data }));
+                                            toast({ title: "Timer Started", description: "Timer is now running" });
+                                          }
+                                          await loadBookings();
+                                          setUpdatingId(null);
+                                        }}
+                                        disabled={updatingId === booking.id}
+                                        className="bg-green-600 hover:bg-green-700"
+                                      >
+                                        {updatingId === booking.id ? (
+                                          <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                                        ) : (
+                                          <Play className="w-4 h-4 mr-1" />
+                                        )}
+                                        Start Timer
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        size="sm"
+                                        onClick={async () => {
+                                          setUpdatingId(booking.id);
+                                          const { data, error } = await stopJob(booking.id);
+                                          if (error) {
+                                            toast({ title: "Error", description: error.message, variant: "destructive" });
+                                          } else {
+                                            setActiveTimers(prev => ({ ...prev, [booking.id]: null }));
+                                            // Refresh time entries
+                                            const { data: entries } = await getTimeEntries(booking.id);
+                                            setTimeEntries(prev => ({ ...prev, [booking.id]: entries }));
+                                            toast({ title: "Timer Stopped", description: `Recorded ${data?.duration_minutes || 0} minutes` });
+                                          }
+                                          await loadBookings();
+                                          setUpdatingId(null);
+                                        }}
+                                        disabled={updatingId === booking.id}
+                                        className="bg-orange-600 hover:bg-orange-700"
+                                      >
+                                        {updatingId === booking.id ? (
+                                          <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                                        ) : (
+                                          <Square className="w-4 h-4 mr-1" />
+                                        )}
+                                        Stop Timer
+                                      </Button>
+                                    )}
+                                    {/* Show running indicator */}
+                                    {activeTimers[booking.id] && (
+                                      <span className="flex items-center gap-1 text-sm text-orange-600 font-medium animate-pulse">
+                                        <Timer className="w-4 h-4" />
+                                        Running since {format(parseISO(activeTimers[booking.id]!.started_at), 'h:mm a')}
+                                      </span>
+                                    )}
+                                    {/* Complete Job Button */}
                                     <Button
                                       size="sm"
                                       onClick={() => handleStatusUpdate(booking.id, 'completed')}
-                                      disabled={updatingId === booking.id}
-                                      className="bg-green-600 hover:bg-green-700"
+                                      disabled={updatingId === booking.id || !!activeTimers[booking.id]}
+                                      className="bg-primary hover:bg-primary/90"
+                                      title={activeTimers[booking.id] ? "Stop timer first" : "Mark job as complete"}
                                     >
-                                      {updatingId === booking.id ? (
-                                        <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                                      ) : (
-                                        <CheckCircle className="w-4 h-4 mr-1" />
-                                      )}
-                                      Mark Complete
+                                      <CheckCircle className="w-4 h-4 mr-1" />
+                                      Complete
                                     </Button>
                                     <Button
                                       size="sm"
@@ -2106,12 +3500,20 @@ const Admin = () => {
                                   </>
                                 )}
                                 {booking.status === 'completed' && (
-                                  <p className="text-sm text-muted-foreground">
-                                    Completed on {booking.completed_at
-                                      ? format(parseISO(booking.completed_at), 'MMM d, yyyy')
-                                      : 'N/A'
-                                    }
-                                  </p>
+                                  <div className="text-sm text-muted-foreground space-y-1">
+                                    <p>
+                                      Completed on {booking.completed_at
+                                        ? format(parseISO(booking.completed_at), 'MMM d, yyyy \'at\' h:mm a')
+                                        : 'N/A'
+                                      }
+                                    </p>
+                                    {booking.actual_duration_minutes && (
+                                      <p className="flex items-center gap-1 text-primary font-medium">
+                                        <Timer className="w-4 h-4" />
+                                        Time: {Math.floor(booking.actual_duration_minutes / 60)}h {booking.actual_duration_minutes % 60}m
+                                      </p>
+                                    )}
+                                  </div>
                                 )}
                                 {booking.status === 'cancelled' && (
                                   <p className="text-sm text-muted-foreground">
@@ -2122,6 +3524,36 @@ const Admin = () => {
                                     }
                                   </p>
                                 )}
+
+                                {/* Quote/Invoice & Follow-up Buttons */}
+                                <div className="flex gap-2 mt-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setQuoteBooking(booking);
+                                      setQuoteType(booking.status === 'completed' ? 'invoice' : 'quote');
+                                      setShowQuoteDialog(true);
+                                    }}
+                                  >
+                                    <FileText className="w-4 h-4 mr-1" />
+                                    {booking.status === 'completed' ? 'Invoice' : 'Quote'}
+                                  </Button>
+                                  
+                                  {booking.status === 'completed' && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setFollowUpBooking(booking);
+                                        setShowFollowUpDialog(true);
+                                      }}
+                                    >
+                                      <RotateCcw className="w-4 h-4 mr-1" />
+                                      Follow-up
+                                    </Button>
+                                  )}
+                                </div>
                                 
                                 {/* Delete Button - Always visible */}
                                 <AlertDialog>
@@ -2176,6 +3608,245 @@ const Admin = () => {
               ))}
           </div>
         )}
+
+        {/* Analytics Dashboard Section */}
+        <Card className="border-blue-200">
+          <CardHeader 
+            className="cursor-pointer"
+            onClick={() => {
+              setShowAnalytics(!showAnalytics);
+              if (!showAnalytics && !analyticsData) loadAnalytics();
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BarChart3 className="w-5 h-5 text-blue-600" />
+                Business Analytics
+                {analyticsData && (
+                  <>
+                    <Badge variant="outline" className="bg-green-100 text-green-700">
+                      ${analyticsData.totalRevenue.toFixed(0)} revenue
+                    </Badge>
+                    {analyticsData.revenueGrowth > 0 ? (
+                      <Badge variant="outline" className="bg-green-50 text-green-600">
+                        <TrendingUp className="w-3 h-3 mr-1" />
+                        +{analyticsData.revenueGrowth.toFixed(0)}%
+                      </Badge>
+                    ) : analyticsData.revenueGrowth < 0 ? (
+                      <Badge variant="outline" className="bg-red-50 text-red-600">
+                        <TrendingDown className="w-3 h-3 mr-1" />
+                        {analyticsData.revenueGrowth.toFixed(0)}%
+                      </Badge>
+                    ) : null}
+                  </>
+                )}
+              </CardTitle>
+              {showAnalytics ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+          </CardHeader>
+          {showAnalytics && (
+            <CardContent className="pt-0 space-y-6">
+              {loadingAnalytics ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                  <span className="ml-2 text-muted-foreground">Loading analytics...</span>
+                </div>
+              ) : analyticsData ? (
+                <>
+                  {/* Key Metrics Row */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
+                      <p className="text-xs text-green-600 font-medium">Total Revenue</p>
+                      <p className="text-2xl font-bold text-green-700">${analyticsData.totalRevenue.toFixed(0)}</p>
+                      <p className="text-xs text-green-500">
+                        {analyticsData.revenueGrowth >= 0 ? '+' : ''}{analyticsData.revenueGrowth.toFixed(1)}% vs last month
+                      </p>
+                    </div>
+                    <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+                      <p className="text-xs text-blue-600 font-medium">Gross Profit</p>
+                      <p className="text-2xl font-bold text-blue-700">${analyticsData.grossProfit.toFixed(0)}</p>
+                      <p className="text-xs text-blue-500">After ${analyticsData.totalExpenses.toFixed(0)} expenses</p>
+                    </div>
+                    <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
+                      <p className="text-xs text-purple-600 font-medium">Avg Job Value</p>
+                      <p className="text-2xl font-bold text-purple-700">${analyticsData.avgJobValue.toFixed(0)}</p>
+                      <p className="text-xs text-purple-500">{analyticsData.completedJobs} completed jobs</p>
+                    </div>
+                    <div className="p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg border border-amber-200">
+                      <p className="text-xs text-amber-600 font-medium">Active Clients</p>
+                      <p className="text-2xl font-bold text-amber-700">{analyticsData.activeClients}</p>
+                      <p className="text-xs text-amber-500">+{analyticsData.newClientsThisMonth} this month</p>
+                    </div>
+                  </div>
+
+                  {/* Monthly Revenue Chart (Simple Bar Representation) */}
+                  <div className="p-4 bg-white rounded-lg border">
+                    <h4 className="font-medium text-sm mb-4 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-blue-500" />
+                      Revenue Trend (Last 6 Months)
+                    </h4>
+                    <div className="flex items-end gap-2 h-32">
+                      {analyticsData.monthlyData.map((month, idx) => {
+                        const maxRevenue = Math.max(...analyticsData.monthlyData.map(m => m.revenue), 1);
+                        const height = (month.revenue / maxRevenue) * 100;
+                        return (
+                          <div key={idx} className="flex-1 flex flex-col items-center gap-1">
+                            <div 
+                              className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all hover:from-blue-600 hover:to-blue-500"
+                              style={{ height: `${Math.max(height, 5)}%` }}
+                              title={`$${month.revenue.toFixed(0)}`}
+                            />
+                            <span className="text-xs text-muted-foreground">{month.label}</span>
+                            <span className="text-xs font-medium">${month.revenue >= 1000 ? `${(month.revenue/1000).toFixed(1)}k` : month.revenue.toFixed(0)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Performance & Sources Row */}
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {/* Performance Metrics */}
+                    <div className="p-4 bg-white rounded-lg border">
+                      <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+                        <Target className="w-4 h-4 text-green-500" />
+                        Performance Metrics
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Completion Rate</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-green-500 rounded-full"
+                                style={{ width: `${Math.min(analyticsData.performance.completionRate, 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-medium">{analyticsData.performance.completionRate.toFixed(0)}%</span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Repeat Client Rate</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-blue-500 rounded-full"
+                                style={{ width: `${Math.min(analyticsData.performance.repeatClientRate, 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-medium">{analyticsData.performance.repeatClientRate.toFixed(0)}%</span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Avg Duration</span>
+                          <span className="text-sm font-medium">
+                            {analyticsData.performance.avgDurationMinutes > 0 
+                              ? `${Math.round(analyticsData.performance.avgDurationMinutes)} min`
+                              : 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Revenue/Hour</span>
+                          <span className="text-sm font-medium">
+                            ${analyticsData.performance.avgRevenuePerHour.toFixed(0)}/hr
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Booking Sources */}
+                    <div className="p-4 bg-white rounded-lg border">
+                      <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+                        <Repeat className="w-4 h-4 text-purple-500" />
+                        Booking Sources
+                      </h4>
+                      <div className="space-y-2">
+                        {analyticsData.sourceBreakdown.length > 0 ? (
+                          analyticsData.sourceBreakdown.map((source, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-sm">
+                              <div className="flex items-center gap-2">
+                                <span>
+                                  {source.source === 'phone' && '📞'}
+                                  {source.source === 'website' && '🌐'}
+                                  {source.source === 'in_person' && '🏠'}
+                                  {source.source === 'referral' && '👥'}
+                                  {source.source === 'subscription' && '📋'}
+                                  {source.source === 'other' && '📝'}
+                                </span>
+                                <span className="capitalize">{source.source.replace('_', ' ')}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="font-medium">{source.count} jobs</span>
+                                <span className="text-muted-foreground ml-2">${source.revenue.toFixed(0)}</span>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground text-center">No source data yet</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Top Clients */}
+                  <div className="p-4 bg-white rounded-lg border">
+                    <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+                      <Star className="w-4 h-4 text-amber-500" />
+                      Top Clients by Revenue
+                    </h4>
+                    {analyticsData.topClients.length > 0 ? (
+                      <div className="space-y-2">
+                        {analyticsData.topClients.slice(0, 5).map((client, idx) => (
+                          <div key={client.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                            <div className="flex items-center gap-3">
+                              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                idx === 0 ? 'bg-amber-100 text-amber-700' :
+                                idx === 1 ? 'bg-gray-200 text-gray-600' :
+                                idx === 2 ? 'bg-orange-100 text-orange-700' :
+                                'bg-gray-100 text-gray-500'
+                              }`}>
+                                {idx + 1}
+                              </span>
+                              <div>
+                                <p className="font-medium text-sm">{client.name}</p>
+                                <p className="text-xs text-muted-foreground">{client.jobCount} jobs • ${client.avgJobValue.toFixed(0)} avg</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-green-600">${client.totalSpent.toFixed(0)}</p>
+                              {client.lastBooking && (
+                                <p className="text-xs text-muted-foreground">
+                                  Last: {format(parseISO(client.lastBooking), 'MMM d')}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">No client data yet</p>
+                    )}
+                  </div>
+
+                  {/* Refresh Button */}
+                  <div className="flex justify-end">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={loadAnalytics}
+                      disabled={loadingAnalytics}
+                    >
+                      {loadingAnalytics ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                      Refresh Analytics
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">Click to load analytics data</p>
+              )}
+            </CardContent>
+          )}
+        </Card>
 
         {/* Contact Messages Section */}
         <Card id="contact-messages-section" className="border-indigo-200">
@@ -2309,13 +3980,59 @@ const Admin = () => {
                                   </a>
                                 )}
                                 {msg.message && (
-                                  <p className="text-sm text-muted-foreground mt-2">{msg.message}</p>
+                                  <p className="text-sm text-muted-foreground mt-2 p-2 bg-gray-50 rounded">{msg.message}</p>
                                 )}
                                 <p className="text-xs text-muted-foreground">
                                   {format(parseISO(msg.created_at), 'MMM d, yyyy h:mm a')}
                                 </p>
+                                
+                                {/* Show existing reply */}
+                                {msg.reply && (
+                                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                                    <p className="text-xs font-medium text-green-700 mb-1">Your Reply:</p>
+                                    <p className="text-sm text-green-800">{msg.reply}</p>
+                                    {msg.replied_at && (
+                                      <p className="text-xs text-green-600 mt-1">
+                                        Sent {format(parseISO(msg.replied_at), 'MMM d, h:mm a')}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                                
+                                {/* Reply form */}
+                                {replyingToMessage === msg.id && (
+                                  <div className="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded space-y-2">
+                                    <Textarea
+                                      value={replyContent}
+                                      onChange={(e) => setReplyContent(e.target.value)}
+                                      placeholder="Type your reply..."
+                                      rows={3}
+                                      className="text-sm"
+                                    />
+                                    <div className="flex gap-2">
+                                      <Button 
+                                        size="sm" 
+                                        onClick={() => handleSendReply(msg.id)}
+                                        disabled={sendingReply || !replyContent.trim()}
+                                      >
+                                        {sendingReply ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                                        Save Reply
+                                      </Button>
+                                      <Button 
+                                        size="sm" 
+                                        variant="outline"
+                                        onClick={() => {
+                                          setReplyingToMessage(null);
+                                          setReplyContent('');
+                                        }}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                              <div className="flex gap-2">
+                              <div className="flex flex-col gap-2">
                                 {msg.status === 'new' && (
                                   <Button 
                                     size="sm" 
@@ -2328,17 +4045,18 @@ const Admin = () => {
                                     Mark Read
                                   </Button>
                                 )}
-                                {msg.status !== 'replied' && (
+                                {replyingToMessage !== msg.id && (
                                   <Button 
                                     size="sm" 
                                     variant="outline"
-                                    className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                                    className="text-indigo-600 border-indigo-300 hover:bg-indigo-50"
                                     onClick={() => {
-                                      updateContactMessageStatus(msg.id, 'replied');
-                                      loadContactMessages();
+                                      setReplyingToMessage(msg.id);
+                                      setReplyContent(msg.reply || '');
                                     }}
                                   >
-                                    Mark Replied
+                                    <MessageSquare className="w-3 h-3 mr-1" />
+                                    {msg.reply ? 'Edit Reply' : 'Reply'}
                                   </Button>
                                 )}
                               </div>
@@ -2350,6 +4068,434 @@ const Admin = () => {
                   </div>
                 </>
               )}
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Message Templates Section */}
+        <Card className="border-cyan-200">
+          <CardHeader 
+            className="cursor-pointer"
+            onClick={() => setShowTemplates(!showTemplates)}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Send className="w-5 h-5 text-cyan-600" />
+                Message Templates
+                <Badge variant="outline" className="bg-cyan-100 text-cyan-700">
+                  {MESSAGE_TEMPLATES.length} templates
+                </Badge>
+              </CardTitle>
+              {showTemplates ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+          </CardHeader>
+          {showTemplates && (
+            <CardContent className="pt-0 space-y-4">
+              {/* Quick Fill Client Name */}
+              <div className="p-3 bg-cyan-50 rounded-lg">
+                <Label className="text-sm text-cyan-700 mb-2 block">Quick Fill: Client Name</Label>
+                <Input
+                  placeholder="Enter client name to fill templates..."
+                  value={templateClientName}
+                  onChange={(e) => setTemplateClientName(e.target.value)}
+                  className="bg-white"
+                />
+              </div>
+
+              {/* Templates Grid */}
+              <div className="grid gap-3">
+                {MESSAGE_TEMPLATES.map((template) => {
+                  const filledTemplate = template.template
+                    .replace('{name}', templateClientName || '[Name]')
+                    .replace('{date}', format(new Date(), 'MMMM d'))
+                    .replace('{time}', '9:00 AM')
+                    .replace('{amount}', '$150');
+                  
+                  return (
+                    <div 
+                      key={template.id}
+                      className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                        selectedTemplate === template.id 
+                          ? 'border-cyan-500 bg-cyan-50' 
+                          : 'hover:border-cyan-300 hover:bg-cyan-50/50'
+                      }`}
+                      onClick={() => setSelectedTemplate(selectedTemplate === template.id ? null : template.id)}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-sm">{template.name}</span>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyToClipboard(filledTemplate);
+                            }}
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`sms:?body=${encodeURIComponent(filledTemplate)}`, '_blank');
+                            }}
+                          >
+                            <Send className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{filledTemplate}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Send to Client Selector */}
+              {clients.length > 0 && (
+                <div className="p-3 bg-white border rounded-lg">
+                  <Label className="text-sm mb-2 block">Quick Send to Client</Label>
+                  <div className="flex gap-2">
+                    <Select
+                      value=""
+                      onValueChange={(clientId) => {
+                        const client = clients.find(c => c.id === clientId);
+                        if (client) {
+                          setTemplateClientName(client.name);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select client to auto-fill name..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clients.slice(0, 15).map(client => (
+                          <SelectItem key={client.id} value={client.id}>
+                            {client.name} {client.phone && `• ${client.phone}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Master Supplies Section */}
+        <Card className="border-amber-200">
+          <CardHeader 
+            className="cursor-pointer"
+            onClick={() => {
+              setShowMasterSupplies(!showMasterSupplies);
+              if (!showMasterSupplies) loadMasterSupplies();
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Package className="w-5 h-5 text-amber-600" />
+                Materials & Supplies
+                <Badge variant="outline" className="bg-amber-100 text-amber-700">
+                  {supplyStats.itemCount} items
+                </Badge>
+                <Badge variant="outline" className="bg-amber-50 text-amber-600">
+                  ${supplyStats.totalSpent.toFixed(0)} total
+                </Badge>
+              </CardTitle>
+              {showMasterSupplies ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+          </CardHeader>
+          {showMasterSupplies && (
+            <CardContent className="pt-0 space-y-4">
+              {/* Stats Bar */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-3 bg-amber-50 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-amber-700">${supplyStats.totalSpent.toFixed(0)}</p>
+                  <p className="text-xs text-amber-600">All Time</p>
+                </div>
+                <div className="p-3 bg-amber-50 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-amber-700">${supplyStats.thisMonthSpent.toFixed(0)}</p>
+                  <p className="text-xs text-amber-600">This Month</p>
+                </div>
+                <div className="p-3 bg-amber-50 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-amber-700">{supplyStats.itemCount}</p>
+                  <p className="text-xs text-amber-600">Total Items</p>
+                </div>
+                <div className="p-3 bg-amber-50 rounded-lg text-center">
+                  <p className="text-2xl font-bold text-amber-700">{supplyStats.topItems.length}</p>
+                  <p className="text-xs text-amber-600">Unique Items</p>
+                </div>
+              </div>
+
+              {/* Top Items */}
+              {supplyStats.topItems.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    Most Used Items
+                  </h4>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {supplyStats.topItems.slice(0, 6).map((item, idx) => (
+                      <div key={idx} className="p-2 bg-white border rounded flex items-center justify-between">
+                        <span className="text-sm capitalize">{item.item}</span>
+                        <div className="text-right">
+                          <Badge variant="outline" className="text-xs mr-1">×{item.count}</Badge>
+                          <span className="text-xs text-muted-foreground">${item.totalCost.toFixed(0)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Supplies */}
+              <div>
+                <h4 className="font-medium text-sm mb-2">Recent Purchases</h4>
+                {allSupplies.length > 0 ? (
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {allSupplies.slice(0, 20).map(supply => (
+                      <div key={supply.id} className="p-3 bg-white border rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-sm">{supply.item}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {supply.booking?.client?.name || 'Unknown'} • {supply.booking?.date ? format(parseISO(supply.booking.date), 'MMM d, yyyy') : 'N/A'}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium">${(supply.cost * supply.quantity).toFixed(2)}</p>
+                            <p className="text-xs text-muted-foreground">×{supply.quantity}</p>
+                          </div>
+                        </div>
+                        {supply.notes && (
+                          <p className="text-xs text-muted-foreground mt-1 italic">{supply.notes}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No supplies recorded yet. Add supplies to bookings to see them here.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Monthly Subscriptions Section */}
+        <Card className="border-green-200">
+          <CardHeader 
+            className="cursor-pointer"
+            onClick={() => setShowSubscriptions(!showSubscriptions)}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <DollarSign className="w-5 h-5 text-green-600" />
+                Monthly Subscriptions
+                <Badge variant="outline" className="bg-green-100 text-green-700">
+                  {subscriptionStats.activeCount} active
+                </Badge>
+                <Badge variant="outline" className="bg-green-50 text-green-600">
+                  ${(subscriptionStats.monthlyRecurring / 100).toFixed(0)}/mo
+                </Badge>
+              </CardTitle>
+              {showSubscriptions ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </div>
+          </CardHeader>
+          {showSubscriptions && (
+            <CardContent className="pt-0 space-y-4">
+              {/* Stats Bar */}
+              <div className="flex flex-wrap gap-4 p-3 bg-green-50 rounded-lg text-sm">
+                <span className="flex items-center gap-1">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <strong>{subscriptionStats.activeCount}</strong> Active
+                </span>
+                <span className="flex items-center gap-1">
+                  <AlertCircle className="w-4 h-4 text-yellow-600" />
+                  <strong>{subscriptionStats.pausedCount}</strong> Paused
+                </span>
+                <span className="flex items-center gap-1">
+                  <XCircle className="w-4 h-4 text-red-600" />
+                  <strong>{subscriptionStats.cancelledCount}</strong> Cancelled
+                </span>
+                <span className="flex items-center gap-1 ml-auto">
+                  <TrendingUp className="w-4 h-4 text-green-600" />
+                  <strong>${(subscriptionStats.monthlyRecurring / 100).toFixed(2)}</strong>/month recurring
+                </span>
+              </div>
+
+              {/* Filter & Add */}
+              <div className="flex items-center gap-2">
+                <Select value={subscriptionFilter} onValueChange={(v: 'all' | 'active' | 'paused' | 'cancelled') => setSubscriptionFilter(v)}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Subscriptions</SelectItem>
+                    <SelectItem value="active">Active Only</SelectItem>
+                    <SelectItem value="paused">Paused</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button size="sm" onClick={() => setShowNewSubscription(true)}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Subscription
+                </Button>
+              </div>
+
+              {/* New Subscription Form */}
+              {showNewSubscription && (
+                <div className="p-4 border border-green-200 rounded-lg bg-green-50/50 space-y-3">
+                  <h4 className="font-medium">New Subscription</h4>
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    <div>
+                      <Label className="text-xs">Client</Label>
+                      <Select value={newSubscription.clientId} onValueChange={(v) => setNewSubscription(p => ({ ...p, clientId: v }))}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select client" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {clients.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Plan</Label>
+                      <Select 
+                        value={newSubscription.planId} 
+                        onValueChange={(v) => {
+                          const plan = subscriptionPlans.find(p => p.id === v);
+                          setNewSubscription(p => ({ 
+                            ...p, 
+                            planId: v, 
+                            price: plan ? String(plan.price_min) : '' 
+                          }));
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select plan" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {subscriptionPlans.map(p => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name} (${(p.price_min / 100).toFixed(0)}-${(p.price_max / 100).toFixed(0)})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Monthly Price (cents)</Label>
+                      <Input
+                        value={newSubscription.price}
+                        onChange={(e) => setNewSubscription(p => ({ ...p, price: e.target.value }))}
+                        placeholder="e.g., 12500"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleCreateSubscription}>Create</Button>
+                    <Button size="sm" variant="outline" onClick={() => setShowNewSubscription(false)}>Cancel</Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Subscriptions List */}
+              <div className="space-y-2">
+                {subscriptions
+                  .filter(s => subscriptionFilter === 'all' || s.status === subscriptionFilter)
+                  .map(sub => (
+                    <div 
+                      key={sub.id} 
+                      className={`p-4 rounded-lg border ${
+                        sub.status === 'active' ? 'border-green-200 bg-green-50/50' :
+                        sub.status === 'paused' ? 'border-yellow-200 bg-yellow-50/50' :
+                        'border-gray-200 bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{sub.client?.name || 'Unknown'}</span>
+                            <Badge variant={
+                              sub.status === 'active' ? 'default' :
+                              sub.status === 'paused' ? 'secondary' : 'destructive'
+                            }>
+                              {sub.status}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {sub.plan?.name || sub.plan_id} • ${(sub.monthly_price / 100).toFixed(2)}/month
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Started {format(parseISO(sub.started_at), 'MMM d, yyyy')}
+                            {sub.next_billing_date && ` • Next billing: ${format(parseISO(sub.next_billing_date), 'MMM d')}`}
+                          </p>
+                          {sub.client?.phone && (
+                            <a href={`tel:${sub.client.phone}`} className="text-xs text-green-600 hover:underline">
+                              {sub.client.phone}
+                            </a>
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          {sub.status === 'active' && (
+                            <>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handleSubscriptionStatusChange(sub.id, 'paused')}
+                              >
+                                Pause
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="sm" variant="destructive">Cancel</Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Cancel subscription?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will cancel {sub.client?.name}'s {sub.plan?.name} subscription.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Keep Active</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => handleSubscriptionStatusChange(sub.id, 'cancelled')}
+                                      className="bg-destructive"
+                                    >
+                                      Cancel Subscription
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </>
+                          )}
+                          {sub.status === 'paused' && (
+                            <Button 
+                              size="sm"
+                              onClick={() => handleSubscriptionStatusChange(sub.id, 'active')}
+                            >
+                              Resume
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                {subscriptions.filter(s => subscriptionFilter === 'all' || s.status === subscriptionFilter).length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No {subscriptionFilter !== 'all' ? subscriptionFilter : ''} subscriptions found
+                  </p>
+                )}
+              </div>
             </CardContent>
           )}
         </Card>
@@ -2371,12 +4517,106 @@ const Admin = () => {
           </CardHeader>
           {showClients && (
             <CardContent className="pt-0">
-              <Input
-                placeholder="Search clients by name, phone, or email..."
-                value={clientSearch}
-                onChange={(e) => setClientSearch(e.target.value)}
-                className="mb-4"
-              />
+              <div className="flex gap-2 mb-4">
+                <Input
+                  placeholder="Search clients by name, phone, or email..."
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  className="flex-1"
+                />
+                <Dialog open={showNewClient} onOpenChange={setShowNewClient}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-1">
+                      <Plus className="w-4 h-4" />
+                      Add Client
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add New Client</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="grid gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="client-name">Name *</Label>
+                          <Input
+                            id="client-name"
+                            value={newClient.name}
+                            onChange={(e) => setNewClient(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="John Smith"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="client-phone">Phone</Label>
+                            <Input
+                              id="client-phone"
+                              value={newClient.phone}
+                              onChange={(e) => setNewClient(prev => ({ ...prev, phone: e.target.value }))}
+                              placeholder="(555) 123-4567"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="client-email">Email</Label>
+                            <Input
+                              id="client-email"
+                              type="email"
+                              value={newClient.email}
+                              onChange={(e) => setNewClient(prev => ({ ...prev, email: e.target.value }))}
+                              placeholder="john@email.com"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="client-address">Address</Label>
+                          <Input
+                            id="client-address"
+                            value={newClient.address}
+                            onChange={(e) => setNewClient(prev => ({ ...prev, address: e.target.value }))}
+                            placeholder="123 Main St, Lot 45"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="client-community">Community</Label>
+                          <Input
+                            id="client-community"
+                            value={newClient.community}
+                            onChange={(e) => setNewClient(prev => ({ ...prev, community: e.target.value }))}
+                            placeholder="Sunny Palms MHP"
+                          />
+                        </div>
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox
+                              checked={newClient.is_senior}
+                              onCheckedChange={(checked) => setNewClient(prev => ({ ...prev, is_senior: !!checked }))}
+                            />
+                            <span className="text-sm">Senior (65+)</span>
+                            <Star className="w-4 h-4 text-amber-500" />
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox
+                              checked={newClient.is_military}
+                              onCheckedChange={(checked) => setNewClient(prev => ({ ...prev, is_military: !!checked }))}
+                            />
+                            <span className="text-sm">Military/Vet</span>
+                            <Shield className="w-4 h-4 text-blue-500" />
+                          </label>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-4 border-t">
+                        <Button variant="outline" onClick={() => setShowNewClient(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleCreateClient} disabled={newClientLoading || !newClient.name.trim()}>
+                          {newClientLoading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                          Add Client
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
               {/* Bulk Actions Bar */}
               {clients.length > 0 && (
                 <div className="flex items-center justify-between mb-4 pb-3 border-b">
@@ -2612,6 +4852,59 @@ const Admin = () => {
                               </Button>
                             )}
                           </div>
+
+                          {/* Quick Actions */}
+                          <div className="flex gap-2 pt-3 border-t">
+                            <Button 
+                              size="sm"
+                              onClick={() => {
+                                setNewBooking({
+                                  name: client.name,
+                                  email: client.email || '',
+                                  phone: client.phone || '',
+                                  address: client.address || '',
+                                  community: client.community || '',
+                                  date: undefined,
+                                  timeSlot: '',
+                                  services: [],
+                                  notes: '',
+                                  source: 'phone'
+                                });
+                                setShowNewBooking(true);
+                              }}
+                            >
+                              <CalendarIcon className="w-4 h-4 mr-1" />
+                              Quick Book
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="destructive">
+                                  <Trash2 className="w-4 h-4 mr-1" /> Delete
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete {client.name}?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently delete this client and cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={async () => {
+                                      await deleteClient(client.id);
+                                      loadClients();
+                                      toast({ title: "Client deleted" });
+                                    }}
+                                    className="bg-destructive"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </div>
                       </CollapsibleContent>
                     </Collapsible>
@@ -2721,6 +5014,242 @@ const Admin = () => {
               )}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quote/Invoice Dialog */}
+      <Dialog open={showQuoteDialog} onOpenChange={setShowQuoteDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              {quoteType === 'invoice' ? 'Invoice' : 'Service Quote'}
+            </DialogTitle>
+          </DialogHeader>
+          {quoteBooking && (
+            <div className="space-y-4">
+              {/* Toggle between Quote and Invoice */}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={quoteType === 'quote' ? 'default' : 'outline'}
+                  onClick={() => setQuoteType('quote')}
+                >
+                  Quote
+                </Button>
+                <Button
+                  size="sm"
+                  variant={quoteType === 'invoice' ? 'default' : 'outline'}
+                  onClick={() => setQuoteType('invoice')}
+                >
+                  Invoice
+                </Button>
+              </div>
+
+              {/* Preview - Senior Friendly Large Text */}
+              <div className="p-4 bg-white border-2 border-gray-300 rounded-lg font-mono text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
+                {generateQuoteText(quoteBooking, quoteType)}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => copyToClipboard(generateQuoteText(quoteBooking, quoteType))}
+                >
+                  <Copy className="w-4 h-4 mr-1" />
+                  Copy Text
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const text = generateQuoteText(quoteBooking, quoteType);
+                    const phone = quoteBooking.client?.phone?.replace(/\D/g, '');
+                    if (phone) {
+                      window.open(`sms:${phone}?body=${encodeURIComponent(text)}`, '_blank');
+                    } else {
+                      copyToClipboard(text);
+                    }
+                  }}
+                >
+                  <Send className="w-4 h-4 mr-1" />
+                  Send SMS
+                </Button>
+                <Button
+                  onClick={() => {
+                    const printWindow = window.open('', '_blank');
+                    if (printWindow) {
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>${quoteType === 'invoice' ? 'Invoice' : 'Quote'} - ${quoteBooking.client?.name}</title>
+                            <style>
+                              body { font-family: monospace; font-size: 16px; padding: 40px; white-space: pre-wrap; }
+                            </style>
+                          </head>
+                          <body>${generateQuoteText(quoteBooking, quoteType)}</body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                      printWindow.print();
+                    }
+                  }}
+                >
+                  <Printer className="w-4 h-4 mr-1" />
+                  Print
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Follow-up Booking Dialog */}
+      <Dialog open={showFollowUpDialog} onOpenChange={setShowFollowUpDialog}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="w-5 h-5 text-blue-600" />
+              Schedule Follow-up Booking
+            </DialogTitle>
+          </DialogHeader>
+          {followUpBooking && (
+            <div className="space-y-4">
+              {/* Original Booking Info */}
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge className="bg-blue-600">Original Booking</Badge>
+                </div>
+                <p className="font-medium">{followUpBooking.client?.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  Date: {format(parseISO(followUpBooking.date), 'MMM d, yyyy')} at {followUpBooking.time_slot}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Services: {followUpBooking.services?.map(s => s.service?.name || s.name).join(', ') || 'General'}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Calendar Section */}
+                <div className="space-y-2 min-w-0">
+                  <Label>Select Follow-up Date</Label>
+                  <div className="border rounded-lg p-2 overflow-hidden">
+                    <Calendar
+                      mode="single"
+                      selected={followUpDate}
+                      onSelect={(date) => {
+                        setFollowUpDate(date);
+                        if (date) loadFollowUpDateInfo(date);
+                      }}
+                      disabled={(date) => date < new Date()}
+                      modifiers={{
+                        booked: bookings
+                          .filter(b => b.status !== 'cancelled')
+                          .map(b => parseISO(b.date))
+                      }}
+                      modifiersStyles={{
+                        booked: { backgroundColor: 'hsl(var(--primary) / 0.2)', fontWeight: 'bold' }
+                      }}
+                      className="rounded-md w-full [&_table]:w-full [&_td]:p-1 [&_th]:p-1 [&_button]:h-8 [&_button]:w-8 text-sm"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    <span className="inline-block w-3 h-3 bg-primary/20 rounded mr-1"></span>
+                    Days with existing bookings
+                  </p>
+                </div>
+
+                {/* Time Slots & Existing Bookings Section */}
+                <div className="space-y-4 min-w-0">
+                  {followUpDate && (
+                    <>
+                      {/* Existing Bookings on Selected Date */}
+                      {followUpDateBookings.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-500" />
+                            Existing Bookings on {format(followUpDate, 'MMM d')}
+                          </Label>
+                          <div className="max-h-32 overflow-y-auto space-y-1 bg-amber-50 rounded-lg p-2 border border-amber-200">
+                            {followUpDateBookings.map(b => (
+                              <div key={b.id} className="text-sm flex items-center gap-2 p-1 bg-white rounded">
+                                <Badge variant="outline" className="text-xs">{b.time_slot}</Badge>
+                                <span className="truncate">{b.client?.name || 'Unknown'}</span>
+                                <span className="text-muted-foreground text-xs">({b.duration_minutes}min)</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Time Slot Selection */}
+                      <div className="space-y-2">
+                        <Label>Select Time Slot</Label>
+                        {followUpAvailableSlots.filter(s => s.available).length > 0 ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-40 overflow-y-auto">
+                            {followUpAvailableSlots.map(slot => (
+                              <Button
+                                key={slot.time}
+                                size="sm"
+                                variant={followUpTimeSlot === slot.time ? "default" : "outline"}
+                                onClick={() => slot.available && setFollowUpTimeSlot(slot.time)}
+                                disabled={!slot.available}
+                                className={`text-xs px-2 py-1 h-7 ${followUpTimeSlot === slot.time ? 'bg-primary' : ''} ${!slot.available ? 'opacity-40 line-through' : ''}`}
+                              >
+                                {slot.label}
+                              </Button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-red-500 p-2 bg-red-50 rounded">
+                            No available time slots on this date!
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {!followUpDate && (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      <p className="text-sm">← Select a date to see available times</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <Label>Notes for Follow-up</Label>
+                <Textarea
+                  value={followUpNotes}
+                  onChange={(e) => setFollowUpNotes(e.target.value)}
+                  placeholder="e.g., Check on previous repair, customer requested callback, finish painting..."
+                  rows={2}
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 justify-end pt-2 border-t">
+                <Button variant="outline" onClick={() => {
+                  setShowFollowUpDialog(false);
+                  setFollowUpDate(undefined);
+                  setFollowUpTimeSlot('');
+                  setFollowUpAvailableSlots([]);
+                  setFollowUpDateBookings([]);
+                }}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleCreateFollowUp} 
+                  disabled={!followUpDate || !followUpTimeSlot}
+                  className="gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Create Follow-up
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

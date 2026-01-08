@@ -13,6 +13,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // TypeScript Types for all tables
 // =============================================================================
 
+export interface PetInfo {
+  has_pets: boolean;
+  dogs: number;
+  cats: number;
+  names: string;
+  breeds: string;
+}
+
 export interface Client {
   id: string;
   name: string;
@@ -24,6 +32,7 @@ export interface Client {
   is_senior: boolean;
   is_military: boolean;
   notes: string | null;
+  pet_info: PetInfo | null;
   created_at: string;
   updated_at: string;
 }
@@ -39,6 +48,35 @@ export interface Service {
   is_active: boolean;
 }
 
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  price_min: number;
+  price_max: number;
+  visit_hours: number | null;
+  description: string | null;
+  best_for: string | null;
+  is_active: boolean;
+}
+
+export interface Subscription {
+  id: string;
+  client_id: string;
+  plan_id: string;
+  monthly_price: number;
+  status: 'active' | 'paused' | 'cancelled';
+  started_at: string;
+  next_billing_date: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+  created_at: string;
+}
+
+export interface SubscriptionWithDetails extends Subscription {
+  client: Client;
+  plan: SubscriptionPlan;
+}
+
 export interface Booking {
   id: string;
   client_id: string | null;
@@ -52,7 +90,9 @@ export interface Booking {
   google_event_id: string | null;
   manage_token: string;
   confirmed_at: string | null;
+  started_at: string | null;
   completed_at: string | null;
+  actual_duration_minutes: number | null;
   cancelled_at: string | null;
   cancelled_by: 'customer' | 'staff' | null;
   images: string[];
@@ -80,7 +120,34 @@ export interface Booking {
     skills_needed?: string[];
     notes?: string;
     generated_at?: string;
+    // AI-suggested supplies from notes analysis
+    suggested_supplies?: {
+      item: string;
+      estimated_cost?: number;
+      quantity?: number;
+      source: 'client' | 'admin';
+      confidence: 'high' | 'medium' | 'low';
+    }[];
   } | null;
+  // Future repairs suggestions
+  future_repairs: string[];
+  // Completed services checklist
+  completed_services: string[];
+  // Source tracking
+  booking_source: 'website' | 'phone' | 'in_person' | 'referral' | 'subscription' | 'other';
+  // Follow-up tracking
+  follow_up_from: string | null;
+  is_follow_up: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookingNote {
+  id: string;
+  booking_id: string;
+  content: string;
+  note_type: 'general' | 'admin' | 'follow_up' | 'supply_suggestion';
+  created_by: string;
   created_at: string;
   updated_at: string;
 }
@@ -212,11 +279,18 @@ export interface TimeSlot {
 
 export const DEFAULT_TIME_SLOTS: TimeSlot[] = [
   { id: '1', time: '08:30', label: '8:30 AM', available: true },
-  { id: '2', time: '09:30', label: '9:30 AM', available: true },
-  { id: '3', time: '10:30', label: '10:30 AM', available: true },
-  { id: '4', time: '11:30', label: '11:30 AM', available: true },
-  { id: '5', time: '12:30', label: '12:30 PM', available: true },
-  { id: '6', time: '13:30', label: '1:30 PM', available: true },
+  { id: '2', time: '09:00', label: '9:00 AM', available: true },
+  { id: '3', time: '09:30', label: '9:30 AM', available: true },
+  { id: '4', time: '10:00', label: '10:00 AM', available: true },
+  { id: '5', time: '10:30', label: '10:30 AM', available: true },
+  { id: '6', time: '11:00', label: '11:00 AM', available: true },
+  { id: '7', time: '11:30', label: '11:30 AM', available: true },
+  { id: '8', time: '12:00', label: '12:00 PM', available: true },
+  { id: '9', time: '12:30', label: '12:30 PM', available: true },
+  { id: '10', time: '13:00', label: '1:00 PM', available: true },
+  { id: '11', time: '13:30', label: '1:30 PM', available: true },
+  { id: '12', time: '14:00', label: '2:00 PM', available: true },
+  { id: '13', time: '14:30', label: '2:30 PM', available: true },
 ];
 
 // =============================================================================
@@ -287,6 +361,7 @@ export interface CreateBookingData {
   phone: string;
   date: string;
   time_slot: string;
+  duration_minutes?: number;
   services: string[];
   notes?: string;
   address?: string;
@@ -319,6 +394,7 @@ export async function createBooking(data: CreateBookingData): Promise<{
         client_id: client.id,
         date: data.date,
         time_slot: data.time_slot,
+        duration_minutes: data.duration_minutes || 60,
         notes: data.notes || null,
         images: data.images || [],
         status: 'pending',
@@ -363,32 +439,41 @@ export async function createBooking(data: CreateBookingData): Promise<{
   }
 }
 
-export async function getBookingsForDate(date: string): Promise<{ 
-  data: Booking[] | null; 
-  error: Error | null 
-}> {
-  try {
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('date', date)
-      .neq('status', 'cancelled');
-
-    if (error) throw error;
-    return { data: data as Booking[], error: null };
-  } catch (error) {
-    console.error('Error fetching bookings:', error);
-    return { data: null, error: error as Error };
-  }
-}
-
-export async function getAvailableTimeSlots(date: string): Promise<TimeSlot[]> {
-  const { data: bookings } = await getBookingsForDate(date);
-  const bookedTimes = bookings?.map(b => b.time_slot) || [];
+export async function getAvailableTimeSlots(date: string, requestedDuration: number = 60): Promise<TimeSlot[]> {
+  // Fetch bookings for this date
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('time_slot, duration_minutes')
+    .eq('date', date)
+    .neq('status', 'cancelled');
+  
+  // Helper to convert time string to minutes since midnight
+  const timeToMinutes = (time: string): number => {
+    const [hours, mins] = time.split(':').map(Number);
+    return hours * 60 + mins;
+  };
+  
+  // Build occupied time ranges from existing bookings
+  const occupiedRanges: { start: number; end: number }[] = (bookings || []).map(b => {
+    const start = timeToMinutes(b.time_slot);
+    const duration = b.duration_minutes || 60;
+    return { start, end: start + duration };
+  });
+  
+  // Check if a slot with the requested duration would overlap with any booking
+  const wouldOverlap = (slotTime: string): boolean => {
+    const slotStart = timeToMinutes(slotTime);
+    const slotEnd = slotStart + requestedDuration;
+    
+    return occupiedRanges.some(range => {
+      // Overlap exists if: slot starts before range ends AND slot ends after range starts
+      return slotStart < range.end && slotEnd > range.start;
+    });
+  };
   
   return DEFAULT_TIME_SLOTS.map(slot => ({
     ...slot,
-    available: !bookedTimes.includes(slot.time)
+    available: !wouldOverlap(slot.time)
   }));
 }
 
@@ -513,6 +598,639 @@ export async function updateBookingNotes(
     return { error: null };
   } catch (error) {
     console.error('Error updating booking notes:', error);
+    return { error: error as Error };
+  }
+}
+
+// =============================================================================
+// Job Time Tracking Functions (Multiple Time Entries)
+// =============================================================================
+
+export interface TimeEntry {
+  id: string;
+  booking_id: string;
+  started_at: string;
+  stopped_at: string | null;
+  duration_minutes: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+// Get all time entries for a booking
+export async function getTimeEntries(bookingId: string): Promise<{ data: TimeEntry[]; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('booking_time_entries')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .order('started_at', { ascending: true });
+
+    if (error) throw error;
+    return { data: data as TimeEntry[] || [], error: null };
+  } catch (error) {
+    console.error('Error fetching time entries:', error);
+    return { data: [], error: error as Error };
+  }
+}
+
+// Check if there's an active (running) time entry
+export async function getActiveTimeEntry(bookingId: string): Promise<{ data: TimeEntry | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('booking_time_entries')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .is('stopped_at', null)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
+    return { data: data as TimeEntry | null, error: null };
+  } catch (error) {
+    console.error('Error fetching active time entry:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+// Start a new time entry (creates a new entry, does NOT complete booking)
+export async function startJob(bookingId: string): Promise<{ data: TimeEntry | null; error: Error | null }> {
+  try {
+    // Check if there's already an active entry
+    const { data: existing } = await getActiveTimeEntry(bookingId);
+    if (existing) {
+      return { data: existing, error: new Error('A timer is already running for this booking') };
+    }
+
+    const { data, error } = await supabase
+      .from('booking_time_entries')
+      .insert([{
+        booking_id: bookingId,
+        started_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Update booking started_at if this is the first entry
+    await supabase
+      .from('bookings')
+      .update({ 
+        started_at: new Date().toISOString(),
+        status: 'confirmed'
+      })
+      .eq('id', bookingId)
+      .is('started_at', null);
+
+    // Log to history
+    await supabase
+      .from('booking_history')
+      .insert([{
+        booking_id: bookingId,
+        action: 'confirmed',
+        new_data: { action: 'timer_started', time_entry_id: data.id },
+        changed_by: 'staff'
+      }]);
+
+    return { data: data as TimeEntry, error: null };
+  } catch (error) {
+    console.error('Error starting job:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+// Stop the active time entry (does NOT complete the booking)
+export async function stopJob(bookingId: string): Promise<{ data: TimeEntry | null; error: Error | null }> {
+  try {
+    // Find the active entry
+    const { data: activeEntry, error: findError } = await supabase
+      .from('booking_time_entries')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .is('stopped_at', null)
+      .single();
+
+    if (findError) throw findError;
+    if (!activeEntry) {
+      return { data: null, error: new Error('No active timer found') };
+    }
+
+    const stoppedAt = new Date();
+    const startedAt = new Date(activeEntry.started_at);
+    const durationMinutes = Math.round((stoppedAt.getTime() - startedAt.getTime()) / 60000);
+
+    const { data, error } = await supabase
+      .from('booking_time_entries')
+      .update({ 
+        stopped_at: stoppedAt.toISOString(),
+        duration_minutes: durationMinutes
+      })
+      .eq('id', activeEntry.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Update total duration on booking
+    const { data: allEntries } = await getTimeEntries(bookingId);
+    const totalMinutes = allEntries.reduce((sum, e) => sum + (e.duration_minutes || 0), 0);
+    
+    await supabase
+      .from('bookings')
+      .update({ actual_duration_minutes: totalMinutes })
+      .eq('id', bookingId);
+
+    // Log to history
+    await supabase
+      .from('booking_history')
+      .insert([{
+        booking_id: bookingId,
+        action: 'updated',
+        new_data: { action: 'timer_stopped', duration_minutes: durationMinutes, time_entry_id: activeEntry.id },
+        changed_by: 'staff'
+      }]);
+
+    return { data: data as TimeEntry, error: null };
+  } catch (error) {
+    console.error('Error stopping job:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+// Delete a time entry
+export async function deleteTimeEntry(entryId: string, bookingId: string): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('booking_time_entries')
+      .delete()
+      .eq('id', entryId);
+
+    if (error) throw error;
+
+    // Recalculate total duration
+    const { data: allEntries } = await getTimeEntries(bookingId);
+    const totalMinutes = allEntries.reduce((sum, e) => sum + (e.duration_minutes || 0), 0);
+    
+    await supabase
+      .from('bookings')
+      .update({ actual_duration_minutes: totalMinutes || null })
+      .eq('id', bookingId);
+
+    return { error: null };
+  } catch (error) {
+    console.error('Error deleting time entry:', error);
+    return { error: error as Error };
+  }
+}
+
+// =============================================================================
+// Booking Notes Functions (Individual notes per booking)
+// =============================================================================
+
+export async function getBookingNotes(bookingId: string): Promise<{ 
+  data: BookingNote[] | null; 
+  error: Error | null 
+}> {
+  try {
+    const { data, error } = await supabase
+      .from('booking_notes')
+      .select('*')
+      .eq('booking_id', bookingId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data as BookingNote[], error: null };
+  } catch (error) {
+    console.error('Error fetching booking notes:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function addBookingNote(
+  bookingId: string,
+  content: string,
+  noteType: BookingNote['note_type'] = 'general'
+): Promise<{ data: BookingNote | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('booking_notes')
+      .insert([{
+        booking_id: bookingId,
+        content,
+        note_type: noteType,
+        created_by: 'staff'
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { data: data as BookingNote, error: null };
+  } catch (error) {
+    console.error('Error adding booking note:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function updateBookingNote(
+  noteId: string,
+  content: string
+): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('booking_notes')
+      .update({ content, updated_at: new Date().toISOString() })
+      .eq('id', noteId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating booking note:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function deleteBookingNote(noteId: string): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('booking_notes')
+      .delete()
+      .eq('id', noteId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error deleting booking note:', error);
+    return { error: error as Error };
+  }
+}
+
+// =============================================================================
+// Future Repairs Functions
+// =============================================================================
+
+export async function addFutureRepair(
+  bookingId: string,
+  repair: string
+): Promise<{ error: Error | null }> {
+  try {
+    // Get current repairs
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('future_repairs')
+      .eq('id', bookingId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    const currentRepairs = booking?.future_repairs || [];
+    const updatedRepairs = [...currentRepairs, repair];
+
+    const { error } = await supabase
+      .from('bookings')
+      .update({ future_repairs: updatedRepairs })
+      .eq('id', bookingId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error adding future repair:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function removeFutureRepair(
+  bookingId: string,
+  index: number
+): Promise<{ error: Error | null }> {
+  try {
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('future_repairs')
+      .eq('id', bookingId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    const currentRepairs = booking?.future_repairs || [];
+    const updatedRepairs = currentRepairs.filter((_, i) => i !== index);
+
+    const { error } = await supabase
+      .from('bookings')
+      .update({ future_repairs: updatedRepairs })
+      .eq('id', bookingId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error removing future repair:', error);
+    return { error: error as Error };
+  }
+}
+
+// =============================================================================
+// Pet Info Functions
+// =============================================================================
+
+export async function updateClientPetInfo(
+  clientId: string,
+  petInfo: PetInfo | null
+): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('clients')
+      .update({ pet_info: petInfo })
+      .eq('id', clientId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating client pet info:', error);
+    return { error: error as Error };
+  }
+}
+
+// =============================================================================
+// Subscription Management Functions
+// =============================================================================
+
+export async function getSubscriptionPlans(): Promise<{ 
+  data: SubscriptionPlan[] | null; 
+  error: Error | null 
+}> {
+  try {
+    const { data, error } = await supabase
+      .from('subscription_plans')
+      .select('*')
+      .eq('is_active', true)
+      .order('price_min', { ascending: true });
+
+    if (error) throw error;
+    return { data: data as SubscriptionPlan[], error: null };
+  } catch (error) {
+    console.error('Error fetching subscription plans:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function getAllSubscriptions(): Promise<{ 
+  data: SubscriptionWithDetails[] | null; 
+  error: Error | null 
+}> {
+  try {
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select(`
+        *,
+        client:clients(*),
+        plan:subscription_plans(*)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data as SubscriptionWithDetails[], error: null };
+  } catch (error) {
+    console.error('Error fetching subscriptions:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function getActiveSubscriptions(): Promise<{ 
+  data: SubscriptionWithDetails[] | null; 
+  error: Error | null 
+}> {
+  try {
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select(`
+        *,
+        client:clients(*),
+        plan:subscription_plans(*)
+      `)
+      .eq('status', 'active')
+      .order('next_billing_date', { ascending: true });
+
+    if (error) throw error;
+    return { data: data as SubscriptionWithDetails[], error: null };
+  } catch (error) {
+    console.error('Error fetching active subscriptions:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function createSubscription(data: {
+  client_id: string;
+  plan_id: string;
+  monthly_price: number;
+  started_at?: string;
+}): Promise<{ data: Subscription | null; error: Error | null }> {
+  try {
+    // Calculate next billing date (30 days from start)
+    const startDate = data.started_at ? new Date(data.started_at) : new Date();
+    const nextBillingDate = new Date(startDate);
+    nextBillingDate.setDate(nextBillingDate.getDate() + 30);
+
+    const { data: subscription, error } = await supabase
+      .from('subscriptions')
+      .insert([{
+        client_id: data.client_id,
+        plan_id: data.plan_id,
+        monthly_price: data.monthly_price,
+        started_at: startDate.toISOString().split('T')[0],
+        next_billing_date: nextBillingDate.toISOString().split('T')[0],
+        status: 'active'
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { data: subscription as Subscription, error: null };
+  } catch (error) {
+    console.error('Error creating subscription:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function updateSubscriptionStatus(
+  subscriptionId: string,
+  status: Subscription['status'],
+  cancelReason?: string
+): Promise<{ error: Error | null }> {
+  try {
+    const updates: Record<string, unknown> = { status };
+    
+    if (status === 'cancelled') {
+      updates.cancelled_at = new Date().toISOString();
+      if (cancelReason) updates.cancel_reason = cancelReason;
+    }
+
+    const { error } = await supabase
+      .from('subscriptions')
+      .update(updates)
+      .eq('id', subscriptionId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating subscription status:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function updateSubscriptionPrice(
+  subscriptionId: string,
+  monthly_price: number
+): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('subscriptions')
+      .update({ monthly_price })
+      .eq('id', subscriptionId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating subscription price:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function getSubscriptionStats(): Promise<{
+  activeCount: number;
+  pausedCount: number;
+  cancelledCount: number;
+  monthlyRecurring: number;
+}> {
+  try {
+    const { data: subscriptions } = await supabase
+      .from('subscriptions')
+      .select('status, monthly_price');
+
+    if (!subscriptions) return { activeCount: 0, pausedCount: 0, cancelledCount: 0, monthlyRecurring: 0 };
+
+    const stats = {
+      activeCount: 0,
+      pausedCount: 0,
+      cancelledCount: 0,
+      monthlyRecurring: 0
+    };
+
+    subscriptions.forEach((sub: { status: string; monthly_price: number }) => {
+      if (sub.status === 'active') {
+        stats.activeCount++;
+        stats.monthlyRecurring += sub.monthly_price;
+      } else if (sub.status === 'paused') {
+        stats.pausedCount++;
+      } else if (sub.status === 'cancelled') {
+        stats.cancelledCount++;
+      }
+    });
+
+    return stats;
+  } catch (error) {
+    console.error('Error getting subscription stats:', error);
+    return { activeCount: 0, pausedCount: 0, cancelledCount: 0, monthlyRecurring: 0 };
+  }
+}
+
+// =============================================================================
+// Service Checklist Functions
+// =============================================================================
+
+export async function toggleServiceCompletion(
+  bookingId: string,
+  serviceId: string
+): Promise<{ error: Error | null }> {
+  try {
+    // Get current completed services
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('completed_services')
+      .eq('id', bookingId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    const currentCompleted = booking?.completed_services || [];
+    const isCompleted = currentCompleted.includes(serviceId);
+    
+    // Toggle: remove if exists, add if not
+    const updatedCompleted = isCompleted
+      ? currentCompleted.filter((id: string) => id !== serviceId)
+      : [...currentCompleted, serviceId];
+
+    const { error } = await supabase
+      .from('bookings')
+      .update({ completed_services: updatedCompleted })
+      .eq('id', bookingId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error toggling service completion:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function addServiceToBooking(
+  bookingId: string,
+  serviceName: string
+): Promise<{ error: Error | null }> {
+  try {
+    // First get or create the service
+    let service: Service | null = null;
+    
+    const { data: existingService } = await supabase
+      .from('services')
+      .select('*')
+      .eq('name', serviceName)
+      .single();
+
+    if (existingService) {
+      service = existingService;
+    } else {
+      // Create the service if it doesn't exist
+      const { data: newService, error: createError } = await supabase
+        .from('services')
+        .insert([{ name: serviceName, is_active: true }])
+        .select()
+        .single();
+      
+      if (createError) throw createError;
+      service = newService;
+    }
+
+    if (!service) throw new Error('Failed to get or create service');
+
+    // Add to booking_services
+    const { error } = await supabase
+      .from('booking_services')
+      .insert([{
+        booking_id: bookingId,
+        service_id: service.id
+      }]);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error adding service to booking:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function removeServiceFromBooking(
+  bookingId: string,
+  serviceId: string
+): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('booking_services')
+      .delete()
+      .eq('booking_id', bookingId)
+      .eq('service_id', serviceId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error removing service from booking:', error);
     return { error: error as Error };
   }
 }
@@ -827,6 +1545,56 @@ export async function getUpcomingBookings(): Promise<{
   return getAllBookings({ startDate: today });
 }
 
+// Get bookings for a specific date (for calendar display)
+export async function getBookingsForDate(date: string): Promise<{ 
+  data: BookingWithDetails[] | null; 
+  error: Error | null 
+}> {
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`
+        *,
+        client:clients(*),
+        services:booking_services(
+          service:services(*)
+        )
+      `)
+      .eq('date', date)
+      .not('status', 'eq', 'cancelled')
+      .order('time_slot', { ascending: true });
+
+    if (error) throw error;
+    return { data: data as BookingWithDetails[], error: null };
+  } catch (error) {
+    console.error('Error fetching bookings for date:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+// Get the original booking a follow-up is linked to
+export async function getOriginalBooking(bookingId: string): Promise<BookingWithDetails | null> {
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`
+        *,
+        client:clients(*),
+        services:booking_services(
+          service:services(*)
+        )
+      `)
+      .eq('id', bookingId)
+      .single();
+
+    if (error) throw error;
+    return data as BookingWithDetails;
+  } catch (error) {
+    console.error('Error fetching original booking:', error);
+    return null;
+  }
+}
+
 export async function getAllClients(): Promise<{ data: Client[] | null; error: Error | null }> {
   try {
     const { data, error } = await supabase
@@ -1022,6 +1790,112 @@ export async function addImagesToBookingByToken(
   }
 }
 
+export async function removeImageFromBookingByToken(
+  token: string,
+  imageIndex: number
+): Promise<{ error: Error | null }> {
+  try {
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('id, images')
+      .eq('manage_token', token)
+      .single();
+
+    if (fetchError || !booking) {
+      throw new Error('Booking not found');
+    }
+
+    const currentImages = booking.images || [];
+    if (imageIndex < 0 || imageIndex >= currentImages.length) {
+      throw new Error('Invalid image index');
+    }
+
+    // Remove the image at the specified index
+    const updatedImages = currentImages.filter((_: string, i: number) => i !== imageIndex);
+
+    const { error: updateError } = await supabase
+      .from('bookings')
+      .update({ images: updatedImages })
+      .eq('id', booking.id);
+
+    if (updateError) throw updateError;
+    return { error: null };
+  } catch (error) {
+    console.error('Error removing image from booking:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function updateClientContactByToken(
+  token: string,
+  updates: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+  }
+): Promise<{ error: Error | null }> {
+  try {
+    // Get booking and client
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('client_id')
+      .eq('manage_token', token)
+      .single();
+
+    if (fetchError || !booking || !booking.client_id) {
+      throw new Error('Booking or client not found');
+    }
+
+    // Update client
+    const { error: updateError } = await supabase
+      .from('clients')
+      .update(updates)
+      .eq('id', booking.client_id);
+
+    if (updateError) throw updateError;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating client contact:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function getClientBookingHistoryByToken(
+  token: string
+): Promise<{ data: Booking[] | null; error: Error | null }> {
+  try {
+    // Get the client from the booking token
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('client_id')
+      .eq('manage_token', token)
+      .single();
+
+    if (fetchError || !booking || !booking.client_id) {
+      throw new Error('Booking not found');
+    }
+
+    // Get all bookings for this client
+    const { data: bookings, error: bookingsError } = await supabase
+      .from('bookings')
+      .select(`
+        *,
+        services:booking_services(
+          service:services(*)
+        )
+      `)
+      .eq('client_id', booking.client_id)
+      .order('date', { ascending: false });
+
+    if (bookingsError) throw bookingsError;
+    return { data: bookings, error: null };
+  } catch (error) {
+    console.error('Error getting client booking history:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
 // =============================================================================
 // Admin Manual Booking Creation
 // =============================================================================
@@ -1032,11 +1906,16 @@ export interface CreateManualBookingData {
   phone: string;
   date: string;
   time_slot: string;
+  duration_minutes?: number;
   services: string[];
   notes?: string;
   address?: string;
   community?: string;
   images?: string[];
+  booking_source?: 'website' | 'phone' | 'in_person' | 'referral' | 'subscription' | 'other';
+  // Follow-up fields
+  follow_up_from?: string;
+  is_follow_up?: boolean;
 }
 
 export async function createManualBooking(data: CreateManualBookingData): Promise<{ 
@@ -1064,10 +1943,14 @@ export async function createManualBooking(data: CreateManualBookingData): Promis
         client_id: client.id,
         date: data.date,
         time_slot: data.time_slot,
+        duration_minutes: data.duration_minutes || 60,
         notes: data.notes || null,
         images: data.images || [],
         status: 'pending', // Admin bookings also start as pending for review
-        created_by: 'admin'
+        created_by: 'admin',
+        booking_source: data.booking_source || 'phone',
+        follow_up_from: data.follow_up_from || null,
+        is_follow_up: data.is_follow_up || false
       }])
       .select()
       .single();
@@ -1206,6 +2089,9 @@ export interface BookingSupply {
   quantity: number;
   cost: number;
   notes: string | null;
+  receipt_number: string | null;
+  store_name: string | null;
+  purchase_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1226,17 +2112,110 @@ export async function getBookingSupplies(bookingId: string): Promise<BookingSupp
   }
 }
 
+// Supply with booking details for master list
+export interface SupplyWithBooking extends BookingSupply {
+  booking?: {
+    id: string;
+    date: string;
+    client?: {
+      name: string;
+    };
+  };
+}
+
+// Get all supplies across all bookings for master inventory view
+export async function getAllSupplies(): Promise<{ data: SupplyWithBooking[] | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('booking_supplies')
+      .select(`
+        *,
+        booking:bookings(id, date, client:clients(name))
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data as SupplyWithBooking[], error: null };
+  } catch (error) {
+    console.error('Error fetching all supplies:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+// Get supply statistics
+export async function getSupplyStats(): Promise<{
+  totalSpent: number;
+  thisMonthSpent: number;
+  itemCount: number;
+  topItems: { item: string; count: number; totalCost: number }[];
+}> {
+  try {
+    const { data, error } = await supabase
+      .from('booking_supplies')
+      .select('*');
+
+    if (error) throw error;
+
+    const supplies = data || [];
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    // Calculate totals
+    const totalSpent = supplies.reduce((sum, s) => sum + (s.cost * s.quantity), 0);
+    const thisMonthSpent = supplies
+      .filter(s => s.created_at >= startOfMonth)
+      .reduce((sum, s) => sum + (s.cost * s.quantity), 0);
+
+    // Group by item name
+    const itemGroups: Record<string, { count: number; totalCost: number }> = {};
+    for (const s of supplies) {
+      const key = s.item.toLowerCase();
+      if (!itemGroups[key]) {
+        itemGroups[key] = { count: 0, totalCost: 0 };
+      }
+      itemGroups[key].count += s.quantity;
+      itemGroups[key].totalCost += s.cost * s.quantity;
+    }
+
+    // Sort by count and get top items
+    const topItems = Object.entries(itemGroups)
+      .map(([item, stats]) => ({ item, ...stats }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    return {
+      totalSpent,
+      thisMonthSpent,
+      itemCount: supplies.length,
+      topItems
+    };
+  } catch (error) {
+    console.error('Error fetching supply stats:', error);
+    return { totalSpent: 0, thisMonthSpent: 0, itemCount: 0, topItems: [] };
+  }
+}
+
 export async function addBookingSupply(
   bookingId: string,
   item: string,
   cost: number,
   quantity: number = 1,
-  notes?: string
+  notes?: string,
+  receiptInfo?: { receipt_number?: string; store_name?: string; purchase_date?: string }
 ): Promise<{ data: BookingSupply | null; error: Error | null }> {
   try {
     const { data, error } = await supabase
       .from('booking_supplies')
-      .insert([{ booking_id: bookingId, item, cost, quantity, notes }])
+      .insert([{ 
+        booking_id: bookingId, 
+        item, 
+        cost, 
+        quantity, 
+        notes,
+        receipt_number: receiptInfo?.receipt_number || null,
+        store_name: receiptInfo?.store_name || null,
+        purchase_date: receiptInfo?.purchase_date || null
+      }])
       .select()
       .single();
 
@@ -1377,6 +2356,14 @@ export async function createCheckoutSession(
 // AI Summary Functions (for n8n workflow integration)
 // =============================================================================
 
+export interface SuggestedSupply {
+  item: string;
+  estimated_cost?: number;
+  quantity?: number;
+  source: 'client' | 'admin';
+  confidence: 'high' | 'medium' | 'low';
+}
+
 export interface AISummary {
   summary?: string;
   estimated_hours?: number;
@@ -1387,6 +2374,217 @@ export interface AISummary {
   skills_needed?: string[];
   notes?: string;
   generated_at?: string;
+  suggested_supplies?: SuggestedSupply[];
+}
+
+// Common supply keywords for AI suggestion parsing
+const SUPPLY_PATTERNS: { pattern: RegExp; item: string; cost: number }[] = [
+  { pattern: /faucet|tap/i, item: 'Faucet', cost: 75 },
+  { pattern: /toilet/i, item: 'Toilet parts/wax ring', cost: 25 },
+  { pattern: /light\s*(bulb|fixture)|lamp/i, item: 'Light bulb/fixture', cost: 15 },
+  { pattern: /outlet|socket|switch/i, item: 'Electrical outlet/switch', cost: 8 },
+  { pattern: /paint/i, item: 'Paint (1 gallon)', cost: 35 },
+  { pattern: /caulk|seal/i, item: 'Caulk/sealant', cost: 8 },
+  { pattern: /filter|ac filter|air filter/i, item: 'AC/Air filter', cost: 15 },
+  { pattern: /smoke\s*detector|alarm/i, item: 'Smoke detector', cost: 25 },
+  { pattern: /door\s*(knob|handle|lock)/i, item: 'Door hardware', cost: 30 },
+  { pattern: /hinge/i, item: 'Door hinges', cost: 12 },
+  { pattern: /gutter/i, item: 'Gutter supplies', cost: 20 },
+  { pattern: /screen|mesh/i, item: 'Screen/mesh', cost: 15 },
+  { pattern: /tile|grout/i, item: 'Tile/grout supplies', cost: 25 },
+  { pattern: /drywall|sheetrock/i, item: 'Drywall patch kit', cost: 20 },
+  { pattern: /screw|nail|fastener/i, item: 'Screws/fasteners', cost: 8 },
+  { pattern: /pipe|plumb/i, item: 'Plumbing supplies', cost: 20 },
+  { pattern: /weather\s*strip/i, item: 'Weather stripping', cost: 12 },
+  { pattern: /door\s*sweep/i, item: 'Door sweep', cost: 15 },
+  { pattern: /showerhead/i, item: 'Showerhead', cost: 35 },
+  { pattern: /drain/i, item: 'Drain parts/cleaner', cost: 12 },
+  { pattern: /thermostat/i, item: 'Thermostat', cost: 45 },
+  { pattern: /doorbell|video\s*doorbell/i, item: 'Doorbell/Video doorbell', cost: 80 },
+  { pattern: /shelf|shelving/i, item: 'Shelf/brackets', cost: 25 },
+  { pattern: /blind|shade|curtain\s*rod/i, item: 'Window treatments', cost: 30 },
+  { pattern: /mirror/i, item: 'Mirror mounting hardware', cost: 15 },
+  { pattern: /tv\s*mount/i, item: 'TV mount', cost: 45 },
+];
+
+// Generate AI supply suggestions from notes
+export function generateSupplySuggestions(
+  clientNotes: string,
+  adminNotes: string,
+  services: string[]
+): SuggestedSupply[] {
+  const suggestions: SuggestedSupply[] = [];
+  const seenItems = new Set<string>();
+
+  // Helper to add unique suggestions
+  const addSuggestion = (item: string, cost: number, source: 'client' | 'admin', confidence: 'high' | 'medium' | 'low') => {
+    if (!seenItems.has(item.toLowerCase())) {
+      seenItems.add(item.toLowerCase());
+      suggestions.push({ item, estimated_cost: cost, quantity: 1, source, confidence });
+    }
+  };
+
+  // Parse client notes
+  if (clientNotes) {
+    for (const { pattern, item, cost } of SUPPLY_PATTERNS) {
+      if (pattern.test(clientNotes)) {
+        addSuggestion(item, cost, 'client', 'medium');
+      }
+    }
+  }
+
+  // Parse admin notes (higher confidence)
+  if (adminNotes) {
+    for (const { pattern, item, cost } of SUPPLY_PATTERNS) {
+      if (pattern.test(adminNotes)) {
+        addSuggestion(item, cost, 'admin', 'high');
+      }
+    }
+  }
+
+  // Add suggestions based on services
+  for (const service of services) {
+    const serviceLower = service.toLowerCase();
+    if (serviceLower.includes('faucet')) addSuggestion('Faucet', 75, 'client', 'high');
+    if (serviceLower.includes('toilet')) addSuggestion('Toilet wax ring', 15, 'client', 'medium');
+    if (serviceLower.includes('paint')) addSuggestion('Paint supplies', 50, 'client', 'medium');
+    if (serviceLower.includes('light') || serviceLower.includes('fixture')) addSuggestion('Light fixture/bulbs', 20, 'client', 'medium');
+    if (serviceLower.includes('outlet') || serviceLower.includes('switch')) addSuggestion('Electrical supplies', 15, 'client', 'medium');
+    if (serviceLower.includes('smoke') || serviceLower.includes('detector')) addSuggestion('Smoke detector', 25, 'client', 'high');
+    if (serviceLower.includes('filter') || serviceLower.includes('ac')) addSuggestion('AC filter', 15, 'client', 'high');
+    if (serviceLower.includes('gutter')) addSuggestion('Gutter supplies', 20, 'client', 'low');
+    if (serviceLower.includes('door')) addSuggestion('Door hardware', 25, 'client', 'medium');
+    if (serviceLower.includes('thermostat')) addSuggestion('Thermostat', 45, 'client', 'high');
+    if (serviceLower.includes('doorbell')) addSuggestion('Doorbell', 80, 'client', 'high');
+  }
+
+  return suggestions;
+}
+
+// Service time estimates in minutes
+const SERVICE_TIME_ESTIMATES: { pattern: RegExp; minutes: number; laborPerHour: number }[] = [
+  // Assembly & Mounting
+  { pattern: /tv\s*mount/i, minutes: 45, laborPerHour: 65 },
+  { pattern: /shelf|shelving/i, minutes: 30, laborPerHour: 55 },
+  { pattern: /furniture\s*assembly/i, minutes: 60, laborPerHour: 55 },
+  { pattern: /picture|frame|mirror/i, minutes: 20, laborPerHour: 55 },
+  { pattern: /curtain|blind|shade/i, minutes: 25, laborPerHour: 55 },
+  
+  // Plumbing
+  { pattern: /faucet/i, minutes: 60, laborPerHour: 75 },
+  { pattern: /toilet/i, minutes: 45, laborPerHour: 75 },
+  { pattern: /showerhead/i, minutes: 20, laborPerHour: 65 },
+  { pattern: /drain|clog/i, minutes: 30, laborPerHour: 65 },
+  { pattern: /garbage\s*disposal/i, minutes: 45, laborPerHour: 75 },
+  
+  // Electrical
+  { pattern: /outlet|switch/i, minutes: 20, laborPerHour: 75 },
+  { pattern: /light\s*fixture|ceiling\s*(fan|light)/i, minutes: 45, laborPerHour: 75 },
+  { pattern: /dimmer/i, minutes: 25, laborPerHour: 75 },
+  { pattern: /doorbell/i, minutes: 45, laborPerHour: 65 },
+  
+  // Safety
+  { pattern: /smoke\s*detector|carbon\s*monoxide/i, minutes: 15, laborPerHour: 55 },
+  { pattern: /grab\s*bar/i, minutes: 30, laborPerHour: 65 },
+  { pattern: /handrail/i, minutes: 45, laborPerHour: 65 },
+  
+  // Exterior
+  { pattern: /gutter/i, minutes: 90, laborPerHour: 65 },
+  { pattern: /power\s*wash|pressure\s*wash/i, minutes: 120, laborPerHour: 75 },
+  { pattern: /screen/i, minutes: 30, laborPerHour: 55 },
+  
+  // Paint
+  { pattern: /paint.*room|room.*paint/i, minutes: 240, laborPerHour: 65 },
+  { pattern: /paint.*touch|touch.*up/i, minutes: 60, laborPerHour: 55 },
+  { pattern: /caulk/i, minutes: 30, laborPerHour: 55 },
+  
+  // HVAC
+  { pattern: /ac\s*filter|air\s*filter|hvac\s*filter/i, minutes: 15, laborPerHour: 45 },
+  { pattern: /thermostat/i, minutes: 30, laborPerHour: 65 },
+  
+  // General
+  { pattern: /drywall|patch|hole/i, minutes: 45, laborPerHour: 65 },
+  { pattern: /door\s*(adjust|fix|repair)/i, minutes: 30, laborPerHour: 55 },
+  { pattern: /lock|deadbolt/i, minutes: 30, laborPerHour: 65 },
+];
+
+// Estimate time and labor for a job
+export interface JobEstimate {
+  totalMinutes: number;
+  totalHours: number;
+  laborCost: number;
+  estimatedMaterials: number;
+  totalEstimate: number;
+  complexity: 'simple' | 'medium' | 'complex';
+  breakdown: { service: string; minutes: number; labor: number }[];
+}
+
+export function estimateJobTime(
+  services: string[],
+  notes: string,
+  suggestedSupplies: SuggestedSupply[]
+): JobEstimate {
+  const breakdown: { service: string; minutes: number; labor: number }[] = [];
+  let totalMinutes = 0;
+  let totalLabor = 0;
+
+  // Estimate from services
+  for (const service of services) {
+    let found = false;
+    for (const { pattern, minutes, laborPerHour } of SERVICE_TIME_ESTIMATES) {
+      if (pattern.test(service)) {
+        const labor = (minutes / 60) * laborPerHour;
+        breakdown.push({ service, minutes, labor });
+        totalMinutes += minutes;
+        totalLabor += labor;
+        found = true;
+        break;
+      }
+    }
+    // Default estimate if no pattern matches
+    if (!found) {
+      breakdown.push({ service, minutes: 30, labor: 27.5 });
+      totalMinutes += 30;
+      totalLabor += 27.5;
+    }
+  }
+
+  // Check notes for additional services
+  for (const { pattern, minutes, laborPerHour } of SERVICE_TIME_ESTIMATES) {
+    if (pattern.test(notes) && !breakdown.some(b => pattern.test(b.service))) {
+      const labor = (minutes / 60) * laborPerHour;
+      const match = notes.match(pattern);
+      if (match) {
+        breakdown.push({ service: `(from notes: ${match[0]})`, minutes, labor });
+        totalMinutes += minutes;
+        totalLabor += labor;
+      }
+    }
+  }
+
+  // Calculate material costs
+  const estimatedMaterials = suggestedSupplies.reduce(
+    (sum, s) => sum + (s.estimated_cost || 0) * (s.quantity || 1),
+    0
+  );
+
+  // Determine complexity
+  let complexity: 'simple' | 'medium' | 'complex' = 'simple';
+  if (totalMinutes > 180) complexity = 'complex';
+  else if (totalMinutes > 60) complexity = 'medium';
+
+  // Add travel/setup time (15 min minimum)
+  totalMinutes = Math.max(totalMinutes, 30);
+
+  return {
+    totalMinutes,
+    totalHours: Math.ceil(totalMinutes / 30) / 2, // Round to nearest 0.5 hour
+    laborCost: Math.round(totalLabor),
+    estimatedMaterials: Math.round(estimatedMaterials),
+    totalEstimate: Math.round(totalLabor + estimatedMaterials),
+    complexity,
+    breakdown
+  };
 }
 
 export async function updateBookingAISummary(
@@ -1407,6 +2605,91 @@ export async function updateBookingAISummary(
   } catch (error) {
     console.error('Error updating AI summary:', error);
     return { error: error as Error };
+  }
+}
+
+// Generate and save AI supply suggestions for a booking
+export async function generateAndSaveSupplySuggestions(
+  bookingId: string,
+  clientNotes: string,
+  adminNotes: string,
+  services: string[]
+): Promise<{ suggestions: SuggestedSupply[]; error: Error | null }> {
+  try {
+    const suggestions = generateSupplySuggestions(clientNotes, adminNotes, services);
+    
+    // Get existing AI summary
+    const { data: booking, error: fetchError } = await supabase
+      .from('bookings')
+      .select('ai_summary')
+      .eq('id', bookingId)
+      .single();
+    
+    if (fetchError) throw fetchError;
+    
+    // Merge with existing summary
+    const existingSummary = (booking?.ai_summary as AISummary) || {};
+    const updatedSummary: AISummary = {
+      ...existingSummary,
+      suggested_supplies: suggestions,
+      generated_at: new Date().toISOString()
+    };
+    
+    const { error } = await supabase
+      .from('bookings')
+      .update({ ai_summary: updatedSummary })
+      .eq('id', bookingId);
+    
+    if (error) throw error;
+    return { suggestions, error: null };
+  } catch (error) {
+    console.error('Error generating supply suggestions:', error);
+    return { suggestions: [], error: error as Error };
+  }
+}
+
+// Generate full AI estimate (supplies + time + labor)
+export async function generateFullAIEstimate(
+  bookingId: string,
+  clientNotes: string,
+  adminNotes: string,
+  services: string[]
+): Promise<{ estimate: JobEstimate; suggestions: SuggestedSupply[]; error: Error | null }> {
+  try {
+    const suggestions = generateSupplySuggestions(clientNotes, adminNotes, services);
+    const estimate = estimateJobTime(services, clientNotes + ' ' + adminNotes, suggestions);
+    
+    // Build summary
+    const summary = services.length > 0 
+      ? `${services.length} service${services.length > 1 ? 's' : ''}: ${services.slice(0, 3).join(', ')}${services.length > 3 ? '...' : ''}`
+      : 'General handyman services';
+    
+    const aiSummary: AISummary = {
+      summary,
+      estimated_hours: estimate.totalHours,
+      estimated_labor: estimate.laborCost,
+      estimated_materials: estimate.estimatedMaterials,
+      estimated_total: estimate.totalEstimate,
+      complexity: estimate.complexity,
+      skills_needed: estimate.breakdown.map(b => b.service),
+      suggested_supplies: suggestions,
+      generated_at: new Date().toISOString()
+    };
+    
+    const { error } = await supabase
+      .from('bookings')
+      .update({ ai_summary: aiSummary })
+      .eq('id', bookingId);
+    
+    if (error) throw error;
+    return { estimate, suggestions, error: null };
+  } catch (error) {
+    console.error('Error generating AI estimate:', error);
+    return { 
+      estimate: { totalMinutes: 0, totalHours: 0, laborCost: 0, estimatedMaterials: 0, totalEstimate: 0, complexity: 'simple', breakdown: [] }, 
+      suggestions: [], 
+      error: error as Error 
+    };
   }
 }
 
@@ -1609,6 +2892,9 @@ export interface ContactMessage {
   phone: string | null;
   message: string | null;
   status: 'new' | 'read' | 'replied';
+  reply: string | null;
+  replied_at: string | null;
+  replied_by: string | null;
   created_at: string;
 }
 
@@ -1693,6 +2979,29 @@ export async function updateContactMessageStatus(
   }
 }
 
+export async function replyToContactMessage(
+  messageId: string,
+  reply: string
+): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('contact_messages')
+      .update({ 
+        reply,
+        replied_at: new Date().toISOString(),
+        replied_by: 'admin',
+        status: 'replied'
+      })
+      .eq('id', messageId);
+
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error replying to contact message:', error);
+    return { error: error as Error };
+  }
+}
+
 export async function deleteContactMessage(messageId: string): Promise<{ error: Error | null }> {
   try {
     const { error } = await supabase
@@ -1705,6 +3014,41 @@ export async function deleteContactMessage(messageId: string): Promise<{ error: 
   } catch (error) {
     console.error('Error deleting contact message:', error);
     return { error: error as Error };
+  }
+}
+
+// Create a new client directly
+export async function addNewClient(data: {
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  community?: string;
+  is_senior?: boolean;
+  is_military?: boolean;
+  source?: string;
+}): Promise<{ data: Client | null; error: Error | null }> {
+  try {
+    const { data: client, error } = await supabase
+      .from('clients')
+      .insert([{
+        name: data.name,
+        phone: data.phone || null,
+        email: data.email || null,
+        address: data.address || null,
+        community: data.community || null,
+        is_senior: data.is_senior || false,
+        is_military: data.is_military || false,
+        source: data.source || 'admin'
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { data: client as Client, error: null };
+  } catch (error) {
+    console.error('Error creating client:', error);
+    return { data: null, error: error as Error };
   }
 }
 
@@ -1863,35 +3207,54 @@ export async function getExtendedStats(): Promise<ExtendedStats> {
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
     // Get bookings this month
-    const { data: bookings } = await supabase
+    const { data: bookings, error: bookingsError } = await supabase
       .from('bookings')
       .select('id, status, invoice_amount, invoice_status, invoice_paid_at')
       .gte('date', firstOfMonth)
       .lte('date', endOfMonth);
 
+    if (bookingsError) {
+      console.warn('Error fetching bookings for stats:', bookingsError);
+    }
+
     // Get clients created this month
-    const { data: clients } = await supabase
+    const { data: clients, error: clientsError } = await supabase
       .from('clients')
       .select('id, created_at')
       .gte('created_at', `${firstOfMonth}T00:00:00`)
       .lte('created_at', `${endOfMonth}T23:59:59`);
+
+    if (clientsError) {
+      console.warn('Error fetching clients for stats:', clientsError);
+    }
 
     // Get supplies/materials cost for bookings this month
     const bookingIds = bookings?.map(b => b.id) || [];
     let suppliesCost = 0;
     
     if (bookingIds.length > 0) {
-      const { data: supplies } = await supabase
+      const { data: supplies, error: suppliesError } = await supabase
         .from('booking_supplies')
         .select('cost, quantity')
         .in('booking_id', bookingIds);
       
-      suppliesCost = supplies?.reduce((sum, s) => sum + (parseFloat(s.cost) * (s.quantity || 1)), 0) || 0;
+      if (suppliesError) {
+        console.warn('Error fetching supplies for stats:', suppliesError);
+      }
+      
+      suppliesCost = supplies?.reduce((sum, s) => {
+        const cost = typeof s.cost === 'number' ? s.cost : parseFloat(s.cost) || 0;
+        const qty = s.quantity || 1;
+        return sum + (cost * qty);
+      }, 0) || 0;
     }
 
     const completedJobs = bookings?.filter(b => b.status === 'completed') || [];
     const paidInvoices = bookings?.filter(b => b.invoice_status === 'paid') || [];
-    const revenue = paidInvoices.reduce((sum, b) => sum + (parseFloat(b.invoice_amount) || 0), 0);
+    const revenue = paidInvoices.reduce((sum, b) => {
+      const amt = typeof b.invoice_amount === 'number' ? b.invoice_amount : parseFloat(b.invoice_amount as string) || 0;
+      return sum + amt;
+    }, 0);
     const avgValue = paidInvoices.length > 0 ? revenue / paidInvoices.length : 0;
 
     return {
@@ -1904,5 +3267,288 @@ export async function getExtendedStats(): Promise<ExtendedStats> {
   } catch (error) {
     console.error('Error fetching extended stats:', error);
     return { revenueThisMonth: 0, jobsCompletedThisMonth: 0, averageJobValue: 0, newClientsThisMonth: 0, suppliesCostThisMonth: 0 };
+  }
+}
+
+// =============================================================================
+// Comprehensive Analytics Functions
+// =============================================================================
+
+export interface MonthlyRevenue {
+  month: string;
+  label: string;
+  revenue: number;
+  jobs: number;
+  expenses: number;
+  profit: number;
+}
+
+export interface TopClient {
+  id: string;
+  name: string;
+  phone: string | null;
+  totalSpent: number;
+  jobCount: number;
+  lastBooking: string | null;
+  avgJobValue: number;
+}
+
+export interface JobPerformance {
+  avgDurationMinutes: number;
+  onTimeRate: number;
+  completionRate: number;
+  repeatClientRate: number;
+  avgRevenuePerHour: number;
+}
+
+export interface AnalyticsDashboard {
+  // Revenue metrics
+  totalRevenue: number;
+  totalRevenueLastMonth: number;
+  revenueGrowth: number;
+  
+  // Job metrics
+  totalJobs: number;
+  completedJobs: number;
+  cancelledJobs: number;
+  pendingJobs: number;
+  
+  // Client metrics
+  totalClients: number;
+  activeClients: number; // Had booking in last 90 days
+  newClientsThisMonth: number;
+  
+  // Financial metrics
+  totalExpenses: number;
+  grossProfit: number;
+  avgJobValue: number;
+  
+  // Monthly breakdown (last 6 months)
+  monthlyData: MonthlyRevenue[];
+  
+  // Top clients
+  topClients: TopClient[];
+  
+  // Performance
+  performance: JobPerformance;
+  
+  // Booking sources breakdown
+  sourceBreakdown: { source: string; count: number; revenue: number }[];
+}
+
+export async function getAnalyticsDashboard(): Promise<AnalyticsDashboard> {
+  try {
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
+    // Get all bookings
+    const { data: allBookings } = await supabase
+      .from('bookings')
+      .select('*, client:clients(id, name, phone)')
+      .gte('created_at', sixMonthsAgo.toISOString());
+
+    const bookings = allBookings || [];
+
+    // Get all clients
+    const { data: allClients } = await supabase
+      .from('clients')
+      .select('id, name, phone, created_at');
+
+    const clients = allClients || [];
+
+    // Get all supplies
+    const { data: allSupplies } = await supabase
+      .from('booking_supplies')
+      .select('booking_id, cost, quantity');
+
+    const supplies = allSupplies || [];
+
+    // Calculate total revenue (all time from data)
+    const paidBookings = bookings.filter(b => b.invoice_status === 'paid');
+    const totalRevenue = paidBookings.reduce((sum, b) => sum + (parseFloat(b.invoice_amount) || 0), 0);
+
+    // Calculate last month revenue
+    const lastMonthBookings = paidBookings.filter(b => {
+      const date = new Date(b.date);
+      return date >= firstOfLastMonth && date <= lastOfLastMonth;
+    });
+    const totalRevenueLastMonth = lastMonthBookings.reduce((sum, b) => sum + (parseFloat(b.invoice_amount) || 0), 0);
+
+    // This month revenue
+    const thisMonthBookings = paidBookings.filter(b => new Date(b.date) >= firstOfThisMonth);
+    const thisMonthRevenue = thisMonthBookings.reduce((sum, b) => sum + (parseFloat(b.invoice_amount) || 0), 0);
+
+    // Revenue growth
+    const revenueGrowth = totalRevenueLastMonth > 0 
+      ? ((thisMonthRevenue - totalRevenueLastMonth) / totalRevenueLastMonth) * 100 
+      : 0;
+
+    // Job counts
+    const completedJobs = bookings.filter(b => b.status === 'completed').length;
+    const cancelledJobs = bookings.filter(b => b.status === 'cancelled').length;
+    const pendingJobs = bookings.filter(b => b.status === 'pending').length;
+
+    // Client metrics
+    const activeClientIds = new Set(
+      bookings
+        .filter(b => new Date(b.date) >= ninetyDaysAgo)
+        .map(b => b.client_id)
+        .filter(Boolean)
+    );
+    const newClientsThisMonth = clients.filter(c => new Date(c.created_at) >= firstOfThisMonth).length;
+
+    // Expenses (supplies)
+    const totalExpenses = supplies.reduce((sum, s) => sum + (parseFloat(s.cost as string) * (s.quantity || 1)), 0);
+
+    // Monthly breakdown
+    const monthlyData: MonthlyRevenue[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+      const monthLabel = monthStart.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      
+      const monthBookings = bookings.filter(b => {
+        const date = new Date(b.date);
+        return date >= monthStart && date <= monthEnd;
+      });
+      
+      const monthPaid = monthBookings.filter(b => b.invoice_status === 'paid');
+      const monthRevenue = monthPaid.reduce((sum, b) => sum + (parseFloat(b.invoice_amount) || 0), 0);
+      
+      const monthBookingIds = new Set(monthBookings.map(b => b.id));
+      const monthExpenses = supplies
+        .filter(s => monthBookingIds.has(s.booking_id))
+        .reduce((sum, s) => sum + (parseFloat(s.cost as string) * (s.quantity || 1)), 0);
+      
+      monthlyData.push({
+        month: monthStart.toISOString().slice(0, 7),
+        label: monthLabel,
+        revenue: monthRevenue,
+        jobs: monthBookings.length,
+        expenses: monthExpenses,
+        profit: monthRevenue - monthExpenses
+      });
+    }
+
+    // Top clients
+    const clientStats: Record<string, { spent: number; jobs: number; lastDate: string | null; name: string; phone: string | null; id: string }> = {};
+    for (const booking of paidBookings) {
+      if (!booking.client_id || !booking.client) continue;
+      const clientId = booking.client_id;
+      if (!clientStats[clientId]) {
+        clientStats[clientId] = { 
+          id: clientId,
+          name: booking.client.name, 
+          phone: booking.client.phone,
+          spent: 0, 
+          jobs: 0, 
+          lastDate: null 
+        };
+      }
+      clientStats[clientId].spent += parseFloat(booking.invoice_amount) || 0;
+      clientStats[clientId].jobs += 1;
+      if (!clientStats[clientId].lastDate || booking.date > clientStats[clientId].lastDate!) {
+        clientStats[clientId].lastDate = booking.date;
+      }
+    }
+
+    const topClients: TopClient[] = Object.values(clientStats)
+      .sort((a, b) => b.spent - a.spent)
+      .slice(0, 10)
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        totalSpent: c.spent,
+        jobCount: c.jobs,
+        lastBooking: c.lastDate,
+        avgJobValue: c.jobs > 0 ? c.spent / c.jobs : 0
+      }));
+
+    // Performance metrics
+    const completedWithDuration = bookings.filter(b => b.status === 'completed' && b.actual_duration_minutes);
+    const avgDuration = completedWithDuration.length > 0
+      ? completedWithDuration.reduce((sum, b) => sum + (b.actual_duration_minutes || 0), 0) / completedWithDuration.length
+      : 0;
+
+    const completionRate = bookings.length > 0 
+      ? (completedJobs / (bookings.length - cancelledJobs)) * 100 
+      : 0;
+
+    const clientsWithMultiple = Object.values(clientStats).filter(c => c.jobs > 1).length;
+    const repeatClientRate = Object.keys(clientStats).length > 0 
+      ? (clientsWithMultiple / Object.keys(clientStats).length) * 100 
+      : 0;
+
+    const totalDurationHours = completedWithDuration.reduce((sum, b) => sum + ((b.actual_duration_minutes || 0) / 60), 0);
+    const avgRevenuePerHour = totalDurationHours > 0 ? totalRevenue / totalDurationHours : 0;
+
+    // Source breakdown
+    const sourceMap: Record<string, { count: number; revenue: number }> = {};
+    for (const booking of bookings) {
+      const source = booking.booking_source || 'website';
+      if (!sourceMap[source]) {
+        sourceMap[source] = { count: 0, revenue: 0 };
+      }
+      sourceMap[source].count += 1;
+      if (booking.invoice_status === 'paid') {
+        sourceMap[source].revenue += parseFloat(booking.invoice_amount) || 0;
+      }
+    }
+
+    const sourceBreakdown = Object.entries(sourceMap)
+      .map(([source, data]) => ({ source, ...data }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    return {
+      totalRevenue,
+      totalRevenueLastMonth,
+      revenueGrowth,
+      totalJobs: bookings.length,
+      completedJobs,
+      cancelledJobs,
+      pendingJobs,
+      totalClients: clients.length,
+      activeClients: activeClientIds.size,
+      newClientsThisMonth,
+      totalExpenses,
+      grossProfit: totalRevenue - totalExpenses,
+      avgJobValue: paidBookings.length > 0 ? totalRevenue / paidBookings.length : 0,
+      monthlyData,
+      topClients,
+      performance: {
+        avgDurationMinutes: avgDuration,
+        onTimeRate: 95, // Placeholder - would need actual tracking
+        completionRate,
+        repeatClientRate,
+        avgRevenuePerHour
+      },
+      sourceBreakdown
+    };
+  } catch (error) {
+    console.error('Error fetching analytics dashboard:', error);
+    return {
+      totalRevenue: 0,
+      totalRevenueLastMonth: 0,
+      revenueGrowth: 0,
+      totalJobs: 0,
+      completedJobs: 0,
+      cancelledJobs: 0,
+      pendingJobs: 0,
+      totalClients: 0,
+      activeClients: 0,
+      newClientsThisMonth: 0,
+      totalExpenses: 0,
+      grossProfit: 0,
+      avgJobValue: 0,
+      monthlyData: [],
+      topClients: [],
+      performance: { avgDurationMinutes: 0, onTimeRate: 0, completionRate: 0, repeatClientRate: 0, avgRevenuePerHour: 0 },
+      sourceBreakdown: []
+    };
   }
 }

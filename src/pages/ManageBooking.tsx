@@ -47,7 +47,11 @@ import {
   CreditCard,
   DollarSign,
   Banknote,
-  FileText
+  FileText,
+  MessageSquare,
+  Plus,
+  Trash2,
+  History
 } from "lucide-react";
 import { format, parseISO, addDays, isBefore, startOfToday } from "date-fns";
 import {
@@ -56,6 +60,9 @@ import {
   cancelBookingByToken,
   getAvailableTimeSlots,
   addImagesToBookingByToken,
+  removeImageFromBookingByToken,
+  updateClientContactByToken,
+  getClientBookingHistoryByToken,
   uploadBookingImage,
   createCheckoutSession,
   selectPaymentMethodByToken,
@@ -111,6 +118,24 @@ const ManageBooking = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectingPayment, setSelectingPayment] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'check' | 'cash' | null>(null);
+  
+  // Contact editing state
+  const [editingContact, setEditingContact] = useState(false);
+  const [editContactForm, setEditContactForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    address: ''
+  });
+  const [savingContact, setSavingContact] = useState(false);
+  
+  // Image management state
+  const [deletingImageIndex, setDeletingImageIndex] = useState<number | null>(null);
+  
+  // Booking history state
+  const [bookingHistory, setBookingHistory] = useState<Booking[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!token || !e.target.files || e.target.files.length === 0) return;
@@ -169,7 +194,62 @@ const ManageBooking = () => {
     setEditTimeSlot(data.time_slot);
     setEditServices(data.services?.map(s => s.id || s.name) || []);
     setEditNotes(data.notes || '');
+    // Set contact form
+    setEditContactForm({
+      name: data.client?.name || '',
+      phone: data.client?.phone || '',
+      email: data.client?.email || '',
+      address: data.client?.address || ''
+    });
     setIsLoading(false);
+  };
+
+  // Load booking history
+  const loadBookingHistory = async () => {
+    if (!token) return;
+    setLoadingHistory(true);
+    const { data } = await getClientBookingHistoryByToken(token);
+    setBookingHistory(data || []);
+    setLoadingHistory(false);
+  };
+
+  // Save contact info
+  const handleSaveContact = async () => {
+    if (!token) return;
+    setSavingContact(true);
+    const { error } = await updateClientContactByToken(token, editContactForm);
+    setSavingContact(false);
+    
+    if (error) {
+      toast({
+        title: "Error saving contact info",
+        description: error.message,
+        variant: "destructive"
+      });
+    } else {
+      toast({ title: "Contact info updated" });
+      setEditingContact(false);
+      loadBooking();
+    }
+  };
+
+  // Delete image
+  const handleDeleteImage = async (index: number) => {
+    if (!token) return;
+    setDeletingImageIndex(index);
+    const { error } = await removeImageFromBookingByToken(token, index);
+    setDeletingImageIndex(null);
+    
+    if (error) {
+      toast({
+        title: "Error deleting photo",
+        description: error.message,
+        variant: "destructive"
+      });
+    } else {
+      toast({ title: "Photo deleted" });
+      loadBooking();
+    }
   };
 
   useEffect(() => {
@@ -416,24 +496,92 @@ const ManageBooking = () => {
                   </div>
 
                   <div className="space-y-4">
-                    <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
-                      <User className="w-5 h-5 text-primary" />
-                      Contact Information
-                    </h3>
-                    <div className="space-y-3 text-sm">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-muted-foreground" />
-                        <span>{booking.client?.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-4 h-4 text-muted-foreground" />
-                        <span>{booking.client?.phone}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-muted-foreground" />
-                        <span>{booking.client?.email}</span>
-                      </div>
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
+                        <User className="w-5 h-5 text-primary" />
+                        Contact Information
+                      </h3>
+                      {canModify && !editingContact && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => setEditingContact(true)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
+                    {editingContact ? (
+                      <div className="space-y-3">
+                        <div>
+                          <Label htmlFor="contact-name" className="text-xs">Name</Label>
+                          <Input
+                            id="contact-name"
+                            value={editContactForm.name}
+                            onChange={(e) => setEditContactForm(prev => ({ ...prev, name: e.target.value }))}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="contact-phone" className="text-xs">Phone</Label>
+                          <Input
+                            id="contact-phone"
+                            value={editContactForm.phone}
+                            onChange={(e) => setEditContactForm(prev => ({ ...prev, phone: e.target.value }))}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="contact-email" className="text-xs">Email</Label>
+                          <Input
+                            id="contact-email"
+                            type="email"
+                            value={editContactForm.email}
+                            onChange={(e) => setEditContactForm(prev => ({ ...prev, email: e.target.value }))}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="contact-address" className="text-xs">Address</Label>
+                          <Input
+                            id="contact-address"
+                            value={editContactForm.address}
+                            onChange={(e) => setEditContactForm(prev => ({ ...prev, address: e.target.value }))}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          <Button size="sm" onClick={handleSaveContact} disabled={savingContact}>
+                            {savingContact ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+                            Save
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => setEditingContact(false)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 text-sm">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-muted-foreground" />
+                          <span>{booking.client?.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-4 h-4 text-muted-foreground" />
+                          <span>{booking.client?.phone}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-4 h-4 text-muted-foreground" />
+                          <span>{booking.client?.email}</span>
+                        </div>
+                        {booking.client?.address && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-muted-foreground" />
+                            <span>{booking.client.address}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -466,39 +614,55 @@ const ManageBooking = () => {
                 <div className="space-y-3 pt-4 border-t border-border">
                   <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
                     <ImageIcon className="w-5 h-5 text-primary" />
-                    Photos ({(booking.images || []).length})
+                    Photos ({(booking.images || []).length}/10)
                   </h3>
                   
                   {/* Image Grid */}
                   {booking.images && booking.images.length > 0 ? (
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                       {booking.images.map((url, idx) => (
-                        <Dialog key={idx}>
-                          <DialogTrigger asChild>
-                            <button className="aspect-square rounded-lg overflow-hidden bg-gray-100 border hover:border-primary transition-colors cursor-pointer">
+                        <div key={idx} className="relative group">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <button className="aspect-square rounded-lg overflow-hidden bg-gray-100 border hover:border-primary transition-colors cursor-pointer w-full">
+                                <img
+                                  src={url}
+                                  alt={`Photo ${idx + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              </button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl">
                               <img
                                 src={url}
                                 alt={`Photo ${idx + 1}`}
-                                className="w-full h-full object-cover"
+                                className="w-full h-auto rounded-lg"
                               />
+                            </DialogContent>
+                          </Dialog>
+                          {/* Delete button */}
+                          {canModify && (
+                            <button
+                              onClick={() => handleDeleteImage(idx)}
+                              disabled={deletingImageIndex === idx}
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 disabled:opacity-50"
+                            >
+                              {deletingImageIndex === idx ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <X className="w-3 h-3" />
+                              )}
                             </button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-3xl">
-                            <img
-                              src={url}
-                              alt={`Photo ${idx + 1}`}
-                              className="w-full h-auto rounded-lg"
-                            />
-                          </DialogContent>
-                        </Dialog>
+                          )}
+                        </div>
                       ))}
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground italic">No photos uploaded yet</p>
                   )}
 
-                  {/* Upload Button - only show if booking can be modified */}
-                  {canModify && (
+                  {/* Upload Button - only show if booking can be modified and under limit */}
+                  {canModify && (booking.images || []).length < 10 && (
                     <div className="flex gap-2">
                       <input
                         ref={fileInputRef}
@@ -521,6 +685,9 @@ const ManageBooking = () => {
                         {uploadingImages ? 'Uploading...' : 'Add More Photos'}
                       </Button>
                     </div>
+                  )}
+                  {(booking.images || []).length >= 10 && (
+                    <p className="text-xs text-muted-foreground">Maximum 10 photos reached</p>
                   )}
                 </div>
 
@@ -785,40 +952,121 @@ const ManageBooking = () => {
                 )}
 
                 {/* Action Buttons */}
-                {canModify && (
-                  <div className="flex flex-wrap gap-3 pt-4 border-t border-border">
-                    <Button onClick={() => setIsEditing(true)}>
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit Booking
+                <div className="flex flex-wrap gap-3 pt-4 border-t border-border">
+                  {canModify && (
+                    <>
+                      <Button onClick={() => setIsEditing(true)}>
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit Booking
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" disabled={isCancelling}>
+                            {isCancelling ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <XCircle className="w-4 h-4 mr-2" />
+                            )}
+                            Cancel Booking
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Cancel this booking?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action cannot be undone. Your appointment on {format(parseISO(booking.date), 'MMMM d')} at {getTimeLabel(booking.time_slot)} will be cancelled.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep Booking</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleCancel} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                              Yes, Cancel Booking
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </>
+                  )}
+                  
+                  {/* Book Another Button */}
+                  <Link to="/#booking">
+                    <Button variant="outline">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Book Another
                     </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="destructive" disabled={isCancelling}>
-                          {isCancelling ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <XCircle className="w-4 h-4 mr-2" />
-                          )}
-                          Cancel Booking
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Cancel this booking?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This action cannot be undone. Your appointment on {format(parseISO(booking.date), 'MMMM d')} at {getTimeLabel(booking.time_slot)} will be cancelled.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Keep Booking</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleCancel} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                            Yes, Cancel Booking
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                )}
+                  </Link>
+                  
+                  {/* Message Us Button */}
+                  <Link to="/#contact">
+                    <Button variant="outline">
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      Message Us
+                    </Button>
+                  </Link>
+                </div>
+
+                {/* Booking History Section */}
+                <div className="pt-4 border-t border-border">
+                  <button
+                    onClick={() => {
+                      setShowHistory(!showHistory);
+                      if (!showHistory && bookingHistory.length === 0) {
+                        loadBookingHistory();
+                      }
+                    }}
+                    className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+                  >
+                    <History className="w-4 h-4" />
+                    {showHistory ? 'Hide' : 'View'} Booking History
+                  </button>
+                  
+                  {showHistory && (
+                    <div className="mt-4 space-y-3">
+                      {loadingHistory ? (
+                        <div className="flex justify-center py-4">
+                          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                        </div>
+                      ) : bookingHistory.length > 0 ? (
+                        <div className="space-y-2">
+                          {bookingHistory.map((historyBooking) => (
+                            <div
+                              key={historyBooking.id}
+                              className={`p-3 rounded-lg border ${
+                                historyBooking.id === booking.id 
+                                  ? 'border-primary bg-primary/5' 
+                                  : 'border-border bg-secondary/30'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                                  <span className="text-sm font-medium">
+                                    {format(parseISO(historyBooking.date), 'MMM d, yyyy')}
+                                  </span>
+                                  <span className="text-sm text-muted-foreground">
+                                    at {getTimeLabel(historyBooking.time_slot)}
+                                  </span>
+                                </div>
+                                <Badge variant={
+                                  historyBooking.status === 'completed' ? 'default' :
+                                  historyBooking.status === 'confirmed' ? 'secondary' :
+                                  historyBooking.status === 'cancelled' ? 'destructive' : 'outline'
+                                }>
+                                  {historyBooking.status}
+                                </Badge>
+                              </div>
+                              {historyBooking.id === booking.id && (
+                                <p className="text-xs text-primary mt-1">← Current booking</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No booking history found</p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               /* Edit Mode */

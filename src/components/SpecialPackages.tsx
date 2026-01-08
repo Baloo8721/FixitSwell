@@ -1,5 +1,6 @@
-import { Star, Heart, Wrench, Sun, Home, Users, Camera, Calendar, Smartphone, ShoppingBag, Gift } from "lucide-react";
+import { Star, Heart, Wrench, Sun, Home, Users, Camera, Calendar, Smartphone, ShoppingBag, Gift, MapPin, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import lakeshoreMap from "@/assets/lakeshore villas.png";
 
 // One-Time Bundled Packages
 const oneTimePackages = [
@@ -270,6 +271,52 @@ const SpecialPackages = () => {
             ))}
           </div>
 
+        </div>
+      </div>
+
+      {/* Service Area - Compact */}
+      <div className="bg-background py-12">
+        <div className="container max-w-md mx-auto px-4">
+          <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
+            {/* Header */}
+            <div className="px-3 py-2 border-b border-border bg-primary/5">
+              <h3 className="font-heading text-base text-center text-foreground flex items-center justify-center gap-2">
+                <MapPin className="w-4 h-4 text-primary" />
+                Our Service Area
+              </h3>
+            </div>
+
+            {/* Map Image - fills container edge to edge */}
+            <div className="relative">
+              <img
+                src={lakeshoreMap}
+                alt="Lakeshore Villas Community Map"
+                className="w-full h-auto block"
+              />
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
+                <div className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-2 py-1 rounded-full text-[10px] font-medium shadow-lg">
+                  <span className="w-1 h-1 bg-white rounded-full animate-pulse"></span>
+                  Exclusive Service Area
+                </div>
+              </div>
+            </div>
+
+            {/* Info */}
+            <div className="p-3 space-y-2">
+              <div className="text-center">
+                <h4 className="font-heading text-base text-foreground">Lakeshore Villas</h4>
+                <p className="text-xs text-muted-foreground">Mobile home community in Tampa, FL</p>
+              </div>
+              <div className="flex items-center justify-center gap-1 text-sm">
+                <Clock className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                <span className="text-foreground font-bold">Mon–Fri: 8:30 AM – 2:30 PM</span>
+                <span className="text-muted-foreground">| Weekends: Contact us</span>
+              </div>
+              <p className="text-sm text-primary font-semibold text-center pt-2 border-t border-border">
+                Local neighbors helping neighbors — no travel fees
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
