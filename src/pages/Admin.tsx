@@ -80,9 +80,14 @@ import {
   Play,
   Square,
   Timer,
-  Edit2
+  Edit2,
+  Lock,
+  LogOut,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { format, parseISO, isToday, isTomorrow, isPast } from "date-fns";
+import { supabase } from "@/lib/supabase";
 import {
   getUpcomingBookings,
   getAllBookings,
@@ -181,6 +186,62 @@ import { Link } from "react-router-dom";
 type StatusFilter = 'all' | 'unpaid' | 'needs_invoice' | 'needs_attention' | Booking['status'];
 
 const Admin = () => {
+  // Authentication state using Supabase Auth
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  // Check if already logged in on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsAuthenticated(!!session);
+      setCheckingAuth(false);
+    };
+    checkAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogin = async () => {
+    if (!emailInput || !passwordInput) {
+      setLoginError('Please enter email and password');
+      return;
+    }
+    
+    setLoginLoading(true);
+    setLoginError('');
+    
+    const { error } = await supabase.auth.signInWithPassword({
+      email: emailInput,
+      password: passwordInput
+    });
+
+    setLoginLoading(false);
+
+    if (error) {
+      setLoginError(error.message);
+      setPasswordInput('');
+    } else {
+      setEmailInput('');
+      setPasswordInput('');
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setIsAuthenticated(false);
+  };
+
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -1306,11 +1367,14 @@ Questions? Call us anytime.
   };
 
   useEffect(() => {
-    loadBookings();
-    loadContactMessages();
-    loadClients();
-    loadSubscriptions();
-  }, [statusFilter]);
+    // Only load data after authentication is confirmed
+    if (isAuthenticated) {
+      loadBookings();
+      loadContactMessages();
+      loadClients();
+      loadSubscriptions();
+    }
+  }, [statusFilter, isAuthenticated]);
 
   // Load supplies and notes when a booking is expanded
   useEffect(() => {
@@ -1536,17 +1600,113 @@ Questions? Call us anytime.
       }, {} as Record<string, BookingWithDetails[]>)
     : { 'all': sortedFilteredBookings };
 
+  // Show loading while checking auth
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/10 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md shadow-xl">
+          <CardHeader className="text-center space-y-4">
+            <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+              <Lock className="w-8 h-8 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-2xl font-heading">Admin Access</CardTitle>
+              <p className="text-muted-foreground mt-1">Sign in with your admin account</p>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={emailInput}
+                onChange={(e) => {
+                  setEmailInput(e.target.value);
+                  setLoginError('');
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && document.getElementById('password')?.focus()}
+                placeholder="admin@example.com"
+                autoFocus
+                disabled={loginLoading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={passwordInput}
+                  onChange={(e) => {
+                    setPasswordInput(e.target.value);
+                    setLoginError('');
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                  placeholder="Enter password"
+                  className="pr-10"
+                  disabled={loginLoading}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
+              {loginError && (
+                <p className="text-sm text-destructive flex items-center gap-1">
+                  <XCircle className="w-4 h-4" />
+                  {loginError}
+                </p>
+              )}
+            </div>
+            <Button onClick={handleLogin} className="w-full" size="lg" disabled={loginLoading}>
+              {loginLoading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Lock className="w-4 h-4 mr-2" />
+              )}
+              {loginLoading ? 'Signing in...' : 'Sign In'}
+            </Button>
+            <div className="text-center">
+              <Link to="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                ← Back to website
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-card sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">
                 <Home className="w-5 h-5" />
               </Link>
-              <h1 className="font-heading text-2xl font-bold text-foreground">Admin Dashboard</h1>
+              <h1 className="font-heading text-xl sm:text-2xl font-bold text-foreground">Admin Dashboard</h1>
             </div>
             <div className="flex items-center gap-2">
               <Dialog open={showNewBooking} onOpenChange={setShowNewBooking}>
@@ -1788,6 +1948,22 @@ Questions? Call us anytime.
                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               </Button>
             </div>
+          </div>
+          {/* Auth Status Bar */}
+          <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-border/50">
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
+              <Shield className="w-3 h-3 mr-1" />
+              Authenticated
+            </Badge>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={handleLogout}
+              className="text-xs text-muted-foreground hover:text-destructive h-6 px-2"
+            >
+              <LogOut className="w-3 h-3 mr-1" />
+              Logout
+            </Button>
           </div>
         </div>
       </header>
