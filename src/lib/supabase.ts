@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase configuration
+// The anon key is designed to be public (also called "publishable key")
+// Security is enforced by RLS (Row Level Security) policies, not by hiding the key
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://pudvngvljwexztxntwnn.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1ZHZuZ3ZsandleHp0eG50d25uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxMTI4NDgsImV4cCI6MjA4MjY4ODg0OH0.SX_AcKMLx2N2eHHEu05itYDOwSBRHuS0f4fo7G8SSOY';
 
@@ -467,6 +469,48 @@ export async function getAvailableTimeSlots(date: string, requestedDuration: num
     
     return occupiedRanges.some(range => {
       // Overlap exists if: slot starts before range ends AND slot ends after range starts
+      return slotStart < range.end && slotEnd > range.start;
+    });
+  };
+  
+  return DEFAULT_TIME_SLOTS.map(slot => ({
+    ...slot,
+    available: !wouldOverlap(slot.time)
+  }));
+}
+
+// Get available time slots for a contractor (only their assigned bookings conflict)
+export async function getContractorAvailableTimeSlots(date: string, contractorId: string, requestedDuration: number = 60): Promise<TimeSlot[]> {
+  // Fetch only this contractor's assigned bookings for the date
+  const { data: assignments } = await supabase
+    .from('job_assignments')
+    .select('booking:bookings(time_slot, duration_minutes, date, status)')
+    .eq('contractor_id', contractorId);
+  
+  // Filter to bookings on the requested date that aren't cancelled
+  const bookingsOnDate = (assignments || [])
+    .map(a => (a as { booking: { time_slot: string; duration_minutes: number; date: string; status: string } | null }).booking)
+    .filter(b => b && b.date === date && b.status !== 'cancelled') as { time_slot: string; duration_minutes: number }[];
+  
+  // Helper to convert time string to minutes since midnight
+  const timeToMinutes = (time: string): number => {
+    const [hours, mins] = time.split(':').map(Number);
+    return hours * 60 + mins;
+  };
+  
+  // Build occupied time ranges from contractor's bookings
+  const occupiedRanges: { start: number; end: number }[] = bookingsOnDate.map(b => {
+    const start = timeToMinutes(b.time_slot);
+    const duration = b.duration_minutes || 60;
+    return { start, end: start + duration };
+  });
+  
+  // Check if a slot with the requested duration would overlap with any of contractor's bookings
+  const wouldOverlap = (slotTime: string): boolean => {
+    const slotStart = timeToMinutes(slotTime);
+    const slotEnd = slotStart + requestedDuration;
+    
+    return occupiedRanges.some(range => {
       return slotStart < range.end && slotEnd > range.start;
     });
   };
@@ -3066,7 +3110,7 @@ export async function deleteContactMessage(messageId: string): Promise<{ error: 
   }
 }
 
-// Create a new client directly
+// Create a new client directly (checks for existing first by email or phone)
 export async function addNewClient(data: {
   name: string;
   phone?: string;
@@ -3076,8 +3120,38 @@ export async function addNewClient(data: {
   is_senior?: boolean;
   is_military?: boolean;
   source?: string;
+  created_by_contractor_id?: string;
 }): Promise<{ data: Client | null; error: Error | null }> {
   try {
+    // Check for existing client by email first
+    if (data.email) {
+      const { data: existingByEmail } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('email', data.email)
+        .maybeSingle();
+      
+      if (existingByEmail) {
+        // Return existing client instead of erroring
+        return { data: existingByEmail as Client, error: null };
+      }
+    }
+    
+    // Check for existing client by phone if no email match
+    if (data.phone) {
+      const { data: existingByPhone } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('phone', data.phone)
+        .maybeSingle();
+      
+      if (existingByPhone) {
+        // Return existing client instead of erroring
+        return { data: existingByPhone as Client, error: null };
+      }
+    }
+    
+    // No existing client found, create new one
     const { data: client, error } = await supabase
       .from('clients')
       .insert([{
@@ -3088,7 +3162,8 @@ export async function addNewClient(data: {
         community: data.community || null,
         is_senior: data.is_senior || false,
         is_military: data.is_military || false,
-        source: data.source || 'admin'
+        source: data.source || 'admin',
+        created_by_contractor_id: data.created_by_contractor_id || null
       }])
       .select()
       .single();
@@ -3097,6 +3172,23 @@ export async function addNewClient(data: {
     return { data: client as Client, error: null };
   } catch (error) {
     console.error('Error creating client:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+// Get clients created by a specific contractor
+export async function getContractorClients(contractorId: string): Promise<{ data: Client[] | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('created_by_contractor_id', contractorId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return { data: data as Client[] || [], error: null };
+  } catch (error) {
+    console.error('Error fetching contractor clients:', error);
     return { data: null, error: error as Error };
   }
 }
@@ -3530,18 +3622,18 @@ export async function getContractorJobs(contractorId: string): Promise<{ data: J
     const bookingIds = assignments?.map(a => a.booking_id) || [];
     if (bookingIds.length === 0) return { data: [], error: null };
 
-    const { data: bookings } = await supabase
+    const { data: bookings, error: bookingsError } = await supabase
       .from('bookings')
       .select(`
         *,
         client:clients(*),
-        services:booking_services(
-          id,
-          service:services(*),
-          is_completed
-        )
+        services:booking_services(id, service:services(*), is_completed)
       `)
       .in('id', bookingIds);
+    
+    if (bookingsError) {
+      console.error('Error fetching bookings for contractor:', bookingsError);
+    }
 
     const jobsWithBookings = assignments?.map(a => ({
       ...a,

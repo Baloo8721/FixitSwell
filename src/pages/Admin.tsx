@@ -308,20 +308,41 @@ const Admin = () => {
     community: '',
     date: undefined as Date | undefined,
     timeSlot: '',
+    durationHours: 1,
     services: [] as string[],
     notes: '',
     source: 'phone' as 'website' | 'phone' | 'in_person' | 'referral' | 'subscription' | 'other'
   });
   const [newBookingServiceSearch, setNewBookingServiceSearch] = useState('');
+  
+  // Duration options (same as main booking calendar)
+  const DURATION_OPTIONS = [
+    { hours: 1, label: '1 hour' },
+    { hours: 2, label: '2 hours' },
+    { hours: 3, label: '3 hours' },
+    { hours: 4, label: '4 hours' },
+  ];
+
+  const loadTimeSlotsForDate = async (date: Date, durationHours: number) => {
+    setLoadingSlots(true);
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const durationMinutes = durationHours * 60;
+    const slots = await getAvailableTimeSlots(dateStr, durationMinutes);
+    setAvailableSlots(slots);
+    setLoadingSlots(false);
+  };
 
   const handleNewBookingDateChange = async (date: Date | undefined) => {
     setNewBooking(prev => ({ ...prev, date, timeSlot: '' }));
     if (date) {
-      setLoadingSlots(true);
-      const dateStr = format(date, 'yyyy-MM-dd');
-      const slots = await getAvailableTimeSlots(dateStr);
-      setAvailableSlots(slots);
-      setLoadingSlots(false);
+      loadTimeSlotsForDate(date, newBooking.durationHours);
+    }
+  };
+  
+  const handleNewBookingDurationChange = (hours: number) => {
+    setNewBooking(prev => ({ ...prev, durationHours: hours, timeSlot: '' }));
+    if (newBooking.date) {
+      loadTimeSlotsForDate(newBooking.date, hours);
     }
   };
 
@@ -595,6 +616,7 @@ const Admin = () => {
   // Calendar view modal state
   const [showCalendarView, setShowCalendarView] = useState(false);
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | undefined>(undefined);
+  const [calendarScheduleFilter, setCalendarScheduleFilter] = useState<'all' | 'admin' | string>('all');
 
   // Extended stats state
   const [extendedStats, setExtendedStats] = useState<ExtendedStats>({
@@ -954,6 +976,7 @@ const Admin = () => {
       community: newBooking.community,
       date: format(newBooking.date, 'yyyy-MM-dd'),
       time_slot: newBooking.timeSlot,
+      duration_minutes: newBooking.durationHours * 60,
       services: newBooking.services,
       notes: newBooking.notes,
       booking_source: newBooking.source
@@ -981,6 +1004,7 @@ const Admin = () => {
         community: '',
         date: undefined,
         timeSlot: '',
+        durationHours: 1,
         services: [],
         notes: '',
         source: 'phone'
@@ -1497,15 +1521,24 @@ Questions? Call us anytime.
     }
   };
 
+  // Filter bookings based on calendar schedule filter
+  const filterBookingBySchedule = (b: BookingWithDetails) => {
+    if (calendarScheduleFilter === 'all') return true;
+    if (calendarScheduleFilter === 'admin') return !b.is_contracted_out;
+    return b.assigned_contractor_id === calendarScheduleFilter;
+  };
+
   // Get bookings for a specific date (for calendar view)
   const getBookingsForDate = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    return bookings.filter(b => b.date === dateStr);
+    return bookings.filter(b => b.date === dateStr && filterBookingBySchedule(b));
   };
 
-  // Get dates with bookings (for calendar highlighting)
+  // Get dates with bookings (for calendar highlighting) - respects filter
   const datesWithBookings = bookings.reduce((acc, b) => {
-    acc.add(b.date);
+    if (filterBookingBySchedule(b)) {
+      acc.add(b.date);
+    }
     return acc;
   }, new Set<string>());
 
@@ -1896,6 +1929,26 @@ Questions? Call us anytime.
                       </div>
                     </div>
 
+                    {/* Duration Block Selection */}
+                    <div className="space-y-2">
+                      <Label>Time Block</Label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {DURATION_OPTIONS.map((option) => (
+                          <button
+                            key={option.hours}
+                            onClick={() => handleNewBookingDurationChange(option.hours)}
+                            className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                              newBooking.durationHours === option.hours
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'border-border bg-card hover:border-primary/50 hover:bg-primary/5 text-foreground'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* Date & Time */}
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -1916,7 +1969,7 @@ Questions? Call us anytime.
                               <Loader2 className="w-6 h-6 animate-spin text-primary" />
                             </div>
                           ) : (
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
                               {availableSlots.map((slot) => (
                                 <button
                                   key={slot.id}
@@ -1937,6 +1990,13 @@ Questions? Call us anytime.
                           )
                         ) : (
                           <p className="text-sm text-muted-foreground py-4">Select a date first</p>
+                        )}
+                        {newBooking.timeSlot && newBooking.date && (
+                          <div className="bg-primary/10 rounded-lg p-2 text-center mt-2">
+                            <p className="text-primary font-medium text-sm">
+                              Selected: {format(newBooking.date, 'MMM d')} at {availableSlots.find(s => s.time === newBooking.timeSlot)?.label} ({newBooking.durationHours}hr block)
+                            </p>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -2532,6 +2592,12 @@ Questions? Call us anytime.
                                     </Badge>
                                   ) : null}
                                   {getStatusBadge(booking.status, booking.cancelled_by)}
+                                  {/* Contractor assigned badge */}
+                                  {booking.is_contracted_out && booking.assigned_contractor_id && (
+                                    <Badge className="bg-purple-100 text-purple-700 border-purple-300 text-xs">
+                                      👷 {contractors.find(c => c.id === booking.assigned_contractor_id)?.name || 'Contractor'}
+                                    </Badge>
+                                  )}
                                   {booking.is_follow_up && (
                                     <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 text-xs flex items-center gap-1">
                                       <RotateCcw className="w-3 h-3" />
@@ -3693,15 +3759,35 @@ Questions? Call us anytime.
                                       )}
                                       Confirm
                                     </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="destructive"
-                                      onClick={() => handleStatusUpdate(booking.id, 'cancelled')}
-                                      disabled={updatingId === booking.id}
-                                    >
-                                      <XCircle className="w-4 h-4 mr-1" />
-                                      Cancel
-                                    </Button>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          disabled={updatingId === booking.id}
+                                        >
+                                          <XCircle className="w-4 h-4 mr-1" />
+                                          Cancel
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Cancel this booking?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Are you sure you want to cancel the booking for {booking.client?.name} on {format(parseISO(booking.date), 'MMMM d')} at {booking.time_slot}? This action cannot be undone.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Keep Booking</AlertDialogCancel>
+                                          <AlertDialogAction 
+                                            onClick={() => handleStatusUpdate(booking.id, 'cancelled')}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          >
+                                            Yes, Cancel Booking
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
                                   </>
                                 )}
                                 {booking.status === 'confirmed' && (
@@ -3787,15 +3873,35 @@ Questions? Call us anytime.
                                     >
                                       No Show
                                     </Button>
-                                    <Button
-                                      size="sm"
-                                      variant="destructive"
-                                      onClick={() => handleStatusUpdate(booking.id, 'cancelled')}
-                                      disabled={updatingId === booking.id}
-                                    >
-                                      <XCircle className="w-4 h-4 mr-1" />
-                                      Cancel
-                                    </Button>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          disabled={updatingId === booking.id}
+                                        >
+                                          <XCircle className="w-4 h-4 mr-1" />
+                                          Cancel
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Cancel this booking?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Are you sure you want to cancel the booking for {booking.client?.name} on {format(parseISO(booking.date), 'MMMM d')} at {booking.time_slot}? This action cannot be undone.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Keep Booking</AlertDialogCancel>
+                                          <AlertDialogAction 
+                                            onClick={() => handleStatusUpdate(booking.id, 'cancelled')}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          >
+                                            Yes, Cancel Booking
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
                                   </>
                                 )}
                                 {booking.status === 'completed' && (
@@ -5330,6 +5436,7 @@ Questions? Call us anytime.
                                   community: client.community || '',
                                   date: undefined,
                                   timeSlot: '',
+                                  durationHours: 1,
                                   services: [],
                                   notes: '',
                                   source: 'phone'
@@ -5385,9 +5492,25 @@ Questions? Call us anytime.
       <Dialog open={showCalendarView} onOpenChange={setShowCalendarView}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CalendarIcon className="w-5 h-5" />
-              Calendar View
+            <DialogTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <CalendarIcon className="w-5 h-5" />
+                Calendar View
+              </span>
+              <Select value={calendarScheduleFilter} onValueChange={setCalendarScheduleFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filter schedule..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">📅 All Schedules</SelectItem>
+                  <SelectItem value="admin">🏠 My Schedule (Admin)</SelectItem>
+                  {contractors.map(c => (
+                    <SelectItem key={c.id} value={c.id}>
+                      👷 {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </DialogTitle>
           </DialogHeader>
           <div className="grid md:grid-cols-2 gap-6">
@@ -5922,6 +6045,15 @@ Questions? Call us anytime.
                     />
                   </div>
                   <div>
+                    <Label className="text-xs">Email</Label>
+                    <Input
+                      type="email"
+                      value={newContractor.email}
+                      onChange={(e) => setNewContractor(p => ({ ...p, email: e.target.value }))}
+                      placeholder="Email"
+                    />
+                  </div>
+                  <div>
                     <Label className="text-xs">Owner Cut %</Label>
                     <Input
                       type="number"
@@ -5949,9 +6081,16 @@ Questions? Call us anytime.
                 contractors.map(c => (
                   <div key={c.id} className={`p-3 border rounded-lg ${c.is_active ? 'bg-white' : 'bg-gray-100 opacity-60'}`}>
                     <div className="flex items-center justify-between">
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <p className="font-medium">{c.name}</p>
-                        <p className="text-xs text-muted-foreground">PIN: {c.pin_code} | Cut: {c.owner_cut_percent}%</p>
+                        <p className="text-xs text-muted-foreground">
+                          {c.phone && <span className="mr-2">📱 {c.phone}</span>}
+                          {c.email && <span className="mr-2">✉️ {c.email}</span>}
+                        </p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-2">
+                          <span>PIN: <span className="font-mono bg-secondary px-1 rounded select-all">{c.pin_code}</span></span>
+                          <span>| Cut: {c.owner_cut_percent}%</span>
+                        </p>
                       </div>
                       <Button
                         size="sm"
