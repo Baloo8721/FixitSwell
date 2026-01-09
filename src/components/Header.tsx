@@ -19,42 +19,50 @@ const Header = () => {
       <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border">
         <div className="container max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            {/* Logo */}
-            <a href="/">
-              <img src={logo} alt="FixitSwell - Your Go-To Home Helper" className="h-20 md:h-24 w-auto" />
+            {/* Logo - original sizing restored */}
+            <a href="/" className="flex-shrink-0">
+              <img 
+                src={logo} 
+                alt="FixitSwell - Your Go-To Home Helper" 
+                className="h-20 md:h-24 w-auto" 
+              />
             </a>
 
-            {/* Desktop Nav */}
-            <nav className="hidden md:flex items-center gap-6">
+            {/* Desktop Nav - centered links with CTA buttons */}
+            <nav className="hidden md:flex flex-1 items-center justify-center gap-5 lg:gap-8">
               {navLinks.map((link) => (
                 <a
                   key={link.href}
                   href={link.href}
-                  className="text-muted-foreground hover:text-foreground transition-colors font-medium"
+                  className="text-foreground hover:text-primary transition-colors font-semibold text-base lg:text-lg whitespace-nowrap"
                 >
                   {link.label}
                 </a>
               ))}
               <button
                 onClick={() => setIsAboutOpen(true)}
-                className="text-muted-foreground hover:text-foreground transition-colors font-medium flex items-center gap-1"
+                className="text-foreground hover:text-primary transition-colors font-semibold text-base lg:text-lg flex items-center gap-1.5 whitespace-nowrap"
               >
-                <Info className="w-4 h-4" />
+                <Info className="w-4 h-4 lg:w-5 lg:h-5" />
                 About Us
               </button>
-              <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl">
-                <a href="#booking">
-                  <CalendarDays className="w-4 h-4 mr-2" />
-                  Book Now
-                </a>
-              </Button>
-              <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl">
+            </nav>
+            
+            {/* CTA Buttons - stacked on tablet, side-by-side on large */}
+            <div className="hidden md:flex flex-col lg:flex-row gap-1.5 lg:gap-2 flex-shrink-0">
+              <Button asChild size="sm" className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl text-xs lg:text-sm px-3 lg:px-4">
                 <a href="tel:+18137381655">
-                  <Phone className="w-4 h-4 mr-2" />
+                  <Phone className="w-4 h-4 mr-1.5" />
                   Call Now
                 </a>
               </Button>
-            </nav>
+              <Button asChild size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs lg:text-sm px-3 lg:px-4">
+                <a href="#booking">
+                  <CalendarDays className="w-4 h-4 mr-1.5" />
+                  Book Now
+                </a>
+              </Button>
+            </div>
 
             {/* Mobile Menu Button */}
             <button

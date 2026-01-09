@@ -4,13 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { 
   CalendarDays, 
   Clock, 
@@ -22,110 +17,50 @@ import {
   CalendarCheck,
   Send,
   Loader2,
-  Info,
   MapPin,
   User,
   Camera,
   X,
-  ImagePlus
+  ImagePlus,
+  Plus,
+  ChevronDown,
+  Search,
+  AlertTriangle
 } from "lucide-react";
 import { format, addDays, isBefore, startOfToday } from "date-fns";
 import { 
   DEFAULT_TIME_SLOTS, 
-  SERVICE_OPTIONS, 
   createBooking,
   getAvailableTimeSlots,
+  getServicesForBooking,
+  findNextAvailableDayForDuration,
+  getAvailableMinutesFromSlot,
   trackEvent,
   uploadBookingImage,
-  type TimeSlot 
+  type TimeSlot,
+  type ServiceOption
 } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 
-// Service details for info popovers (Individual Services)
-const SERVICE_DETAILS: Record<string, { features: string[] }> = {
-  'assembly': {
-    features: [
-      'Furniture Assembly — Beds, desks, shelves, IKEA/Wayfair ($50–$150)',
-      'TV & Wall Mounting — TVs, shelves, mirrors, soundbars ($75–$200)',
-      'Appliance Hookups — Washers, dryers, microwaves ($80–$200)'
-    ]
-  },
-  'tech': {
-    features: [
-      'Smart Device Setup — Doorbells, cameras, lights, Wi-Fi ($75–$200)',
-      'Streaming & Remote Help — TV apps, phones, troubleshooting ($50–$150)',
-      'Scam Awareness Tips — Stay safe online'
-    ]
-  },
-  'repairs': {
-    features: [
-      'Door & Window Adjustments — Squeaks, alignment, screens ($50–$200)',
-      'Minor Repairs — Hinges, caulking, patch small holes ($50–$150)',
-      'Skirting & Exterior Fixes — Vinyl skirting, mailbox, rails ($80–$200)',
-      'Touch-Up Painting — Walls, trim, doors ($150–$500)'
-    ]
-  },
-  'safety': {
-    features: [
-      'Grab Bars & Fall Prevention — Non-slip mats, night lights ($100–$300)',
-      'Light Bulb, Battery & Filter Changes — Hard-to-reach ($40–$100)',
-      'Errands & Personal Assistance — Pharmacy/store runs ($30–$100/hr)',
-      'Wait-at-Home Help — Wait for contractors/deliveries ($50–$150)'
-    ]
-  },
-  'outdoor': {
-    features: [
-      'Window & Pressure Washing — Windows, driveways, patios ($80–$300)',
-      'Gutter Cleaning & Awning Care — Single-story gutters ($100–$250)',
-      'Light Yard Cleanup — Trimming, weeding, mulch ($100–$300)',
-      'Storm & Holiday Prep — Hurricane prep, holiday lights ($100–$300)'
-    ]
-  },
-  'organizing': {
-    features: [
-      'Interior & Garage Organizing — Closets, kitchens, sheds ($75–$500)',
-      'Junk Sorting & Valuation — Help price items for sales',
-      'Bicycle & Scooter Tune-Ups — Lube, inflate, adjust ($40–$100)',
-      'Pet Gate & Enclosure Setup — Non-permanent installs ($80–$150)'
-    ]
+// Format price for display (cents to dollars)
+const formatPrice = (priceMin: number | null, priceMax?: number | null): string => {
+  if (!priceMin) return '';
+  const min = priceMin / 100;
+  if (priceMax && priceMax !== priceMin) {
+    const max = priceMax / 100;
+    return `$${min}–$${max}`;
   }
+  return `$${min}`;
 };
 
-// Package details for info popovers
-const PACKAGE_DETAILS: Record<string, { price: string; duration: string; features: string[]; bestFor?: string }> = {
-  'tune-up': {
-    price: '$150–$250',
-    duration: '2 hours',
-    features: ['Light bulb replacement', 'Battery changes (smoke detectors, remotes)', 'Filter replacements (AC/water)', 'Door tweaks & adjustments']
-  },
-  'seasonal': {
-    price: '$200–$350',
-    duration: '3 hours',
-    features: ['Gutter cleaning', 'Seals & caulking check', 'Skirting wash', 'Storm or hurricane prep']
-  },
-  'move-assist': {
-    price: '$200–$600',
-    duration: 'Half day',
-    features: ['Furniture setup & assembly', 'Light cleanup', 'Minor fixes & touch-ups', 'Organizing help']
-  },
-  'peace-of-mind': {
-    price: '$99–$149/month',
-    duration: '1–1.5 hrs/visit',
-    features: ['Monthly safety walkthrough', 'Check for leaks, doors, detectors', 'Small adjustments included', 'Peace of mind for you & family'],
-    bestFor: 'Seniors living alone'
-  },
-  'tech-support': {
-    price: '$119–$169/month',
-    duration: '1–2 hrs/visit',
-    features: ['Tech help (TV, phone, Wi-Fi)', 'Scam awareness tips', 'Minor home fixes included', 'Patient, friendly teaching'],
-    bestFor: 'Tech-frustrated residents'
-  },
-  'helper-plan': {
-    price: '$139–$199/month',
-    duration: '1–2 hrs/visit',
-    features: ['Errands & store runs', 'Mail sorting & admin help', 'Organizing assistance', 'Wait for deliveries/contractors'],
-    bestFor: 'Busy or mobility-limited'
-  }
+// Site category display names
+const SITE_CATEGORY_LABELS: Record<string, string> = {
+  'assembly': 'Assembly & Mounting',
+  'tech': 'Tech & Security',
+  'repairs': 'Repairs & Maintenance',
+  'safety': 'Safety & Senior Care',
+  'outdoor': 'Outdoor & Seasonal',
+  'organizing': 'Organizing & Cleaning'
 };
 
 type BookingStep = 'datetime' | 'services' | 'details' | 'confirm';
@@ -137,12 +72,22 @@ interface UploadedImage {
   url?: string;
 }
 
+// Selected service with full details for display
+interface SelectedService {
+  id: string;
+  name: string;
+  category: 'service' | 'package' | 'monthly';
+  price: string;
+  durationMinutes: number;
+}
+
 interface BookingData {
   date: Date | undefined;
   timeSlot: string;
   timeLabel: string;
   durationHours: number;
-  services: string[];
+  services: SelectedService[];
+  selectedPlanId: string | null; // For monthly subscription tracking
   customNotes: string;
   name: string;
   email: string;
@@ -171,12 +116,23 @@ const BookingCalendar = () => {
   const cardRef = useRef<HTMLDivElement>(null);
   const timeSlotsRef = useRef<HTMLDivElement>(null);
   
+  // Services fetched from Supabase (includes individual services, packages, bundles, and monthly plans)
+  const [allServices, setAllServices] = useState<ServiceOption[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(true);
+  
+  // Dropdown open states
+  const [servicesDropdownOpen, setServicesDropdownOpen] = useState(false);
+  const [packagesDropdownOpen, setPackagesDropdownOpen] = useState(false);
+  const [plansDropdownOpen, setPlansDropdownOpen] = useState(false);
+  const [serviceSearch, setServiceSearch] = useState('');
+  
   const [bookingData, setBookingData] = useState<BookingData>({
     date: undefined,
     timeSlot: '',
     timeLabel: '',
     durationHours: 1,
     services: [],
+    selectedPlanId: null,
     customNotes: '',
     name: '',
     email: '',
@@ -188,6 +144,51 @@ const BookingCalendar = () => {
   });
   const [uploadingImages, setUploadingImages] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const servicesDropdownRef = useRef<HTMLDivElement>(null);
+  const packagesDropdownRef = useRef<HTMLDivElement>(null);
+  const plansDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Time conflict detection
+  const [timeConflict, setTimeConflict] = useState<{
+    hasConflict: boolean;
+    requiredMinutes: number;
+    availableMinutes: number;
+    suggestedDay: { date: string; startTime: string; startTimeLabel: string } | null;
+  }>({ hasConflict: false, requiredMinutes: 0, availableMinutes: 0, suggestedDay: null });
+  const [findingAlternative, setFindingAlternative] = useState(false);
+
+  // Fetch all services on mount (includes individual, packages, bundles, monthly plans)
+  useEffect(() => {
+    const loadServices = async () => {
+      setServicesLoading(true);
+      const servicesResult = await getServicesForBooking();
+      
+      if (servicesResult.data) {
+        setAllServices(servicesResult.data);
+      }
+      setServicesLoading(false);
+    };
+    
+    loadServices();
+  }, []);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (servicesDropdownRef.current && !servicesDropdownRef.current.contains(event.target as Node)) {
+        setServicesDropdownOpen(false);
+      }
+      if (packagesDropdownRef.current && !packagesDropdownRef.current.contains(event.target as Node)) {
+        setPackagesDropdownOpen(false);
+      }
+      if (plansDropdownRef.current && !plansDropdownRef.current.contains(event.target as Node)) {
+        setPlansDropdownOpen(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Fetch available time slots when date or duration changes
   useEffect(() => {
@@ -220,6 +221,57 @@ const BookingCalendar = () => {
       }
     }
   }, [availableSlots, bookingData.timeSlot]);
+
+  // Check for time conflicts when services change
+  useEffect(() => {
+    const checkTimeConflict = async () => {
+      // Only check if we have a date, time slot, and services selected
+      if (!bookingData.date || !bookingData.timeSlot || bookingData.services.length === 0) {
+        setTimeConflict({ hasConflict: false, requiredMinutes: 0, availableMinutes: 0, suggestedDay: null });
+        return;
+      }
+      
+      const requiredMinutes = bookingData.services.reduce((sum, s) => sum + s.durationMinutes, 0);
+      const dateStr = format(bookingData.date, 'yyyy-MM-dd');
+      const availableMinutes = await getAvailableMinutesFromSlot(dateStr, bookingData.timeSlot);
+      
+      if (requiredMinutes > availableMinutes) {
+        // There's a conflict - find the next available day
+        const suggestedDay = await findNextAvailableDayForDuration(dateStr, requiredMinutes);
+        setTimeConflict({
+          hasConflict: true,
+          requiredMinutes,
+          availableMinutes,
+          suggestedDay
+        });
+      } else {
+        setTimeConflict({ hasConflict: false, requiredMinutes, availableMinutes, suggestedDay: null });
+      }
+    };
+    
+    checkTimeConflict();
+  }, [bookingData.date, bookingData.timeSlot, bookingData.services]);
+
+  // Get services grouped by category
+  const individualServices = allServices.filter(s => s.category === 'service');
+  const packageServices = allServices.filter(s => s.category === 'package');
+  const monthlyPlans = allServices.filter(s => s.category === 'monthly');
+  
+  // Group individual services by site_category
+  const servicesByCategory = individualServices.reduce((acc, service) => {
+    const cat = service.site_category || 'other';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(service);
+    return acc;
+  }, {} as Record<string, ServiceOption[]>);
+
+  // Filter services based on search
+  const filteredServices = serviceSearch.trim() 
+    ? individualServices.filter(s => 
+        s.name.toLowerCase().includes(serviceSearch.toLowerCase()) ||
+        s.description?.toLowerCase().includes(serviceSearch.toLowerCase())
+      )
+    : individualServices;
 
   const steps: { id: BookingStep; label: string; icon: React.ReactNode }[] = [
     { id: 'datetime', label: 'Date & Time', icon: <CalendarDays className="w-5 h-5" /> },
@@ -286,7 +338,17 @@ const BookingCalendar = () => {
     }
     
     // Combine custom notes with regular notes
-    const allNotes = [bookingData.customNotes, bookingData.notes].filter(Boolean).join('\n\n');
+    let allNotes = [bookingData.customNotes, bookingData.notes].filter(Boolean).join('\n\n');
+    
+    // Add multi-visit warning if there's a time conflict
+    if (timeConflict.hasConflict) {
+      const totalHours = (timeConflict.requiredMinutes / 60).toFixed(1).replace(/\.0$/, '');
+      const multiVisitNote = `⚠️ MULTI-VISIT NEEDED: Services total ${totalHours} hours but only ${(timeConflict.availableMinutes / 60).toFixed(1).replace(/\.0$/, '')} hours available from chosen time slot. Please coordinate additional visit(s).`;
+      allNotes = allNotes ? `${multiVisitNote}\n\n${allNotes}` : multiVisitNote;
+    }
+    
+    // Extract service names for the API (backward compatible)
+    const serviceNames = bookingData.services.map(s => s.name);
     
     const bookingPayload = {
       name: bookingData.name,
@@ -295,7 +357,8 @@ const BookingCalendar = () => {
       date: format(bookingData.date, 'yyyy-MM-dd'),
       time_slot: bookingData.timeSlot,
       duration_minutes: bookingData.durationHours * 60,
-      services: bookingData.services,
+      services: serviceNames,
+      subscription_plan_id: bookingData.selectedPlanId || undefined,
       notes: allNotes || undefined,
       address: bookingData.address,
       community: bookingData.community || undefined,
@@ -317,8 +380,9 @@ const BookingCalendar = () => {
       
       trackEvent('booking_completed', {
         booking_id: data.booking.id,
-        services: bookingData.services,
-        date: bookingPayload.date
+        services: serviceNames,
+        date: bookingPayload.date,
+        has_subscription: !!bookingData.selectedPlanId
       }, data.client.id);
     }
     
@@ -329,13 +393,92 @@ const BookingCalendar = () => {
     });
   };
 
-  const handleServiceToggle = (serviceId: string) => {
+  // Add a service to the booking
+  // Calculate recommended duration based on total service minutes
+  const calculateRecommendedDuration = (services: SelectedService[]): number => {
+    const totalMinutes = services.reduce((sum, s) => sum + s.durationMinutes, 0);
+    // Round up to nearest hour, minimum 1hr, maximum 4hr
+    const hours = Math.ceil(totalMinutes / 60);
+    return Math.max(1, Math.min(4, hours || 1));
+  };
+
+  // Add a service to the booking
+  const handleAddService = (service: ServiceOption) => {
+    const isAlreadySelected = bookingData.services.some(s => s.id === service.id);
+    if (isAlreadySelected) return;
+    
+    const newService: SelectedService = {
+      id: service.id,
+      name: service.name,
+      category: service.category as 'service' | 'package' | 'monthly',
+      price: formatPrice(service.price_min, service.price_max),
+      durationMinutes: service.duration_minutes || 30 // Default 30 min if not specified
+    };
+    
+    const updatedServices = [...bookingData.services, newService];
+    const recommendedDuration = calculateRecommendedDuration(updatedServices);
+    
     setBookingData(prev => ({
       ...prev,
-      services: prev.services.includes(serviceId)
-        ? prev.services.filter(s => s !== serviceId)
-        : [...prev.services, serviceId]
+      services: updatedServices,
+      durationHours: recommendedDuration
     }));
+    
+    // Close dropdowns and clear search
+    setServicesDropdownOpen(false);
+    setPackagesDropdownOpen(false);
+    setServiceSearch('');
+  };
+
+  // Add a monthly plan to the booking
+  const handleAddPlan = (plan: ServiceOption) => {
+    const isAlreadySelected = bookingData.services.some(s => s.id === plan.id);
+    if (isAlreadySelected) return;
+    
+    const isCustomPlan = plan.id === 'monthly-custom';
+    
+    const newService: SelectedService = {
+      id: plan.id,
+      name: isCustomPlan ? 'Custom Monthly Plan (Quote Request)' : plan.name,
+      category: 'monthly',
+      price: isCustomPlan ? 'We\'ll call with pricing' : formatPrice(plan.price_min, plan.price_max) + '/mo',
+      durationMinutes: plan.duration_minutes || 90 // Monthly plans typically 1.5hr visits
+    };
+    
+    const updatedServices = [...bookingData.services, newService];
+    const recommendedDuration = calculateRecommendedDuration(updatedServices);
+    
+    setBookingData(prev => ({
+      ...prev,
+      services: updatedServices,
+      selectedPlanId: plan.id,
+      durationHours: recommendedDuration
+    }));
+    
+    setPlansDropdownOpen(false);
+  };
+
+  // Remove a service from the booking
+  // Remove a service from the booking and recalculate duration
+  const handleRemoveService = (serviceId: string) => {
+    setBookingData(prev => {
+      const updatedServices = prev.services.filter(s => s.id !== serviceId);
+      const recommendedDuration = updatedServices.length > 0 
+        ? calculateRecommendedDuration(updatedServices) 
+        : 1; // Default to 1 hour if no services
+      
+      return {
+        ...prev,
+        services: updatedServices,
+        selectedPlanId: prev.selectedPlanId === serviceId ? null : prev.selectedPlanId,
+        durationHours: recommendedDuration
+      };
+    });
+  };
+
+  // Check if a service is already selected
+  const isServiceSelected = (serviceId: string) => {
+    return bookingData.services.some(s => s.id === serviceId);
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -389,57 +532,6 @@ const BookingCalendar = () => {
     return uploadedUrls;
   };
 
-  // Info popover component for packages/plans
-  // Info popover that works for both services and packages
-  const InfoPopover = ({ serviceId, type = 'package' }: { serviceId: string; type?: 'service' | 'package' }) => {
-    const packageDetails = PACKAGE_DETAILS[serviceId];
-    const serviceDetails = SERVICE_DETAILS[serviceId];
-    const details = type === 'service' ? serviceDetails : packageDetails;
-    
-    if (!details) return null;
-    
-    return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <button 
-            type="button"
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded-full text-sm font-medium transition-all border border-primary/30 hover:border-primary/50"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Info className="w-4 h-4" />
-            <span className="hidden sm:inline">Details</span>
-          </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-80 p-4" side="top">
-          <div className="space-y-3">
-            {'price' in details && 'duration' in details && (
-              <div className="flex items-center justify-between pb-2 border-b border-border">
-                <span className="font-heading font-semibold text-primary">{details.price}</span>
-                <span className="text-sm text-muted-foreground">{details.duration}</span>
-              </div>
-            )}
-            {'bestFor' in details && details.bestFor && (
-              <p className="text-sm text-accent font-medium">Best for: {details.bestFor}</p>
-            )}
-            <div>
-              {type === 'package' && (
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2 font-medium">What's included:</p>
-              )}
-              <ul className="space-y-2">
-                {details.features.map((feature, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-foreground">
-                    <span className="text-primary mt-0.5 font-bold">✓</span>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </PopoverContent>
-      </Popover>
-    );
-  };
-
   if (bookingComplete) {
     return (
       <Card className="max-w-2xl mx-auto border-2 border-primary/30 bg-card">
@@ -460,9 +552,7 @@ const BookingCalendar = () => {
               <li><strong>Time:</strong> {bookingData.timeLabel} ({bookingData.durationHours}hr block)</li>
               <li><strong>Address:</strong> {bookingData.address}</li>
               {bookingData.services.length > 0 && (
-                <li><strong>Services:</strong> {bookingData.services.map(s => 
-                  SERVICE_OPTIONS.find(opt => opt.id === s)?.label
-                ).join(', ')}</li>
+                <li><strong>Services:</strong> {bookingData.services.map(s => s.name).join(', ')}</li>
               )}
             </ul>
           </div>
@@ -476,6 +566,7 @@ const BookingCalendar = () => {
                 timeLabel: '',
                 durationHours: 1,
                 services: [],
+                selectedPlanId: null,
                 customNotes: '',
                 name: '',
                 email: '',
@@ -551,12 +642,69 @@ const BookingCalendar = () => {
         {/* Step 1: Date & Time Selection (Combined) */}
         {currentStep === 'datetime' && (
           <div className="space-y-6">
+            {/* Finding Alternative Date Banner */}
+            {findingAlternative && timeConflict.suggestedDay && (
+              <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <CalendarDays className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm text-green-800 font-medium mb-1">
+                      We found a day that fits all your services!
+                    </p>
+                    <p className="text-base text-green-700 font-semibold mb-2">
+                      {format(new Date(timeConflict.suggestedDay.date + 'T12:00:00'), 'EEEE, MMMM d')} at {timeConflict.suggestedDay.startTimeLabel}
+                    </p>
+                    <p className="text-xs text-green-600 mb-3">
+                      Select this date on the calendar below, or choose a different day.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => {
+                          const suggested = timeConflict.suggestedDay!;
+                          const newDate = new Date(suggested.date + 'T12:00:00');
+                          setBookingData(prev => ({
+                            ...prev,
+                            date: newDate,
+                            timeSlot: suggested.startTime,
+                            timeLabel: suggested.startTimeLabel
+                          }));
+                          setFindingAlternative(false);
+                          setCurrentStep('services');
+                          toast({
+                            title: "Date Confirmed!",
+                            description: `Booked for ${format(newDate, 'EEEE, MMMM d')} at ${suggested.startTimeLabel}`
+                          });
+                        }}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        Use This Date
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="border-green-400 text-green-700 hover:bg-green-100"
+                        onClick={() => setFindingAlternative(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="text-center mb-6">
               <h3 className="font-heading text-heading-sm text-foreground mb-2">
-                Pick a Date & Time
+                {findingAlternative ? 'Choose a New Date' : 'Pick a Date & Time'}
               </h3>
               <p className="text-lg text-muted-foreground">
-                Select when you'd like us to come by
+                {findingAlternative 
+                  ? 'Select a date that fits all your services' 
+                  : "Select when you'd like us to come by"}
               </p>
             </div>
             
@@ -566,7 +714,11 @@ const BookingCalendar = () => {
                 <Calendar
                   mode="single"
                   selected={bookingData.date}
-                  onSelect={(date) => setBookingData(prev => ({ ...prev, date, timeSlot: '', timeLabel: '' }))}
+                  onSelect={(date) => {
+                    setBookingData(prev => ({ ...prev, date, timeSlot: '', timeLabel: '' }));
+                    // Clear findingAlternative mode when user manually picks a date
+                    if (findingAlternative) setFindingAlternative(false);
+                  }}
                   disabled={(date) => isBefore(date, startOfToday()) || isBefore(addDays(new Date(), 60), date)}
                   className="rounded-xl border-2 border-border p-3 sm:p-4 bg-background pointer-events-auto w-full min-w-[320px] max-w-[360px]"
                   classNames={{
@@ -682,7 +834,7 @@ const BookingCalendar = () => {
           </div>
         )}
 
-        {/* Step 2: Services Selection - Classic Checklist Style */}
+        {/* Step 2: Services Selection - Searchable Dropdowns */}
         {currentStep === 'services' && (
           <div className="space-y-6">
             <div className="text-center mb-6">
@@ -690,239 +842,438 @@ const BookingCalendar = () => {
                 What Do You Need Help With?
               </h3>
               <p className="text-lg text-muted-foreground">
-                Check all that apply
+                Tap to select services, or describe what you need below
               </p>
             </div>
 
-            {/* Classic Paper Checklist Container */}
-            <div className="bg-amber-50/50 border-2 border-amber-200/50 rounded-lg p-6 shadow-inner">
-              
-              {/* Individual Services */}
-              <div className="mb-6">
-                <h4 className="font-heading text-xl text-foreground mb-4 pb-2 border-b-2 border-amber-300/50 flex items-center gap-2">
-                  <Wrench className="w-5 h-5 text-primary" />
-                  Individual Services
-                  <span className="text-sm font-normal text-muted-foreground">
-                    (tap Details for pricing)
-                  </span>
-                </h4>
-                <ul className="space-y-3">
-                  {SERVICE_OPTIONS.filter(s => s.category === 'service').map((service) => (
-                    <li key={service.id}>
-                      <label
-                        className={`flex items-center gap-4 cursor-pointer group py-2 px-3 -mx-3 rounded-lg transition-colors ${
-                          bookingData.services.includes(service.id)
-                            ? 'bg-primary/10'
-                            : 'hover:bg-amber-100/50'
-                        }`}
-                      >
-                        <div className={`w-7 h-7 border-2 rounded flex items-center justify-center transition-all ${
-                          bookingData.services.includes(service.id)
-                            ? 'bg-primary border-primary'
-                            : 'border-gray-400 bg-white'
-                        }`}>
-                          {bookingData.services.includes(service.id) && (
-                            <CheckCircle2 className="w-5 h-5 text-white" />
-                          )}
-                        </div>
-                        <Checkbox
-                          checked={bookingData.services.includes(service.id)}
-                          onCheckedChange={() => handleServiceToggle(service.id)}
-                          className="sr-only"
-                        />
-                        <span className={`text-xl flex-1 transition-all ${
-                          bookingData.services.includes(service.id)
-                            ? 'text-primary font-medium'
-                            : 'text-foreground'
-                        }`}>
-                          {service.label}
-                        </span>
-                        <InfoPopover serviceId={service.id} type="service" />
-                      </label>
-                    </li>
-                  ))}
-                </ul>
+            {servicesLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
-
-              {/* Custom Notes */}
-              <div className="mb-6 pb-6 border-b-2 border-amber-300/30">
-                <Label htmlFor="custom-notes" className="text-lg text-foreground font-medium block mb-2">
-                  Tell us what you need — describe your project or request:
-                </Label>
-                <Textarea
-                  id="custom-notes"
-                  value={bookingData.customNotes}
-                  onChange={(e) => setBookingData(prev => ({ ...prev, customNotes: e.target.value }))}
-                  placeholder="e.g., Hang 3 pictures in living room, fix squeaky bedroom door, need help setting up new TV..."
-                  rows={6}
-                  className="text-lg bg-white border-2 border-gray-300 rounded-lg resize-none"
-                />
+            ) : (
+              <div className="bg-amber-50/50 border-2 border-amber-200/50 rounded-lg p-4 sm:p-6 shadow-inner space-y-6">
                 
-                {/* Image Upload Section */}
-                <div className="mt-4">
-                  <Label className="text-lg text-foreground font-medium block mb-2">
-                    Add photos (optional) — show us what you need help with:
-                  </Label>
-                  
-                  {/* Image Preview Grid */}
-                  {bookingData.images.length > 0 && (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3">
-                      {bookingData.images.map((img, index) => (
-                        <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 border-2 border-gray-200">
-                          <img
-                            src={img.preview}
-                            alt={`Upload ${index + 1}`}
-                            className="w-full h-full object-cover"
-                          />
+                {/* Selected Services Display */}
+                {bookingData.services.length > 0 && (
+                  <div className="bg-white rounded-lg p-4 border-2 border-green-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-medium text-muted-foreground">Selected Services:</p>
+                      <p className="text-sm text-muted-foreground">
+                        Total: <span className="font-semibold text-foreground">
+                          {(() => {
+                            const totalMins = bookingData.services.reduce((sum, s) => sum + s.durationMinutes, 0);
+                            const hrs = totalMins / 60;
+                            return hrs % 1 === 0 ? `${hrs} hr${hrs > 1 ? 's' : ''}` : `${hrs.toFixed(2).replace(/\.?0+$/, '')} hrs`;
+                          })()}
+                        </span>
+                        <span className="mx-1">→</span>
+                        <span className="font-semibold text-primary">{bookingData.durationHours} hr{bookingData.durationHours > 1 ? 's' : ''} visit</span>
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {bookingData.services.map((service) => (
+                        <Badge 
+                          key={service.id}
+                          variant="secondary"
+                          className={`text-base py-2 px-3 flex items-center gap-2 border ${
+                            service.category === 'monthly' 
+                              ? 'bg-blue-100 text-blue-700 border-blue-300' 
+                              : service.category === 'package' 
+                                ? 'bg-orange-100 text-orange-700 border-orange-300' 
+                                : 'bg-green-100 text-green-700 border-green-300'
+                          }`}
+                        >
+                          {service.name}
+                          <span className="text-xs opacity-60">
+                            ({(() => {
+                              const hrs = service.durationMinutes / 60;
+                              return hrs % 1 === 0 ? `${hrs} hr` : `${hrs.toFixed(2).replace(/\.?0+$/, '')} hr`;
+                            })()})
+                          </span>
+                          <span className="text-sm opacity-70">{service.price}</span>
                           <button
                             type="button"
-                            onClick={() => handleRemoveImage(index)}
-                            className="absolute top-1 right-1 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors"
+                            onClick={() => handleRemoveService(service.id)}
+                            className="ml-1 hover:bg-black/10 rounded-full p-0.5"
                           >
                             <X className="w-4 h-4" />
                           </button>
-                        </div>
+                        </Badge>
                       ))}
                     </div>
-                  )}
-                  
-                  {/* Upload Button */}
-                  {bookingData.images.length < MAX_IMAGES && (
-                    <div className="flex gap-2">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleImageSelect}
-                        className="hidden"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-2 bg-white border-2 border-dashed border-gray-300 hover:border-primary hover:bg-primary/5 text-foreground px-4 py-3 h-auto"
-                      >
-                        <ImagePlus className="w-5 h-5 text-primary" />
-                        <span className="text-base">Add Photos</span>
-                      </Button>
+                  </div>
+                )}
+
+                {/* Time Conflict Warning */}
+                {timeConflict.hasConflict && bookingData.services.length > 0 && (
+                  <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm text-amber-800 font-medium mb-2">
+                          Your selected services total {(timeConflict.requiredMinutes / 60).toFixed(1).replace(/\.0$/, '')} hours, 
+                          but only {(timeConflict.availableMinutes / 60).toFixed(1).replace(/\.0$/, '')} hours are available 
+                          from your chosen time. This may need to be split into 2 visits.
+                        </p>
+                        <p className="text-xs text-amber-700 mb-3">
+                          We'll fill your chosen day and coordinate the rest with you.
+                        </p>
+                        {timeConflict.suggestedDay && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="border-amber-400 text-amber-700 hover:bg-amber-100"
+                            onClick={() => {
+                              // Go back to step 1 so user can pick a new date
+                              setCurrentStep('datetime');
+                              setFindingAlternative(true);
+                              // Scroll to top of booking card so user sees the suggestion
+                              setTimeout(() => {
+                                cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }, 100);
+                            }}
+                          >
+                            <CalendarDays className="w-4 h-4 mr-2" />
+                            Find a day that fits everything →
+                          </Button>
+                        )}
+                        {!timeConflict.suggestedDay && (
+                          <p className="text-xs text-amber-600 italic">
+                            No single day available in the next 2 weeks. We'll coordinate multiple visits.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Individual Services Dropdown */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-heading text-xl text-foreground flex items-center gap-2">
+                      <Wrench className="w-5 h-5 text-primary" />
+                      Individual Services
+                    </h4>
+                    <div className="relative" ref={servicesDropdownRef}>
                       <Button
                         type="button"
                         variant="outline"
                         onClick={() => {
-                          if (fileInputRef.current) {
-                            fileInputRef.current.capture = 'environment';
-                            fileInputRef.current.click();
-                          }
+                          setServicesDropdownOpen(!servicesDropdownOpen);
+                          setPackagesDropdownOpen(false);
+                          setPlansDropdownOpen(false);
                         }}
-                        className="flex items-center gap-2 bg-white border-2 border-dashed border-gray-300 hover:border-primary hover:bg-primary/5 text-foreground px-4 py-3 h-auto"
+                        className="flex items-center gap-2 bg-white border-2 border-primary/30 hover:border-primary hover:bg-primary/5 text-lg px-4 py-3 h-auto"
                       >
-                        <Camera className="w-5 h-5 text-primary" />
-                        <span className="text-base">Take Photo</span>
+                        <Plus className="w-5 h-5 text-primary" />
+                        <span>Add Service</span>
+                        <ChevronDown className={`w-4 h-4 transition-transform ${servicesDropdownOpen ? 'rotate-180' : ''}`} />
                       </Button>
+                      
+                      {/* Services Dropdown */}
+                      {servicesDropdownOpen && (
+                        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border-2 border-border rounded-xl shadow-xl z-50 max-h-80 overflow-hidden">
+                          {/* Search Input */}
+                          <div className="p-3 border-b border-border sticky top-0 bg-white">
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                              <Input
+                                placeholder="Search services..."
+                                value={serviceSearch}
+                                onChange={(e) => setServiceSearch(e.target.value)}
+                                className="pl-10 text-lg h-12"
+                                autoFocus
+                              />
+                            </div>
+                          </div>
+                          
+                          {/* Services List */}
+                          <div className="overflow-y-auto max-h-56">
+                            {serviceSearch.trim() ? (
+                              // Show flat filtered list when searching
+                              filteredServices.length > 0 ? (
+                                filteredServices.map((service) => (
+                                  <button
+                                    key={service.id}
+                                    type="button"
+                                    onClick={() => handleAddService(service)}
+                                    disabled={isServiceSelected(service.id)}
+                                    className={`w-full text-left px-4 py-3 flex justify-between items-center hover:bg-primary/5 transition-colors ${
+                                      isServiceSelected(service.id) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''
+                                    }`}
+                                  >
+                                    <span className="text-base">{service.name}</span>
+                                    <span className="text-primary font-medium text-base">{formatPrice(service.price_min, service.price_max)}</span>
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="px-4 py-6 text-center text-muted-foreground">
+                                  No services found
+                                </div>
+                              )
+                            ) : (
+                              // Show grouped by category when not searching
+                              Object.entries(servicesByCategory).map(([category, services]) => (
+                                <div key={category}>
+                                  <div className="px-4 py-2 bg-gray-50 text-sm font-medium text-muted-foreground sticky top-0">
+                                    {SITE_CATEGORY_LABELS[category] || category}
+                                  </div>
+                                  {services.map((service) => (
+                                    <button
+                                      key={service.id}
+                                      type="button"
+                                      onClick={() => handleAddService(service)}
+                                      disabled={isServiceSelected(service.id)}
+                                      className={`w-full text-left px-4 py-3 flex justify-between items-center hover:bg-primary/5 transition-colors ${
+                                        isServiceSelected(service.id) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''
+                                      }`}
+                                    >
+                                      <span className="text-base">{service.name}</span>
+                                      <span className="text-primary font-medium text-base">{formatPrice(service.price_min, service.price_max)}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {bookingData.images.length}/{MAX_IMAGES} photos added
+                  </div>
+                  <p className="text-muted-foreground text-base">
+                    One-time repairs, installations, tech help & more
                   </p>
                 </div>
-              </div>
 
-              {/* Value Packages */}
-              <div className="mb-6">
-                <h4 className="font-heading text-xl text-foreground mb-4 pb-2 border-b-2 border-amber-300/50 flex items-center gap-2">
-                  <Package className="w-5 h-5 text-accent" />
-                  Value Packages
-                  <span className="text-sm font-normal text-muted-foreground">
-                    (tap Details for pricing)
-                  </span>
-                </h4>
-                <ul className="space-y-3">
-                  {SERVICE_OPTIONS.filter(s => s.category === 'package').map((service) => (
-                    <li key={service.id}>
-                      <label
-                        className={`flex items-center gap-4 cursor-pointer group py-2 px-3 -mx-3 rounded-lg transition-colors ${
-                          bookingData.services.includes(service.id)
-                            ? 'bg-accent/10'
-                            : 'hover:bg-amber-100/50'
-                        }`}
+                {/* Value Packages Dropdown */}
+                <div className="space-y-3 pt-4 border-t-2 border-amber-300/30">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-heading text-xl text-foreground flex items-center gap-2">
+                      <Package className="w-5 h-5 text-accent" />
+                      Value Packages
+                    </h4>
+                    <div className="relative" ref={packagesDropdownRef}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setPackagesDropdownOpen(!packagesDropdownOpen);
+                          setServicesDropdownOpen(false);
+                          setPlansDropdownOpen(false);
+                        }}
+                        className="flex items-center gap-2 bg-white border-2 border-accent/30 hover:border-accent hover:bg-accent/5 text-lg px-4 py-3 h-auto"
                       >
-                        <div className={`w-7 h-7 border-2 rounded flex items-center justify-center transition-all ${
-                          bookingData.services.includes(service.id)
-                            ? 'bg-accent border-accent'
-                            : 'border-gray-400 bg-white'
-                        }`}>
-                          {bookingData.services.includes(service.id) && (
-                            <CheckCircle2 className="w-5 h-5 text-white" />
-                          )}
+                        <Plus className="w-5 h-5 text-accent" />
+                        <span>Add Package</span>
+                        <ChevronDown className={`w-4 h-4 transition-transform ${packagesDropdownOpen ? 'rotate-180' : ''}`} />
+                      </Button>
+                      
+                      {/* Packages Dropdown */}
+                      {packagesDropdownOpen && (
+                        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border-2 border-border rounded-xl shadow-xl z-50 overflow-hidden">
+                          <div className="max-h-72 overflow-y-auto">
+                            {packageServices.length > 0 ? (
+                              packageServices.map((pkg) => (
+                                <button
+                                  key={pkg.id}
+                                  type="button"
+                                  onClick={() => handleAddService(pkg)}
+                                  disabled={isServiceSelected(pkg.id)}
+                                  className={`w-full text-left px-4 py-4 hover:bg-accent/5 transition-colors border-b border-border last:border-b-0 ${
+                                    isServiceSelected(pkg.id) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''
+                                  }`}
+                                >
+                                  <div className="flex justify-between items-start mb-1">
+                                    <span className="text-base font-medium">{pkg.name}</span>
+                                    <span className="text-accent font-semibold text-base">{formatPrice(pkg.price_min, pkg.price_max)}</span>
+                                  </div>
+                                  {pkg.description && (
+                                    <p className="text-sm text-muted-foreground">{pkg.description}</p>
+                                  )}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-4 py-6 text-center text-muted-foreground">
+                                No packages available
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <Checkbox
-                          checked={bookingData.services.includes(service.id)}
-                          onCheckedChange={() => handleServiceToggle(service.id)}
-                          className="sr-only"
-                        />
-                        <span className={`text-xl flex-1 transition-all ${
-                          bookingData.services.includes(service.id)
-                            ? 'text-accent font-medium'
-                            : 'text-foreground'
-                        }`}>
-                          {service.label}
-                        </span>
-                        <InfoPopover serviceId={service.id} type="package" />
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-muted-foreground text-base">
+                    Bundled services at discounted rates
+                  </p>
+                </div>
 
-              {/* Monthly Plans */}
-              <div>
-                <h4 className="font-heading text-xl text-foreground mb-4 pb-2 border-b-2 border-amber-300/50 flex items-center gap-2">
-                  <CalendarCheck className="w-5 h-5 text-trust" />
-                  Monthly Plans
-                  <span className="text-sm font-normal text-muted-foreground">
-                    (tap Details for pricing)
-                  </span>
-                </h4>
-                <ul className="space-y-3">
-                  {SERVICE_OPTIONS.filter(s => s.category === 'monthly').map((service) => (
-                    <li key={service.id}>
-                      <label
-                        className={`flex items-center gap-4 cursor-pointer group py-2 px-3 -mx-3 rounded-lg transition-colors ${
-                          bookingData.services.includes(service.id)
-                            ? 'bg-trust/10'
-                            : 'hover:bg-amber-100/50'
-                        }`}
+                {/* Monthly Plans Dropdown */}
+                <div className="space-y-3 pt-4 border-t-2 border-amber-300/30">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-heading text-xl text-foreground flex items-center gap-2">
+                      <CalendarCheck className="w-5 h-5 text-trust" />
+                      Monthly Plans
+                    </h4>
+                    <div className="relative" ref={plansDropdownRef}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setPlansDropdownOpen(!plansDropdownOpen);
+                          setServicesDropdownOpen(false);
+                          setPackagesDropdownOpen(false);
+                        }}
+                        className="flex items-center gap-2 bg-white border-2 border-trust/30 hover:border-trust hover:bg-trust/5 text-lg px-4 py-3 h-auto"
                       >
-                        <div className={`w-7 h-7 border-2 rounded flex items-center justify-center transition-all ${
-                          bookingData.services.includes(service.id)
-                            ? 'bg-trust border-trust'
-                            : 'border-gray-400 bg-white'
-                        }`}>
-                          {bookingData.services.includes(service.id) && (
-                            <CheckCircle2 className="w-5 h-5 text-white" />
-                          )}
+                        <Plus className="w-5 h-5 text-trust" />
+                        <span>Add Plan</span>
+                        <ChevronDown className={`w-4 h-4 transition-transform ${plansDropdownOpen ? 'rotate-180' : ''}`} />
+                      </Button>
+                      
+                      {/* Plans Dropdown */}
+                      {plansDropdownOpen && (
+                        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border-2 border-border rounded-xl shadow-xl z-50 overflow-hidden">
+                          <div className="max-h-72 overflow-y-auto">
+                            {monthlyPlans.length > 0 ? (
+                              monthlyPlans.map((plan) => {
+                                const isCustomPlan = plan.id === 'monthly-custom';
+                                return (
+                                  <button
+                                    key={plan.id}
+                                    type="button"
+                                    onClick={() => handleAddPlan(plan)}
+                                    disabled={isServiceSelected(plan.id)}
+                                    className={`w-full text-left px-4 py-4 hover:bg-trust/5 transition-colors border-b border-border last:border-b-0 ${
+                                      isServiceSelected(plan.id) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''
+                                    } ${isCustomPlan ? 'bg-blue-50/50' : ''}`}
+                                  >
+                                    <div className="flex justify-between items-start mb-1">
+                                      <span className="text-base font-medium">
+                                        {isCustomPlan ? 'Custom Monthly Plan' : plan.name}
+                                      </span>
+                                      <span className={`font-semibold text-base ${isCustomPlan ? 'text-accent' : 'text-trust'}`}>
+                                        {isCustomPlan ? 'Get a Quote' : `${formatPrice(plan.price_min, plan.price_max)}/mo`}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground mb-1">
+                                      {isCustomPlan 
+                                        ? "Pick your own services — we'll reach out with pricing"
+                                        : plan.description
+                                      }
+                                    </p>
+                                  </button>
+                                );
+                              })
+                            ) : (
+                              <div className="px-4 py-6 text-center text-muted-foreground">
+                                No plans available
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <Checkbox
-                          checked={bookingData.services.includes(service.id)}
-                          onCheckedChange={() => handleServiceToggle(service.id)}
-                          className="sr-only"
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-muted-foreground text-base">
+                    Regular monthly visits with ongoing support
+                  </p>
+                  {/* Link to custom plan builder */}
+                  <button 
+                    type="button"
+                    className="inline-flex items-center gap-1 text-sm text-accent hover:text-accent/80 underline underline-offset-2"
+                    onClick={() => window.dispatchEvent(new CustomEvent('openCustomPlanBuilder'))}
+                  >
+                    Want to build your own custom plan? Use our Plan Builder →
+                  </button>
+                </div>
+
+                {/* Custom Notes */}
+                <div className="pt-4 border-t-2 border-amber-300/30">
+                  <Label htmlFor="custom-notes" className="text-lg text-foreground font-medium block mb-2">
+                    Tell us what you need — describe your project or request:
+                  </Label>
+                  <Textarea
+                    id="custom-notes"
+                    value={bookingData.customNotes}
+                    onChange={(e) => setBookingData(prev => ({ ...prev, customNotes: e.target.value }))}
+                    placeholder="e.g., Hang 3 pictures in living room, fix squeaky bedroom door, need help setting up new TV..."
+                    rows={4}
+                    className="text-lg bg-white border-2 border-gray-300 rounded-lg resize-none"
+                  />
+                  
+                  {/* Image Upload Section */}
+                  <div className="mt-4">
+                    <Label className="text-lg text-foreground font-medium block mb-2">
+                      Add photos (optional) — show us what you need help with:
+                    </Label>
+                    
+                    {/* Image Preview Grid */}
+                    {bookingData.images.length > 0 && (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mb-3">
+                        {bookingData.images.map((img, index) => (
+                          <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 border-2 border-gray-200">
+                            <img
+                              src={img.preview}
+                              alt={`Upload ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(index)}
+                              className="absolute top-1 right-1 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Upload Button */}
+                    {bookingData.images.length < MAX_IMAGES && (
+                      <div className="flex gap-2">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleImageSelect}
+                          className="hidden"
                         />
-                        <span className={`text-xl flex-1 transition-all ${
-                          bookingData.services.includes(service.id)
-                            ? 'text-trust font-medium'
-                            : 'text-foreground'
-                        }`}>
-                          {service.label}
-                        </span>
-                        <InfoPopover serviceId={service.id} type="package" />
-                      </label>
-                    </li>
-                  ))}
-                </ul>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex items-center gap-2 bg-white border-2 border-dashed border-gray-300 hover:border-primary hover:bg-primary/5 text-foreground px-4 py-3 h-auto"
+                        >
+                          <ImagePlus className="w-5 h-5 text-primary" />
+                          <span className="text-base">Add Photos</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            if (fileInputRef.current) {
+                              fileInputRef.current.capture = 'environment';
+                              fileInputRef.current.click();
+                            }
+                          }}
+                          className="flex items-center gap-2 bg-white border-2 border-dashed border-gray-300 hover:border-primary hover:bg-primary/5 text-foreground px-4 py-3 h-auto"
+                        >
+                          <Camera className="w-5 h-5 text-primary" />
+                          <span className="text-base">Take Photo</span>
+                        </Button>
+                      </div>
+                    )}
+                    
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {bookingData.images.length}/{MAX_IMAGES} photos added
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
             {(bookingData.services.length > 0 || bookingData.customNotes) && (
               <div className="bg-secondary/50 rounded-xl p-4 text-center">
@@ -1096,9 +1447,7 @@ const BookingCalendar = () => {
                 <div className="flex justify-between items-start border-b border-border pb-3">
                   <span className="text-muted-foreground text-lg">Services:</span>
                   <span className="text-foreground text-lg font-medium text-right max-w-[60%]">
-                    {bookingData.services.map(s => 
-                      SERVICE_OPTIONS.find(opt => opt.id === s)?.label
-                    ).join(', ')}
+                    {bookingData.services.map(s => s.name).join(', ')}
                   </span>
                 </div>
               )}

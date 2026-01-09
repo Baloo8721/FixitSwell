@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Star, Heart, Wrench, Sun, Home, Users, Camera, Calendar, Smartphone, ShieldCheck, Gift, MapPin, Clock, Zap, Plus, Minus, Send, Loader2, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -203,6 +203,13 @@ const monthlyPlans = [
 const SpecialPackages = () => {
   const [showCustomBuilder, setShowCustomBuilder] = useState(false);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  
+  // Listen for event to open custom plan builder from other components
+  useEffect(() => {
+    const handleOpenBuilder = () => setShowCustomBuilder(true);
+    window.addEventListener('openCustomPlanBuilder', handleOpenBuilder);
+    return () => window.removeEventListener('openCustomPlanBuilder', handleOpenBuilder);
+  }, []);
   const [quoteName, setQuoteName] = useState('');
   const [quotePhone, setQuotePhone] = useState('');
   const [quoteEmail, setQuoteEmail] = useState('');

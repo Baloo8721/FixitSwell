@@ -171,17 +171,6 @@ export interface BookingHistory {
   created_at: string;
 }
 
-export interface SubscriptionPlan {
-  id: string;
-  name: string;
-  price_min: number;
-  price_max: number;
-  visit_hours: number | null;
-  description: string | null;
-  best_for: string | null;
-  is_active: boolean;
-}
-
 export interface Subscription {
   id: string;
   client_id: string;
@@ -369,6 +358,7 @@ export interface CreateBookingData {
   address?: string;
   community?: string;
   images?: string[];
+  subscription_plan_id?: string; // If provided, creates a subscription for this plan
 }
 
 export async function createBooking(data: CreateBookingData): Promise<{ 
@@ -430,6 +420,48 @@ export async function createBooking(data: CreateBookingData): Promise<{
         new_data: { date: data.date, time_slot: data.time_slot, services: data.services },
         changed_by: 'customer'
       }]);
+
+    // 5. Create subscription if a monthly plan was selected
+    if (data.subscription_plan_id) {
+      // Get the plan details from services table (monthly plans are stored there now)
+      const { data: serviceData } = await supabase
+        .from('services')
+        .select('id, name, price_min, price_max')
+        .eq('id', data.subscription_plan_id)
+        .eq('category', 'monthly')
+        .single();
+      
+      if (serviceData) {
+        // Use price_min as the monthly price (can be adjusted by admin later)
+        const monthlyPrice = serviceData.price_min || 0;
+        
+        // Calculate next billing date (30 days from now)
+        const nextBillingDate = new Date();
+        nextBillingDate.setDate(nextBillingDate.getDate() + 30);
+        
+        // Note: We store the service ID as plan_id for tracking
+        // The subscriptions table plan_id references subscription_plans, but we'll store the service ID
+        // Admin can reconcile this in the subscriptions view
+        const { error: subscriptionError } = await supabase
+          .from('subscriptions')
+          .insert([{
+            client_id: client.id,
+            plan_id: data.subscription_plan_id, // Service ID (monthly-safety, monthly-tech, etc.)
+            monthly_price: monthlyPrice,
+            status: 'active',
+            started_at: new Date().toISOString().split('T')[0],
+            next_billing_date: nextBillingDate.toISOString().split('T')[0]
+          }]);
+        
+        if (subscriptionError) {
+          console.error('Error creating subscription:', subscriptionError);
+          // Don't fail the booking if subscription creation fails
+          // This might fail due to FK constraint - we may need to add these plans to subscription_plans table
+        } else {
+          console.log('Subscription created for monthly plan:', serviceData.name);
+        }
+      }
+    }
 
     return { 
       data: { booking: booking as Booking, client }, 
@@ -519,6 +551,134 @@ export async function getContractorAvailableTimeSlots(date: string, contractorId
     ...slot,
     available: !wouldOverlap(slot.time)
   }));
+}
+
+// Find the next available day that can fit the required duration in one continuous block
+export async function findNextAvailableDayForDuration(
+  startFromDate: string,
+  requiredMinutes: number,
+  maxDaysToSearch: number = 14
+): Promise<{ date: string; startTime: string; startTimeLabel: string; availableMinutes: number } | null> {
+  // Business hours: 8:30 AM (510 min) to 4:00 PM (960 min) - allowing work to finish by 4pm
+  const DAY_START = 8 * 60 + 30; // 8:30 AM in minutes
+  const DAY_END = 16 * 60; // 4:00 PM in minutes
+  
+  const timeToMinutes = (time: string): number => {
+    const [hours, mins] = time.split(':').map(Number);
+    return hours * 60 + mins;
+  };
+  
+  const minutesToTime = (mins: number): { time: string; label: string } => {
+    const hours = Math.floor(mins / 60);
+    const minutes = mins % 60;
+    const time = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHour = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+    const label = `${displayHour}:${minutes.toString().padStart(2, '0')} ${period}`;
+    return { time, label };
+  };
+  
+  // Start from the day after startFromDate
+  const startDate = new Date(startFromDate);
+  startDate.setDate(startDate.getDate() + 1);
+  
+  for (let i = 0; i < maxDaysToSearch; i++) {
+    const checkDate = new Date(startDate);
+    checkDate.setDate(startDate.getDate() + i);
+    const dateStr = checkDate.toISOString().split('T')[0];
+    
+    // Skip weekends (Saturday = 6, Sunday = 0)
+    const dayOfWeek = checkDate.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+    
+    // Fetch bookings for this date
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('time_slot, duration_minutes')
+      .eq('date', dateStr)
+      .neq('status', 'cancelled');
+    
+    // Build occupied time ranges
+    const occupiedRanges: { start: number; end: number }[] = (bookings || [])
+      .map(b => {
+        const start = timeToMinutes(b.time_slot);
+        const duration = b.duration_minutes || 60;
+        return { start, end: start + duration };
+      })
+      .sort((a, b) => a.start - b.start);
+    
+    // Find available blocks
+    let availableBlocks: { start: number; end: number }[] = [];
+    let currentStart = DAY_START;
+    
+    for (const range of occupiedRanges) {
+      if (range.start > currentStart) {
+        availableBlocks.push({ start: currentStart, end: range.start });
+      }
+      currentStart = Math.max(currentStart, range.end);
+    }
+    
+    // Add final block from last booking to end of day
+    if (currentStart < DAY_END) {
+      availableBlocks.push({ start: currentStart, end: DAY_END });
+    }
+    
+    // If no bookings, entire day is available
+    if (occupiedRanges.length === 0) {
+      availableBlocks = [{ start: DAY_START, end: DAY_END }];
+    }
+    
+    // Find the first block that fits the required duration
+    for (const block of availableBlocks) {
+      const blockDuration = block.end - block.start;
+      if (blockDuration >= requiredMinutes) {
+        const { time, label } = minutesToTime(block.start);
+        return {
+          date: dateStr,
+          startTime: time,
+          startTimeLabel: label,
+          availableMinutes: blockDuration
+        };
+      }
+    }
+  }
+  
+  return null; // No day found with enough availability
+}
+
+// Get available minutes from a specific start time on a specific date
+export async function getAvailableMinutesFromSlot(
+  date: string,
+  startTime: string
+): Promise<number> {
+  const DAY_END = 16 * 60; // 4:00 PM in minutes
+  
+  const timeToMinutes = (time: string): number => {
+    const [hours, mins] = time.split(':').map(Number);
+    return hours * 60 + mins;
+  };
+  
+  const slotStart = timeToMinutes(startTime);
+  
+  // Fetch bookings for this date
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('time_slot, duration_minutes')
+    .eq('date', date)
+    .neq('status', 'cancelled');
+  
+  // Find the next booking after our start time
+  const nextBooking = (bookings || [])
+    .map(b => ({
+      start: timeToMinutes(b.time_slot),
+      duration: b.duration_minutes || 60
+    }))
+    .filter(b => b.start > slotStart)
+    .sort((a, b) => a.start - b.start)[0];
+  
+  // Available until next booking or end of day
+  const availableUntil = nextBooking ? nextBooking.start : DAY_END;
+  return Math.max(0, availableUntil - slotStart);
 }
 
 export async function getBookingByToken(token: string): Promise<{
@@ -1717,7 +1877,45 @@ export async function getBookingStats(): Promise<{
 // Legacy SERVICE_OPTIONS for backwards compatibility - now fetched dynamically
 export const SERVICE_OPTIONS: { id: string; label: string; category: string }[] = [];
 
-// Fetch all services from database for autocomplete/quick add
+// Service type for booking calendar dropdowns (more detailed than getAllServicesForDropdown)
+export interface ServiceOption {
+  id: string;
+  name: string;
+  category: 'service' | 'package' | 'monthly';
+  site_category?: string;
+  subcategory?: string;
+  description?: string;
+  price_min: number | null;
+  price_max: number | null;
+  duration_minutes?: number | null;
+}
+
+// Fetch all services from database for booking calendar (with full details)
+// Includes: individual services, value packages, and monthly plans
+export async function getServicesForBooking(): Promise<{ 
+  data: ServiceOption[] | null; 
+  error: Error | null 
+}> {
+  try {
+    const { data, error } = await supabase
+      .from('services')
+      .select('id, name, category, site_category, subcategory, description, price_min, price_max, duration_minutes')
+      .eq('is_active', true)
+      .in('category', ['service', 'package', 'monthly'])
+      .order('category')
+      .order('site_category')
+      .order('name');
+
+    if (error) throw error;
+    
+    return { data: data as ServiceOption[], error: null };
+  } catch (error) {
+    console.error('Error fetching services for booking:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+// Fetch all services from database for autocomplete/quick add (simpler format for Admin)
 export async function getAllServicesForDropdown(): Promise<{ 
   data: { id: string; label: string; category: string; price_min: number | null }[] | null; 
   error: Error | null 

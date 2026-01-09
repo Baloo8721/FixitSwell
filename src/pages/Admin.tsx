@@ -6091,6 +6091,21 @@ Questions? Call us anytime.
                           <span>PIN: <span className="font-mono bg-secondary px-1 rounded select-all">{c.pin_code}</span></span>
                           <span>| Cut: {c.owner_cut_percent}%</span>
                         </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs text-primary">Portal: {window.location.origin}/jobs</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}/jobs`);
+                              toast({ title: "Link copied!", description: "Portal link copied to clipboard" });
+                            }}
+                          >
+                            <Copy className="w-3 h-3 mr-1" />
+                            Copy Link
+                          </Button>
+                        </div>
                       </div>
                       <Button
                         size="sm"
@@ -6112,7 +6127,28 @@ Questions? Call us anytime.
             {/* Job Portal Link */}
             <div className="pt-3 border-t">
               <p className="text-sm text-muted-foreground mb-2">Contractors access their jobs at:</p>
-              <code className="text-xs bg-secondary p-2 rounded block">{window.location.origin}/jobs</code>
+              <div className="flex items-center gap-2">
+                <code className="text-xs bg-secondary p-2 rounded flex-1">{window.location.origin}/jobs</code>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/jobs`);
+                    toast({ title: "Copied!", description: "Portal link copied to clipboard" });
+                  }}
+                >
+                  <Copy className="w-4 h-4 mr-1" />
+                  Copy
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => window.open('/jobs', '_blank')}
+                >
+                  <ExternalLink className="w-4 h-4 mr-1" />
+                  Open
+                </Button>
+              </div>
             </div>
           </div>
         </DialogContent>
