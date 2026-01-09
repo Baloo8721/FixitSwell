@@ -165,7 +165,16 @@ import {
   type ClientNote,
   type ExtendedStats,
   SERVICE_OPTIONS,
-  getAllServicesForDropdown
+  getAllServicesForDropdown,
+  getContractors,
+  createContractor,
+  deleteContractor,
+  assignJobToContractor,
+  unassignJob,
+  getAllJobAssignments,
+  getContractorStats,
+  type Contractor,
+  type JobAssignment
 } from "@/lib/supabase";
 import {
   AlertDialog,
@@ -734,6 +743,16 @@ const Admin = () => {
   const [deletingClients, setDeletingClients] = useState(false);
   const [clientDeleteConfirmText, setClientDeleteConfirmText] = useState('');
 
+  // Contractor / Send Job state
+  const [showContractors, setShowContractors] = useState(false);
+  const [contractors, setContractors] = useState<Contractor[]>([]);
+  const [jobAssignments, setJobAssignments] = useState<JobAssignment[]>([]);
+  const [showNewContractor, setShowNewContractor] = useState(false);
+  const [newContractor, setNewContractor] = useState({ name: '', phone: '', email: '', pin_code: '', owner_cut_percent: 10 });
+  const [sendJobBookingId, setSendJobBookingId] = useState<string | null>(null);
+  const [selectedContractorId, setSelectedContractorId] = useState<string>('');
+  const [sendingJob, setSendingJob] = useState(false);
+
   // Toggle booking selection
   const toggleBookingSelection = (bookingId: string) => {
     setSelectedBookings(prev => {
@@ -1163,6 +1182,60 @@ const Admin = () => {
     setClients(data || []);
   };
 
+  // Load contractors
+  const loadContractors = async () => {
+    const { data } = await getContractors();
+    setContractors(data || []);
+    const { data: assignments } = await getAllJobAssignments();
+    setJobAssignments(assignments || []);
+  };
+
+  // Create a new contractor
+  const handleCreateContractor = async () => {
+    if (!newContractor.name.trim() || !newContractor.pin_code.trim()) {
+      toast({ title: "Name and PIN required", variant: "destructive" });
+      return;
+    }
+    const { error } = await createContractor(newContractor);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Contractor added" });
+      setShowNewContractor(false);
+      setNewContractor({ name: '', phone: '', email: '', pin_code: '', owner_cut_percent: 10 });
+      loadContractors();
+    }
+  };
+
+  // Send job to contractor
+  const handleSendJob = async () => {
+    if (!sendJobBookingId || !selectedContractorId) return;
+    setSendingJob(true);
+    const { error } = await assignJobToContractor(sendJobBookingId, selectedContractorId);
+    setSendingJob(false);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Job sent!", description: "The contractor can now view this job in their portal." });
+      setSendJobBookingId(null);
+      setSelectedContractorId('');
+      loadBookings();
+      loadContractors();
+    }
+  };
+
+  // Unassign job from contractor
+  const handleUnassignJob = async (bookingId: string) => {
+    const { error } = await unassignJob(bookingId);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Job unassigned" });
+      loadBookings();
+      loadContractors();
+    }
+  };
+
   // Create a new client
   const handleCreateClient = async () => {
     if (!newClient.name.trim()) {
@@ -1381,6 +1454,7 @@ Questions? Call us anytime.
       loadClients();
       loadSubscriptions();
       loadMasterSupplies(); // Load supply stats for collapsed view header
+      loadContractors(); // Load contractors for send job feature
       // Load all services for quick add dropdown
       getAllServicesForDropdown().then(({ data }) => {
         if (data) setAllServices(data);
@@ -1969,6 +2043,14 @@ Questions? Call us anytime.
               <Button onClick={() => setShowCalendarView(true)} variant="outline" size="icon" className="h-9 w-9" title="Calendar View">
                 <CalendarIcon className="w-4 h-4" />
               </Button>
+              <Button onClick={() => setShowContractors(true)} variant="outline" size="icon" className="h-9 w-9 relative" title="Contractors">
+                <Users className="w-4 h-4" />
+                {jobAssignments.filter(j => j.status === 'assigned').length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                    {jobAssignments.filter(j => j.status === 'assigned').length}
+                  </span>
+                )}
+              </Button>
               <Button onClick={loadBookings} variant="outline" size="icon" className="h-9 w-9" title="Refresh">
                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               </Button>
@@ -2384,8 +2466,17 @@ Questions? Call us anytime.
                                   {/* Follow-up indicator - mobile friendly button */}
                                   {booking.is_follow_up && booking.follow_up_from && (
                                     <button 
-                                      className="flex-shrink-0 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 hover:bg-blue-100 active:bg-blue-200"
+                                      className="flex-shrink-0 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-2 py-1 hover:bg-blue-100 active:bg-blue-200 touch-manipulation select-none"
+                                      style={{ WebkitTapHighlightColor: 'transparent' }}
                                       onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setExpandedBooking(booking.follow_up_from!);
+                                      }}
+                                      onTouchStart={(e) => {
+                                        e.stopPropagation();
+                                      }}
+                                      onTouchEnd={(e) => {
                                         e.stopPropagation();
                                         e.preventDefault();
                                         setExpandedBooking(booking.follow_up_from!);
@@ -3724,8 +3815,8 @@ Questions? Call us anytime.
                                   </p>
                                 )}
 
-                                {/* Quote/Invoice & Follow-up Buttons */}
-                                <div className="flex gap-2 mt-2">
+                                {/* Quote/Invoice, Follow-up & Send Job Buttons */}
+                                <div className="flex flex-wrap gap-2 mt-2">
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -3751,6 +3842,37 @@ Questions? Call us anytime.
                                       <RotateCcw className="w-4 h-4 mr-1" />
                                       Follow-up
                                     </Button>
+                                  )}
+                                  
+                                  {/* Send Job Button */}
+                                  {booking.status !== 'completed' && booking.status !== 'cancelled' && !booking.is_contracted_out && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="bg-purple-50 text-purple-700 border-purple-300 hover:bg-purple-100"
+                                      onClick={() => setSendJobBookingId(booking.id)}
+                                    >
+                                      <Send className="w-4 h-4 mr-1" />
+                                      Send Job
+                                    </Button>
+                                  )}
+                                  
+                                  {/* Show assigned contractor badge */}
+                                  {booking.is_contracted_out && booking.assigned_contractor_id && (
+                                    <div className="flex items-center gap-2">
+                                      <Badge className="bg-purple-100 text-purple-700 border-purple-300">
+                                        📤 Sent to {contractors.find(c => c.id === booking.assigned_contractor_id)?.name || 'Contractor'}
+                                      </Badge>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 w-6 p-0 text-purple-600 hover:text-purple-800"
+                                        onClick={() => handleUnassignJob(booking.id)}
+                                        title="Cancel assignment"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </Button>
+                                    </div>
                                   )}
                                 </div>
                                 
@@ -5579,6 +5701,159 @@ Questions? Call us anytime.
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Job Dialog */}
+      <Dialog open={!!sendJobBookingId} onOpenChange={(open) => !open && setSendJobBookingId(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5 text-purple-600" />
+              Send Job
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Select who to send this job to. They'll be able to view and manage it from their portal.
+            </p>
+            
+            {contractors.filter(c => c.is_active).length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-muted-foreground mb-3">No contractors set up yet.</p>
+                <Button size="sm" onClick={() => { setSendJobBookingId(null); setShowContractors(true); setShowNewContractor(true); }}>
+                  <Plus className="w-4 h-4 mr-1" /> Add Contractor
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Select Contractor</Label>
+                  <select
+                    value={selectedContractorId}
+                    onChange={(e) => setSelectedContractorId(e.target.value)}
+                    className="w-full p-2 border rounded-lg"
+                  >
+                    <option value="">Choose...</option>
+                    {contractors.filter(c => c.is_active).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="flex gap-2 justify-end pt-2">
+                  <Button variant="outline" onClick={() => setSendJobBookingId(null)}>Cancel</Button>
+                  <Button
+                    onClick={handleSendJob}
+                    disabled={!selectedContractorId || sendingJob}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    {sendingJob ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Send className="w-4 h-4 mr-1" />}
+                    Send Job
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Contractors Management Dialog */}
+      <Dialog open={showContractors} onOpenChange={setShowContractors}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-purple-600" />
+              Manage Contractors
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Add New Contractor */}
+            {showNewContractor ? (
+              <div className="p-4 border rounded-lg bg-purple-50/50 space-y-3">
+                <h4 className="font-medium">New Contractor</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Name *</Label>
+                    <Input
+                      value={newContractor.name}
+                      onChange={(e) => setNewContractor(p => ({ ...p, name: e.target.value }))}
+                      placeholder="Name"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">PIN Code *</Label>
+                    <Input
+                      value={newContractor.pin_code}
+                      onChange={(e) => setNewContractor(p => ({ ...p, pin_code: e.target.value }))}
+                      placeholder="4-6 digits"
+                      maxLength={6}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Phone</Label>
+                    <Input
+                      value={newContractor.phone}
+                      onChange={(e) => setNewContractor(p => ({ ...p, phone: e.target.value }))}
+                      placeholder="Phone"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Owner Cut %</Label>
+                    <Input
+                      type="number"
+                      value={newContractor.owner_cut_percent}
+                      onChange={(e) => setNewContractor(p => ({ ...p, owner_cut_percent: parseInt(e.target.value) || 10 }))}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleCreateContractor}>Save</Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowNewContractor(false)}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <Button size="sm" onClick={() => setShowNewContractor(true)}>
+                <Plus className="w-4 h-4 mr-1" /> Add Contractor
+              </Button>
+            )}
+
+            {/* Contractors List */}
+            <div className="space-y-2">
+              {contractors.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">No contractors yet</p>
+              ) : (
+                contractors.map(c => (
+                  <div key={c.id} className={`p-3 border rounded-lg ${c.is_active ? 'bg-white' : 'bg-gray-100 opacity-60'}`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{c.name}</p>
+                        <p className="text-xs text-muted-foreground">PIN: {c.pin_code} | Cut: {c.owner_cut_percent}%</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-500 hover:text-red-700"
+                        onClick={async () => {
+                          await deleteContractor(c.id);
+                          loadContractors();
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Job Portal Link */}
+            <div className="pt-3 border-t">
+              <p className="text-sm text-muted-foreground mb-2">Contractors access their jobs at:</p>
+              <code className="text-xs bg-secondary p-2 rounded block">{window.location.origin}/jobs</code>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

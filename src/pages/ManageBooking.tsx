@@ -134,6 +134,11 @@ const ManageBooking = () => {
   // Image management state
   const [deletingImageIndex, setDeletingImageIndex] = useState<number | null>(null);
   
+  // Inline notes editing state
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [inlineNotesValue, setInlineNotesValue] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
+  
   // Booking history state
   const [bookingHistory, setBookingHistory] = useState<Booking[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -237,6 +242,31 @@ const ManageBooking = () => {
     } else {
       toast({ title: "Contact info updated" });
       setEditingContact(false);
+      loadBooking();
+    }
+  };
+
+  // Save inline notes
+  const handleSaveInlineNotes = async () => {
+    if (!token || !booking) return;
+    setSavingNotes(true);
+    const { error } = await updateBookingByToken(token, {
+      date: booking.date,
+      time_slot: booking.time_slot,
+      services: booking.services?.map(s => s.service?.name || s.name).filter(Boolean) || [],
+      notes: inlineNotesValue
+    });
+    setSavingNotes(false);
+    
+    if (error) {
+      toast({
+        title: "Error saving notes",
+        description: error.message,
+        variant: "destructive"
+      });
+    } else {
+      toast({ title: "Notes updated" });
+      setEditingNotes(false);
       loadBooking();
     }
   };
@@ -715,13 +745,48 @@ const ManageBooking = () => {
                   )}
                 </div>
 
-                {/* Notes */}
-                {booking.notes && (
-                  <div className="space-y-2">
+                {/* Notes - Inline Editing */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
                     <h3 className="font-heading font-semibold text-foreground">Notes</h3>
-                    <p className="text-sm p-3 bg-secondary/50 rounded-lg">{booking.notes}</p>
+                    {canModify && !editingNotes && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setInlineNotesValue(booking.notes || '');
+                          setEditingNotes(true);
+                        }}
+                      >
+                        <Edit className="w-4 h-4 mr-1" />
+                        Edit
+                      </Button>
+                    )}
                   </div>
-                )}
+                  {editingNotes ? (
+                    <div className="space-y-2">
+                      <Textarea
+                        value={inlineNotesValue}
+                        onChange={(e) => setInlineNotesValue(e.target.value)}
+                        placeholder="Add notes about your booking..."
+                        rows={3}
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={handleSaveInlineNotes} disabled={savingNotes}>
+                          {savingNotes ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                          Save
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingNotes(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm p-3 bg-secondary/50 rounded-lg">
+                      {booking.notes || <span className="text-muted-foreground italic">No notes yet</span>}
+                    </p>
+                  )}
+                </div>
 
                 {/* Photos Section */}
                 <div className="space-y-3 pt-4 border-t border-border">

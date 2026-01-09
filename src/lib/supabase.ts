@@ -3339,6 +3339,328 @@ export async function getExtendedStats(): Promise<ExtendedStats> {
 }
 
 // =============================================================================
+// Contractor / Job Assignment Functions
+// =============================================================================
+
+export interface Contractor {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  pin_code: string;
+  owner_cut_percent: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface JobAssignment {
+  id: string;
+  booking_id: string;
+  contractor_id: string;
+  assigned_at: string;
+  assigned_by: string;
+  status: 'assigned' | 'in_progress' | 'completed' | 'cancelled';
+  completed_at: string | null;
+  job_total: number | null;
+  contractor_earnings: number | null;
+  owner_cut: number | null;
+  notes: string | null;
+  booking?: BookingWithDetails;
+  contractor?: Contractor;
+}
+
+export async function getContractors(): Promise<{ data: Contractor[] | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('contractors')
+      .select('*')
+      .order('name');
+    if (error) throw error;
+    return { data: data as Contractor[], error: null };
+  } catch (error) {
+    console.error('Error fetching contractors:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function createContractor(data: {
+  name: string;
+  phone?: string;
+  email?: string;
+  pin_code: string;
+  owner_cut_percent?: number;
+}): Promise<{ data: Contractor | null; error: Error | null }> {
+  try {
+    const { data: result, error } = await supabase
+      .from('contractors')
+      .insert([{
+        name: data.name,
+        phone: data.phone || null,
+        email: data.email || null,
+        pin_code: data.pin_code,
+        owner_cut_percent: data.owner_cut_percent ?? 10
+      }])
+      .select()
+      .single();
+    if (error) throw error;
+    return { data: result as Contractor, error: null };
+  } catch (error) {
+    console.error('Error creating contractor:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function updateContractor(
+  contractorId: string, 
+  data: Partial<Omit<Contractor, 'id' | 'created_at'>>
+): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('contractors')
+      .update(data)
+      .eq('id', contractorId);
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating contractor:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function deleteContractor(contractorId: string): Promise<{ error: Error | null }> {
+  try {
+    const { error } = await supabase
+      .from('contractors')
+      .delete()
+      .eq('id', contractorId);
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error deleting contractor:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function verifyContractorPin(pin: string): Promise<{ data: Contractor | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('contractors')
+      .select('*')
+      .eq('pin_code', pin)
+      .eq('is_active', true)
+      .single();
+    if (error) throw error;
+    return { data: data as Contractor, error: null };
+  } catch (error) {
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function assignJobToContractor(
+  bookingId: string, 
+  contractorId: string,
+  notes?: string
+): Promise<{ data: JobAssignment | null; error: Error | null }> {
+  try {
+    // Create job assignment
+    const { data: assignment, error: assignError } = await supabase
+      .from('job_assignments')
+      .insert([{
+        booking_id: bookingId,
+        contractor_id: contractorId,
+        notes: notes || null
+      }])
+      .select()
+      .single();
+    if (assignError) throw assignError;
+
+    // Update booking to mark as contracted out
+    const { error: updateError } = await supabase
+      .from('bookings')
+      .update({ 
+        assigned_contractor_id: contractorId,
+        is_contracted_out: true 
+      })
+      .eq('id', bookingId);
+    if (updateError) throw updateError;
+
+    return { data: assignment as JobAssignment, error: null };
+  } catch (error) {
+    console.error('Error assigning job:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function unassignJob(bookingId: string): Promise<{ error: Error | null }> {
+  try {
+    // Delete assignment
+    const { error: deleteError } = await supabase
+      .from('job_assignments')
+      .delete()
+      .eq('booking_id', bookingId);
+    if (deleteError) throw deleteError;
+
+    // Update booking
+    const { error: updateError } = await supabase
+      .from('bookings')
+      .update({ 
+        assigned_contractor_id: null,
+        is_contracted_out: false 
+      })
+      .eq('id', bookingId);
+    if (updateError) throw updateError;
+
+    return { error: null };
+  } catch (error) {
+    console.error('Error unassigning job:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function getContractorJobs(contractorId: string): Promise<{ data: JobAssignment[] | null; error: Error | null }> {
+  try {
+    const { data: assignments, error } = await supabase
+      .from('job_assignments')
+      .select('*')
+      .eq('contractor_id', contractorId)
+      .order('assigned_at', { ascending: false });
+    if (error) throw error;
+
+    // Fetch booking details for each assignment
+    const bookingIds = assignments?.map(a => a.booking_id) || [];
+    if (bookingIds.length === 0) return { data: [], error: null };
+
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select(`
+        *,
+        client:clients(*),
+        services:booking_services(
+          id,
+          service:services(*),
+          is_completed
+        )
+      `)
+      .in('id', bookingIds);
+
+    const jobsWithBookings = assignments?.map(a => ({
+      ...a,
+      booking: bookings?.find(b => b.id === a.booking_id)
+    })) || [];
+
+    return { data: jobsWithBookings as JobAssignment[], error: null };
+  } catch (error) {
+    console.error('Error fetching contractor jobs:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function updateJobAssignmentStatus(
+  assignmentId: string, 
+  status: JobAssignment['status']
+): Promise<{ error: Error | null }> {
+  try {
+    const updates: Record<string, unknown> = { status };
+    if (status === 'completed') {
+      updates.completed_at = new Date().toISOString();
+    }
+    const { error } = await supabase
+      .from('job_assignments')
+      .update(updates)
+      .eq('id', assignmentId);
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating job status:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function completeContractorJob(
+  assignmentId: string,
+  jobTotal: number
+): Promise<{ error: Error | null }> {
+  try {
+    // Get assignment to find contractor's cut percentage
+    const { data: assignment } = await supabase
+      .from('job_assignments')
+      .select('*, contractor:contractors(*)')
+      .eq('id', assignmentId)
+      .single();
+
+    if (!assignment) throw new Error('Assignment not found');
+
+    const ownerCutPercent = assignment.contractor?.owner_cut_percent || 10;
+    const ownerCut = Math.round(jobTotal * (ownerCutPercent / 100));
+    const contractorEarnings = jobTotal - ownerCut;
+
+    const { error } = await supabase
+      .from('job_assignments')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        job_total: jobTotal,
+        contractor_earnings: contractorEarnings,
+        owner_cut: ownerCut
+      })
+      .eq('id', assignmentId);
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error completing contractor job:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function getContractorStats(contractorId: string): Promise<{
+  totalJobs: number;
+  completedJobs: number;
+  pendingJobs: number;
+  totalEarnings: number;
+  ownerCutTotal: number;
+}> {
+  try {
+    const { data: assignments } = await supabase
+      .from('job_assignments')
+      .select('*')
+      .eq('contractor_id', contractorId);
+
+    const jobs = assignments || [];
+    const completed = jobs.filter(j => j.status === 'completed');
+    const pending = jobs.filter(j => j.status === 'assigned' || j.status === 'in_progress');
+
+    return {
+      totalJobs: jobs.length,
+      completedJobs: completed.length,
+      pendingJobs: pending.length,
+      totalEarnings: completed.reduce((sum, j) => sum + (j.contractor_earnings || 0), 0),
+      ownerCutTotal: completed.reduce((sum, j) => sum + (j.owner_cut || 0), 0)
+    };
+  } catch (error) {
+    console.error('Error fetching contractor stats:', error);
+    return { totalJobs: 0, completedJobs: 0, pendingJobs: 0, totalEarnings: 0, ownerCutTotal: 0 };
+  }
+}
+
+export async function getAllJobAssignments(): Promise<{ data: JobAssignment[] | null; error: Error | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('job_assignments')
+      .select(`
+        *,
+        contractor:contractors(*),
+        booking:bookings(*, client:clients(*))
+      `)
+      .order('assigned_at', { ascending: false });
+    if (error) throw error;
+    return { data: data as JobAssignment[], error: null };
+  } catch (error) {
+    console.error('Error fetching all job assignments:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+// =============================================================================
 // Comprehensive Analytics Functions
 // =============================================================================
 

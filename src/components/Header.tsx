@@ -1,4 +1,4 @@
-import { Phone, Menu, X, Info } from "lucide-react";
+import { Phone, Menu, X, Info, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import logo from "@/assets/logo.jpeg";
@@ -11,7 +11,6 @@ const Header = () => {
   const navLinks = [
     { href: "#services", label: "Services" },
     { href: "#packages", label: "Packages" },
-    { href: "#booking", label: "Book Now" },
     { href: "#contact", label: "Contact" },
   ];
 
@@ -43,6 +42,12 @@ const Header = () => {
                 <Info className="w-4 h-4" />
                 About Us
               </button>
+              <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl">
+                <a href="#booking">
+                  <CalendarDays className="w-4 h-4 mr-2" />
+                  Book Now
+                </a>
+              </Button>
               <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl">
                 <a href="tel:+18137381655">
                   <Phone className="w-4 h-4 mr-2" />
@@ -84,12 +89,20 @@ const Header = () => {
                 <Info className="w-4 h-4" />
                 About Us
               </button>
-              <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl w-full">
-                <a href="tel:+18137381655">
-                  <Phone className="w-4 h-4 mr-2" />
-                  Call Now
-                </a>
-              </Button>
+              <div className="flex flex-col gap-2 pt-2">
+                <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl w-full">
+                  <a href="#booking" onClick={() => setIsMenuOpen(false)}>
+                    <CalendarDays className="w-4 h-4 mr-2" />
+                    Book Now
+                  </a>
+                </Button>
+                <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl w-full">
+                  <a href="tel:+18137381655">
+                    <Phone className="w-4 h-4 mr-2" />
+                    Call Now
+                  </a>
+                </Button>
+              </div>
             </nav>
           )}
         </div>
