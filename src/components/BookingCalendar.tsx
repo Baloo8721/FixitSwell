@@ -113,6 +113,7 @@ const BookingCalendar = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
+  const [completedBookingToken, setCompletedBookingToken] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const timeSlotsRef = useRef<HTMLDivElement>(null);
   
@@ -188,6 +189,59 @@ const BookingCalendar = () => {
     
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Listen for custom plan services from the Plan Builder modal
+  useEffect(() => {
+    const handleCustomPlanServices = (event: CustomEvent<{ 
+      services: { name: string; price: number; time: number }[]; 
+      total: number; 
+      time: number 
+    }>) => {
+      const { services, total, time } = event.detail;
+      
+      // Add each service as a monthly plan service to the booking
+      const newServices: SelectedService[] = services.map(s => ({
+        id: `custom-${s.name.toLowerCase().replace(/\s+/g, '-')}`,
+        name: s.name,
+        category: 'monthly' as const,
+        price: `$${s.price}`,
+        durationMinutes: s.time
+      }));
+      
+      // Also add a "Custom Monthly Plan" entry to track it as subscription
+      const customPlanEntry: SelectedService = {
+        id: 'monthly-custom',
+        name: 'Custom Monthly Plan',
+        category: 'monthly',
+        price: `$${total}/mo`,
+        durationMinutes: time
+      };
+      
+      setBookingData(prev => {
+        // Remove any existing custom monthly plan entries
+        const filteredServices = prev.services.filter(s => s.id !== 'monthly-custom' && !s.id.startsWith('custom-'));
+        const updatedServices = [...filteredServices, customPlanEntry];
+        const recommendedDuration = calculateRecommendedDuration(updatedServices);
+        
+        return {
+          ...prev,
+          services: updatedServices,
+          selectedPlanId: 'monthly-custom',
+          customNotes: prev.customNotes + (prev.customNotes ? '\n\n' : '') + 
+            `Custom Monthly Plan Services:\n${services.map(s => `• ${s.name} ($${s.price})`).join('\n')}\nTotal: $${total}/mo`,
+          durationHours: recommendedDuration
+        };
+      });
+      
+      toast({
+        title: "Custom Plan Added!",
+        description: `${services.length} services added to your booking.`
+      });
+    };
+    
+    window.addEventListener('customPlanServicesSelected', handleCustomPlanServices as EventListener);
+    return () => window.removeEventListener('customPlanServicesSelected', handleCustomPlanServices as EventListener);
   }, []);
 
   // Fetch available time slots when date or duration changes
@@ -378,6 +432,11 @@ const BookingCalendar = () => {
       console.log('Booking created successfully:', data.booking);
       console.log('Client:', data.client);
       
+      // Store the manage token for the "View Your Booking" link
+      if (data.booking.manage_token) {
+        setCompletedBookingToken(data.booking.manage_token);
+      }
+      
       trackEvent('booking_completed', {
         booking_id: data.booking.id,
         services: serviceNames,
@@ -556,33 +615,55 @@ const BookingCalendar = () => {
               )}
             </ul>
           </div>
-          <Button 
-            onClick={() => {
-              setBookingComplete(false);
-              setCurrentStep('datetime');
-              setBookingData({
-                date: undefined,
-                timeSlot: '',
-                timeLabel: '',
-                durationHours: 1,
-                services: [],
-                selectedPlanId: null,
-                customNotes: '',
-                name: '',
-                email: '',
-                phone: '',
-                address: '',
-                community: '',
-                notes: '',
-                images: []
-              });
-            }}
-            variant="outline"
-            size="lg"
-            className="text-lg"
-          >
-            Book Another Appointment
-          </Button>
+          
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            {completedBookingToken && (
+              <Button 
+                asChild
+                size="lg"
+                className="bg-primary hover:bg-primary/90 text-lg"
+              >
+                <a href={`/manage-booking/${completedBookingToken}`}>
+                  <CheckCircle2 className="w-5 h-5 mr-2" />
+                  View & Manage Your Booking
+                </a>
+              </Button>
+            )}
+            <Button 
+              onClick={() => {
+                setBookingComplete(false);
+                setCompletedBookingToken(null);
+                setCurrentStep('datetime');
+                setBookingData({
+                  date: undefined,
+                  timeSlot: '',
+                  timeLabel: '',
+                  durationHours: 1,
+                  services: [],
+                  selectedPlanId: null,
+                  customNotes: '',
+                  name: '',
+                  email: '',
+                  phone: '',
+                  address: '',
+                  community: '',
+                  notes: '',
+                  images: []
+                });
+              }}
+              variant="outline"
+              size="lg"
+              className="text-lg"
+            >
+              Book Another Appointment
+            </Button>
+          </div>
+          
+          {/* Email notification info */}
+          <p className="text-sm text-muted-foreground mt-4">
+            A confirmation email with this link has been sent to {bookingData.email}
+          </p>
         </CardContent>
       </Card>
     );
@@ -1178,11 +1259,11 @@ const BookingCalendar = () => {
                   <p className="text-muted-foreground text-base">
                     Regular monthly visits with ongoing support
                   </p>
-                  {/* Link to custom plan builder */}
+                  {/* Link to custom plan builder - opens in "Add to Booking" mode */}
                   <button 
                     type="button"
                     className="inline-flex items-center gap-1 text-sm text-accent hover:text-accent/80 underline underline-offset-2"
-                    onClick={() => window.dispatchEvent(new CustomEvent('openCustomPlanBuilder'))}
+                    onClick={() => window.dispatchEvent(new CustomEvent('openCustomPlanBuilderForBooking'))}
                   >
                     Want to build your own custom plan? Use our Plan Builder →
                   </button>

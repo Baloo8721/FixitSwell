@@ -714,6 +714,97 @@ export async function getBookingByToken(token: string): Promise<{
   }
 }
 
+// Subscription management by token
+export interface SubscriptionWithDetails {
+  id: string;
+  client_id: string;
+  plan_id: string;
+  monthly_price: number;
+  status: 'active' | 'paused' | 'cancelled';
+  payment_status: 'pending' | 'paid' | 'pending_collection' | null;
+  payment_method: 'card' | 'check' | 'cash' | 'other' | null;
+  started_at: string;
+  next_billing_date: string | null;
+  cancelled_at: string | null;
+  manage_token: string;
+  client: Client | null;
+  plan: {
+    id: string;
+    name: string;
+    description: string | null;
+  } | null;
+}
+
+export async function getSubscriptionByToken(token: string): Promise<{
+  data: SubscriptionWithDetails | null;
+  error: Error | null;
+}> {
+  try {
+    const { data: subscription, error } = await supabase
+      .from('subscriptions')
+      .select(`
+        *,
+        client:clients(*),
+        plan:subscription_plans(id, name, description)
+      `)
+      .eq('manage_token', token)
+      .single();
+
+    if (error) throw error;
+    
+    return { data: subscription as SubscriptionWithDetails, error: null };
+  } catch (error) {
+    console.error('Error fetching subscription:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export async function updateSubscriptionStatusByToken(
+  token: string, 
+  status: 'active' | 'paused' | 'cancelled'
+): Promise<{ error: Error | null }> {
+  try {
+    const updates: Record<string, unknown> = { status };
+    if (status === 'cancelled') {
+      updates.cancelled_at = new Date().toISOString();
+    }
+    
+    const { error } = await supabase
+      .from('subscriptions')
+      .update(updates)
+      .eq('manage_token', token);
+    
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating subscription:', error);
+    return { error: error as Error };
+  }
+}
+
+export async function selectSubscriptionPaymentMethod(
+  token: string,
+  method: 'card' | 'check' | 'cash'
+): Promise<{ error: Error | null }> {
+  try {
+    const updates: Record<string, unknown> = {
+      payment_method: method,
+      payment_status: method === 'card' ? 'pending' : 'pending_collection'
+    };
+    
+    const { error } = await supabase
+      .from('subscriptions')
+      .update(updates)
+      .eq('manage_token', token);
+    
+    if (error) throw error;
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating subscription payment method:', error);
+    return { error: error as Error };
+  }
+}
+
 export async function updateBookingStatus(
   bookingId: string, 
   status: Booking['status'],
@@ -1161,14 +1252,29 @@ export async function getSubscriptionPlans(): Promise<{
   error: Error | null 
 }> {
   try {
+    // Fetch from services table where category='monthly' for accurate plans
     const { data, error } = await supabase
-      .from('subscription_plans')
-      .select('*')
+      .from('services')
+      .select('id, name, price_min, price_max, duration_minutes, description')
+      .eq('category', 'monthly')
       .eq('is_active', true)
       .order('price_min', { ascending: true });
 
     if (error) throw error;
-    return { data: data as SubscriptionPlan[], error: null };
+    
+    // Transform to SubscriptionPlan format
+    const plans: SubscriptionPlan[] = (data || []).map(s => ({
+      id: s.id,
+      name: s.name,
+      price_min: s.price_min || 0,
+      price_max: s.price_max || s.price_min || 0,
+      visit_hours: s.duration_minutes ? String(s.duration_minutes / 60) : '1.5',
+      description: s.description,
+      best_for: null,
+      is_active: true
+    }));
+    
+    return { data: plans, error: null };
   } catch (error) {
     console.error('Error fetching subscription plans:', error);
     return { data: null, error: error as Error };

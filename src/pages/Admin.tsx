@@ -315,6 +315,31 @@ const Admin = () => {
   });
   const [newBookingServiceSearch, setNewBookingServiceSearch] = useState('');
   
+  // New booking dropdown states (same pattern as client-side booking)
+  const [newBookingServicesOpen, setNewBookingServicesOpen] = useState(false);
+  const [newBookingPackagesOpen, setNewBookingPackagesOpen] = useState(false);
+  const [newBookingPlansOpen, setNewBookingPlansOpen] = useState(false);
+  const newBookingServicesRef = useRef<HTMLDivElement>(null);
+  const newBookingPackagesRef = useRef<HTMLDivElement>(null);
+  const newBookingPlansRef = useRef<HTMLDivElement>(null);
+  
+  // Close new booking dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (newBookingServicesRef.current && !newBookingServicesRef.current.contains(event.target as Node)) {
+        setNewBookingServicesOpen(false);
+      }
+      if (newBookingPackagesRef.current && !newBookingPackagesRef.current.contains(event.target as Node)) {
+        setNewBookingPackagesOpen(false);
+      }
+      if (newBookingPlansRef.current && !newBookingPlansRef.current.contains(event.target as Node)) {
+        setNewBookingPlansOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+  
   // Duration options (same as main booking calendar)
   const DURATION_OPTIONS = [
     { hours: 1, label: '1 hour' },
@@ -633,6 +658,12 @@ const Admin = () => {
   const [replyingToMessage, setReplyingToMessage] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  
+  // Custom Quote Editor state
+  const [editingQuote, setEditingQuote] = useState<string | null>(null);
+  const [quoteServices, setQuoteServices] = useState<{ name: string; price: number; time: number }[]>([]);
+  const [quoteCustomPrice, setQuoteCustomPrice] = useState<string>('');
+  const [quoteSending, setQuoteSending] = useState(false);
 
   // AI Suggestions state
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, SuggestedSupply[]>>({});
@@ -755,6 +786,12 @@ const Admin = () => {
   const [subscriptionFilter, setSubscriptionFilter] = useState<'all' | 'active' | 'paused' | 'cancelled'>('active');
   const [showNewSubscription, setShowNewSubscription] = useState(false);
   const [newSubscription, setNewSubscription] = useState({ clientId: '', planId: '', price: '' });
+  
+  // Multi-select and edit for subscriptions
+  const [selectedSubscriptions, setSelectedSubscriptions] = useState<Set<string>>(new Set());
+  const [editingSubscription, setEditingSubscription] = useState<string | null>(null);
+  const [editSubscriptionData, setEditSubscriptionData] = useState<{ planId: string; price: string; status: string }>({ planId: '', price: '', status: '' });
+  const [deletingSubscriptions, setDeletingSubscriptions] = useState(false);
 
   // Multi-select for contact messages
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
@@ -1105,6 +1142,134 @@ const Admin = () => {
       setReplyContent('');
       loadContactMessages();
     }
+  };
+
+  // Parse services from quote request message
+  const parseQuoteServices = (message: string): { name: string; price: number; time: number }[] => {
+    const services: { name: string; price: number; time: number }[] = [];
+    const lines = message.split('\n');
+    
+    // Service price/time lookup from customPlanServices
+    const serviceLookup: Record<string, { price: number; time: number }> = {
+      "Light Bulb Replacement (High/Hard)": { price: 75, time: 30 },
+      "Smoke Detector Battery Swap": { price: 95, time: 45 },
+      "Filter Service (HVAC/Water/Fridge)": { price: 85, time: 30 },
+      "Small Picture / Art Hanging": { price: 45, time: 15 },
+      "Cabinet Hinge Repair / Adjust": { price: 45, time: 30 },
+      "Furniture Repair (Glue/Sand/Tighten)": { price: 85, time: 60 },
+      "Blind / Curtain Rod Install": { price: 75, time: 30 },
+      "Door Lock / Deadbolt Swap": { price: 85, time: 30 },
+      "Outlet or Switch Replacement": { price: 55, time: 15 },
+      "Shower Head Replacement": { price: 75, time: 30 },
+      "Caulking Touch-up": { price: 80, time: 45 },
+      "Phone / Tablet / Device Help": { price: 85, time: 45 },
+      "Tech Troubleshooting (30 min)": { price: 50, time: 30 },
+      "Non-Slip Mats / Night Light Setup": { price: 95, time: 60 },
+      "Fire Extinguisher Mount & Check": { price: 65, time: 30 },
+      "HVAC Drip Line Flush": { price: 120, time: 60 },
+    };
+    
+    lines.forEach(line => {
+      if (line.startsWith('•')) {
+        const serviceName = line.substring(1).trim();
+        const lookup = serviceLookup[serviceName];
+        if (lookup) {
+          services.push({ name: serviceName, ...lookup });
+        } else {
+          // Fallback if service not found in lookup
+          services.push({ name: serviceName, price: 50, time: 30 });
+        }
+      }
+    });
+    
+    return services;
+  };
+
+  // Open quote editor for a message
+  const handleEditQuote = (msg: ContactMessage) => {
+    const services = parseQuoteServices(msg.message || '');
+    setQuoteServices(services);
+    const totalPrice = services.reduce((sum, s) => sum + s.price, 0);
+    setQuoteCustomPrice(String(totalPrice));
+    setEditingQuote(msg.id);
+  };
+
+  // Send custom quote and create subscription
+  const handleSendCustomQuote = async (msg: ContactMessage) => {
+    if (!msg.email || quoteServices.length === 0) {
+      toast({ title: "Error", description: "Need services and customer email", variant: "destructive" });
+      return;
+    }
+    
+    setQuoteSending(true);
+    
+    try {
+      // Find or create client
+      let clientId: string | null = null;
+      const existingClient = clients.find(c => c.email === msg.email || c.phone === msg.phone);
+      
+      if (existingClient) {
+        clientId = existingClient.id;
+      } else {
+        // Create new client
+        const { data: newClient } = await supabase
+          .from('clients')
+          .insert({
+            name: msg.name,
+            email: msg.email,
+            phone: msg.phone
+          })
+          .select()
+          .single();
+        
+        if (newClient) {
+          clientId = newClient.id;
+          loadClients();
+        }
+      }
+      
+      if (!clientId) {
+        throw new Error('Could not find or create client');
+      }
+      
+      // Create subscription with custom plan
+      const monthlyPrice = parseInt(quoteCustomPrice) * 100; // Convert to cents
+      const { data: subscription, error: subError } = await supabase
+        .from('subscriptions')
+        .insert({
+          client_id: clientId,
+          plan_id: 'monthly-custom',
+          monthly_price: monthlyPrice,
+          status: 'active',
+          payment_status: 'pending',
+          started_at: new Date().toISOString().split('T')[0],
+          next_billing_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        })
+        .select('*, manage_token')
+        .single();
+      
+      if (subError) throw subError;
+      
+      // Mark message as replied with quote details
+      const quoteDetails = `Custom Monthly Plan Quote Sent!\n\nServices:\n${quoteServices.map(s => `• ${s.name} ($${s.price})`).join('\n')}\n\nMonthly Price: $${quoteCustomPrice}\nManage Link: ${window.location.origin}/manage-booking/${subscription.manage_token}`;
+      
+      await replyToContactMessage(msg.id, quoteDetails);
+      
+      toast({ 
+        title: "Quote Sent!", 
+        description: `Subscription created for ${msg.name}. They can manage/pay at the link.` 
+      });
+      
+      setEditingQuote(null);
+      setQuoteServices([]);
+      setQuoteCustomPrice('');
+      loadContactMessages();
+      loadSubscriptions();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+    
+    setQuoteSending(false);
   };
 
   // Generate AI supply suggestions and time estimate for a booking
@@ -1469,6 +1634,62 @@ Questions? Call us anytime.
       toast({ title: `Subscription ${status}` });
       loadSubscriptions();
     }
+  };
+
+  // Edit subscription
+  const handleEditSubscription = (sub: SubscriptionWithDetails) => {
+    setEditingSubscription(sub.id);
+    setEditSubscriptionData({
+      planId: sub.plan_id,
+      price: String(sub.monthly_price),
+      status: sub.status
+    });
+  };
+
+  const handleSaveSubscriptionEdit = async () => {
+    if (!editingSubscription) return;
+    
+    try {
+      // Update subscription details
+      const { error } = await supabase
+        .from('subscriptions')
+        .update({
+          plan_id: editSubscriptionData.planId,
+          monthly_price: parseInt(editSubscriptionData.price),
+          status: editSubscriptionData.status
+        })
+        .eq('id', editingSubscription);
+      
+      if (error) throw error;
+      
+      toast({ title: "Subscription updated!" });
+      setEditingSubscription(null);
+      loadSubscriptions();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  // Delete selected subscriptions
+  const handleDeleteSubscriptions = async () => {
+    if (selectedSubscriptions.size === 0) return;
+    
+    setDeletingSubscriptions(true);
+    try {
+      const { error } = await supabase
+        .from('subscriptions')
+        .delete()
+        .in('id', Array.from(selectedSubscriptions));
+      
+      if (error) throw error;
+      
+      toast({ title: `${selectedSubscriptions.size} subscription(s) deleted` });
+      setSelectedSubscriptions(new Set());
+      loadSubscriptions();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+    setDeletingSubscriptions(false);
   };
 
   useEffect(() => {
@@ -2001,40 +2222,231 @@ Questions? Call us anytime.
                       </div>
                     </div>
 
-                    {/* Services */}
-                    <div className="space-y-2">
-                      <Label>Services (type to search)</Label>
-                      <Input
-                        placeholder="Search services..."
-                        value={newBookingServiceSearch}
-                        onChange={(e) => setNewBookingServiceSearch(e.target.value)}
-                        className="mb-2"
-                      />
-                      <div className="grid sm:grid-cols-2 gap-1 max-h-48 overflow-y-auto">
-                        {allServices
-                          .filter(s => s.category === 'service' && 
-                            (newBookingServiceSearch === '' || s.label.toLowerCase().includes(newBookingServiceSearch.toLowerCase())))
-                          .slice(0, 20)
-                          .map((service) => (
-                          <label
-                            key={service.id}
-                            className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all text-sm ${
-                              newBooking.services.includes(service.id)
-                                ? 'border-primary bg-primary/5'
-                                : 'border-border hover:border-primary/30'
-                            }`}
-                          >
-                            <Checkbox
-                              checked={newBooking.services.includes(service.id)}
-                              onCheckedChange={() => handleNewBookingServiceToggle(service.id)}
-                            />
-                            <span className="text-xs leading-tight">{service.label}</span>
-                          </label>
-                        ))}
-                      </div>
+                    {/* Services - Same UI as client-side booking Step 2 */}
+                    <div className="space-y-4 p-4 bg-amber-50/50 border-2 border-amber-200/50 rounded-lg">
+                      {/* Selected Services Display */}
                       {newBooking.services.length > 0 && (
-                        <p className="text-xs text-muted-foreground">{newBooking.services.length} service(s) selected</p>
+                        <div className="bg-white rounded-lg p-3 border-2 border-green-200">
+                          <p className="text-sm font-medium text-muted-foreground mb-2">Selected Services:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {newBooking.services.map((serviceId) => {
+                              const service = allServices.find(s => s.id === serviceId);
+                              const category = service?.category || 'service';
+                              return (
+                                <Badge 
+                                  key={serviceId}
+                                  variant="secondary"
+                                  className={`text-sm py-1 px-2 flex items-center gap-1 ${
+                                    category === 'monthly' 
+                                      ? 'bg-blue-100 text-blue-700 border-blue-300' 
+                                      : category === 'package' 
+                                        ? 'bg-orange-100 text-orange-700 border-orange-300' 
+                                        : 'bg-green-100 text-green-700 border-green-300'
+                                  }`}
+                                >
+                                  {service?.label || serviceId}
+                                  {service?.price_min && (
+                                    <span className="text-xs opacity-70">${(service.price_min / 100).toFixed(0)}</span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleNewBookingServiceToggle(serviceId)}
+                                    className="ml-1 hover:bg-black/10 rounded-full p-0.5"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        </div>
                       )}
+
+                      {/* Individual Services Dropdown */}
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm flex items-center gap-2">
+                          <Wrench className="w-4 h-4 text-primary" />
+                          Individual Services
+                        </span>
+                        <div className="relative" ref={newBookingServicesRef}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setNewBookingServicesOpen(!newBookingServicesOpen);
+                              setNewBookingPackagesOpen(false);
+                              setNewBookingPlansOpen(false);
+                            }}
+                            className="flex items-center gap-1"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add
+                            <ChevronDown className={`w-3 h-3 transition-transform ${newBookingServicesOpen ? 'rotate-180' : ''}`} />
+                          </Button>
+                          
+                          {newBookingServicesOpen && (
+                            <div className="absolute right-0 mt-1 w-72 bg-white border-2 border-border rounded-lg shadow-xl z-50 max-h-64 overflow-hidden">
+                              <div className="p-2 border-b border-border sticky top-0 bg-white">
+                                <Input
+                                  placeholder="Search services..."
+                                  value={newBookingServiceSearch}
+                                  onChange={(e) => setNewBookingServiceSearch(e.target.value)}
+                                  className="h-8 text-sm"
+                                  autoFocus
+                                />
+                              </div>
+                              <div className="overflow-y-auto max-h-48">
+                                {allServices
+                                  .filter(s => s.category === 'service' && 
+                                    (newBookingServiceSearch === '' || s.label.toLowerCase().includes(newBookingServiceSearch.toLowerCase())))
+                                  .map((service) => (
+                                    <button
+                                      key={service.id}
+                                      type="button"
+                                      onClick={() => {
+                                        if (!newBooking.services.includes(service.id)) {
+                                          handleNewBookingServiceToggle(service.id);
+                                        }
+                                        setNewBookingServicesOpen(false);
+                                        setNewBookingServiceSearch('');
+                                      }}
+                                      disabled={newBooking.services.includes(service.id)}
+                                      className={`w-full text-left px-3 py-2 text-sm hover:bg-primary/5 transition-colors flex justify-between ${
+                                        newBooking.services.includes(service.id) ? 'opacity-50 bg-gray-50' : ''
+                                      }`}
+                                    >
+                                      <span>{service.label}</span>
+                                      {service.price_min && (
+                                        <span className="text-primary font-medium">${(service.price_min / 100).toFixed(0)}</span>
+                                      )}
+                                    </button>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Value Packages Dropdown */}
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm flex items-center gap-2">
+                          <Package className="w-4 h-4 text-accent" />
+                          Value Packages
+                        </span>
+                        <div className="relative" ref={newBookingPackagesRef}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setNewBookingPackagesOpen(!newBookingPackagesOpen);
+                              setNewBookingServicesOpen(false);
+                              setNewBookingPlansOpen(false);
+                            }}
+                            className="flex items-center gap-1"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add
+                            <ChevronDown className={`w-3 h-3 transition-transform ${newBookingPackagesOpen ? 'rotate-180' : ''}`} />
+                          </Button>
+                          
+                          {newBookingPackagesOpen && (
+                            <div className="absolute right-0 mt-1 w-72 bg-white border-2 border-border rounded-lg shadow-xl z-50 overflow-hidden">
+                              <div className="max-h-64 overflow-y-auto">
+                                {allServices
+                                  .filter(s => s.category === 'package')
+                                  .map((pkg) => (
+                                    <button
+                                      key={pkg.id}
+                                      type="button"
+                                      onClick={() => {
+                                        if (!newBooking.services.includes(pkg.id)) {
+                                          handleNewBookingServiceToggle(pkg.id);
+                                        }
+                                        setNewBookingPackagesOpen(false);
+                                      }}
+                                      disabled={newBooking.services.includes(pkg.id)}
+                                      className={`w-full text-left px-3 py-3 text-sm hover:bg-accent/5 transition-colors border-b border-border last:border-b-0 ${
+                                        newBooking.services.includes(pkg.id) ? 'opacity-50 bg-gray-50' : ''
+                                      }`}
+                                    >
+                                      <div className="flex justify-between items-start">
+                                        <span className="font-medium">{pkg.label}</span>
+                                        {pkg.price_min && (
+                                          <span className="text-accent font-semibold">${(pkg.price_min / 100).toFixed(0)}</span>
+                                        )}
+                                      </div>
+                                    </button>
+                                  ))}
+                                {allServices.filter(s => s.category === 'package').length === 0 && (
+                                  <div className="px-3 py-4 text-center text-muted-foreground text-sm">No packages available</div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Monthly Plans Dropdown */}
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm flex items-center gap-2">
+                          <CalendarDays className="w-4 h-4 text-blue-600" />
+                          Monthly Plans
+                        </span>
+                        <div className="relative" ref={newBookingPlansRef}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setNewBookingPlansOpen(!newBookingPlansOpen);
+                              setNewBookingServicesOpen(false);
+                              setNewBookingPackagesOpen(false);
+                            }}
+                            className="flex items-center gap-1"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add
+                            <ChevronDown className={`w-3 h-3 transition-transform ${newBookingPlansOpen ? 'rotate-180' : ''}`} />
+                          </Button>
+                          
+                          {newBookingPlansOpen && (
+                            <div className="absolute right-0 mt-1 w-72 bg-white border-2 border-border rounded-lg shadow-xl z-50 overflow-hidden">
+                              <div className="max-h-64 overflow-y-auto">
+                                {allServices
+                                  .filter(s => s.category === 'monthly')
+                                  .map((plan) => (
+                                    <button
+                                      key={plan.id}
+                                      type="button"
+                                      onClick={() => {
+                                        if (!newBooking.services.includes(plan.id)) {
+                                          handleNewBookingServiceToggle(plan.id);
+                                        }
+                                        setNewBookingPlansOpen(false);
+                                      }}
+                                      disabled={newBooking.services.includes(plan.id)}
+                                      className={`w-full text-left px-3 py-3 text-sm hover:bg-blue-50 transition-colors border-b border-border last:border-b-0 ${
+                                        newBooking.services.includes(plan.id) ? 'opacity-50 bg-gray-50' : ''
+                                      }`}
+                                    >
+                                      <div className="flex justify-between items-start">
+                                        <span className="font-medium">{plan.label}</span>
+                                        {plan.price_min && (
+                                          <span className="text-blue-600 font-semibold">${(plan.price_min / 100).toFixed(0)}/mo</span>
+                                        )}
+                                      </div>
+                                    </button>
+                                  ))}
+                                {allServices.filter(s => s.category === 'monthly').length === 0 && (
+                                  <div className="px-3 py-4 text-center text-muted-foreground text-sm">No plans available</div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Notes */}
@@ -4406,7 +4818,7 @@ Questions? Call us anytime.
                                   <span className="font-medium">{msg.name}</span>
                                   {msg.message_type === 'quote_request' && (
                                     <Badge className="bg-purple-100 text-purple-700 border-purple-300">
-                                      📦 Package Quote
+                                      📦 Custom Plan Quote
                                     </Badge>
                                   )}
                                   <Badge variant="outline" className={
@@ -4479,6 +4891,97 @@ Questions? Call us anytime.
                                     </div>
                                   </div>
                                 )}
+                                
+                                {/* Quote Editor for quote_request messages */}
+                                {editingQuote === msg.id && msg.message_type === 'quote_request' && (
+                                  <div className="mt-3 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg space-y-4">
+                                    <h4 className="font-medium text-purple-800 flex items-center gap-2">
+                                      <Wrench className="w-4 h-4" />
+                                      Edit Custom Monthly Plan Quote
+                                    </h4>
+                                    
+                                    {/* Services list with edit */}
+                                    <div className="space-y-2">
+                                      <Label className="text-sm text-purple-700">Services (adjust prices as needed):</Label>
+                                      {quoteServices.map((service, idx) => (
+                                        <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded border">
+                                          <span className="flex-1 text-sm">{service.name}</span>
+                                          <span className="text-xs text-muted-foreground">{service.time}min</span>
+                                          <Input
+                                            type="number"
+                                            value={service.price}
+                                            onChange={(e) => {
+                                              const newServices = [...quoteServices];
+                                              newServices[idx].price = parseInt(e.target.value) || 0;
+                                              setQuoteServices(newServices);
+                                              setQuoteCustomPrice(String(newServices.reduce((sum, s) => sum + s.price, 0)));
+                                            }}
+                                            className="w-20 h-8 text-sm"
+                                          />
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-8 w-8 p-0 text-red-500 hover:bg-red-100"
+                                            onClick={() => {
+                                              const newServices = quoteServices.filter((_, i) => i !== idx);
+                                              setQuoteServices(newServices);
+                                              setQuoteCustomPrice(String(newServices.reduce((sum, s) => sum + s.price, 0)));
+                                            }}
+                                          >
+                                            <X className="w-4 h-4" />
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    
+                                    {/* Summary */}
+                                    <div className="flex items-center justify-between p-3 bg-purple-100 rounded-lg">
+                                      <div className="text-sm">
+                                        <span className="text-purple-700">Total Time: </span>
+                                        <strong>{Math.floor(quoteServices.reduce((sum, s) => sum + s.time, 0) / 60)}h {quoteServices.reduce((sum, s) => sum + s.time, 0) % 60}m</strong>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-purple-700 font-medium">Monthly Price:</span>
+                                        <div className="flex items-center">
+                                          <span className="text-lg mr-1">$</span>
+                                          <Input
+                                            type="number"
+                                            value={quoteCustomPrice}
+                                            onChange={(e) => setQuoteCustomPrice(e.target.value)}
+                                            className="w-24 h-10 text-lg font-bold"
+                                          />
+                                          <span className="text-lg ml-1">/mo</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Actions */}
+                                    <div className="flex gap-2">
+                                      <Button 
+                                        onClick={() => handleSendCustomQuote(msg)}
+                                        disabled={quoteSending || quoteServices.length === 0 || !quoteCustomPrice}
+                                        className="bg-purple-600 hover:bg-purple-700"
+                                      >
+                                        {quoteSending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                                        Create Subscription & Send Link
+                                      </Button>
+                                      <Button 
+                                        variant="outline"
+                                        onClick={() => {
+                                          setEditingQuote(null);
+                                          setQuoteServices([]);
+                                          setQuoteCustomPrice('');
+                                        }}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                    
+                                    <p className="text-xs text-purple-600">
+                                      This will create a subscription and send the customer a link to view their plan and pay.
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                               <div className="flex flex-col gap-2">
                                 {msg.status === 'new' && (
@@ -4493,7 +4996,18 @@ Questions? Call us anytime.
                                     Mark Read
                                   </Button>
                                 )}
-                                {replyingToMessage !== msg.id && (
+                                {/* Edit Quote button for quote requests */}
+                                {msg.message_type === 'quote_request' && editingQuote !== msg.id && !msg.reply && (
+                                  <Button 
+                                    size="sm" 
+                                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                                    onClick={() => handleEditQuote(msg)}
+                                  >
+                                    <Wrench className="w-3 h-3 mr-1" />
+                                    Edit & Send Quote
+                                  </Button>
+                                )}
+                                {replyingToMessage !== msg.id && editingQuote !== msg.id && (
                                   <Button 
                                     size="sm" 
                                     variant="outline"
@@ -4836,8 +5350,8 @@ Questions? Call us anytime.
                 </span>
               </div>
 
-              {/* Filter & Add */}
-              <div className="flex items-center gap-2">
+              {/* Filter & Actions */}
+              <div className="flex items-center gap-2 flex-wrap">
                 <Select value={subscriptionFilter} onValueChange={(v: 'all' | 'active' | 'paused' | 'cancelled') => setSubscriptionFilter(v)}>
                   <SelectTrigger className="w-40">
                     <SelectValue />
@@ -4853,6 +5367,43 @@ Questions? Call us anytime.
                   <Plus className="w-4 h-4 mr-1" />
                   Add Subscription
                 </Button>
+                
+                {/* Multi-select actions */}
+                {selectedSubscriptions.size > 0 && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="destructive">
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Delete {selectedSubscriptions.size} Selected
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete {selectedSubscriptions.size} subscription(s)?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete the selected subscriptions. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={handleDeleteSubscriptions}
+                          className="bg-destructive"
+                          disabled={deletingSubscriptions}
+                        >
+                          {deletingSubscriptions ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+                
+                {selectedSubscriptions.size > 0 && (
+                  <Button size="sm" variant="outline" onClick={() => setSelectedSubscriptions(new Set())}>
+                    Clear Selection
+                  </Button>
+                )}
               </div>
 
               {/* New Subscription Form */}
@@ -4925,76 +5476,187 @@ Questions? Call us anytime.
                         sub.status === 'active' ? 'border-green-200 bg-green-50/50' :
                         sub.status === 'paused' ? 'border-yellow-200 bg-yellow-50/50' :
                         'border-gray-200 bg-gray-50'
-                      }`}
+                      } ${selectedSubscriptions.has(sub.id) ? 'ring-2 ring-green-500' : ''}`}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{sub.client?.name || 'Unknown'}</span>
-                            <Badge variant={
-                              sub.status === 'active' ? 'default' :
-                              sub.status === 'paused' ? 'secondary' : 'destructive'
-                            }>
-                              {sub.status}
-                            </Badge>
+                      {editingSubscription === sub.id ? (
+                        /* Edit Mode */
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="font-medium">{sub.client?.name}</span>
+                            <Badge variant="outline">Editing</Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            {sub.plan?.name || sub.plan_id} • ${(sub.monthly_price / 100).toFixed(2)}/month
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Started {format(parseISO(sub.started_at), 'MMM d, yyyy')}
-                            {sub.next_billing_date && ` • Next billing: ${format(parseISO(sub.next_billing_date), 'MMM d')}`}
-                          </p>
-                          {sub.client?.phone && (
-                            <a href={`tel:${sub.client.phone}`} className="text-xs text-green-600 hover:underline">
-                              {sub.client.phone}
-                            </a>
-                          )}
-                        </div>
-                        <div className="flex gap-1">
-                          {sub.status === 'active' && (
-                            <>
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => handleSubscriptionStatusChange(sub.id, 'paused')}
+                          <div className="grid sm:grid-cols-3 gap-3">
+                            <div>
+                              <Label className="text-xs">Plan</Label>
+                              <Select 
+                                value={editSubscriptionData.planId} 
+                                onValueChange={(v) => {
+                                  const plan = subscriptionPlans.find(p => p.id === v);
+                                  setEditSubscriptionData(p => ({ 
+                                    ...p, 
+                                    planId: v,
+                                    price: plan ? String(plan.price_min) : p.price
+                                  }));
+                                }}
                               >
-                                Pause
-                              </Button>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="sm" variant="destructive">Cancel</Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Cancel subscription?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This will cancel {sub.client?.name}'s {sub.plan?.name} subscription.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Keep Active</AlertDialogCancel>
-                                    <AlertDialogAction 
-                                      onClick={() => handleSubscriptionStatusChange(sub.id, 'cancelled')}
-                                      className="bg-destructive"
-                                    >
-                                      Cancel Subscription
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </>
-                          )}
-                          {sub.status === 'paused' && (
-                            <Button 
-                              size="sm"
-                              onClick={() => handleSubscriptionStatusChange(sub.id, 'active')}
-                            >
-                              Resume
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {subscriptionPlans.map(p => (
+                                    <SelectItem key={p.id} value={p.id}>
+                                      {p.name} (${(p.price_min / 100).toFixed(0)})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label className="text-xs">Monthly Price (cents)</Label>
+                              <Input
+                                value={editSubscriptionData.price}
+                                onChange={(e) => setEditSubscriptionData(p => ({ ...p, price: e.target.value }))}
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs">Status</Label>
+                              <Select 
+                                value={editSubscriptionData.status} 
+                                onValueChange={(v) => setEditSubscriptionData(p => ({ ...p, status: v }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="active">Active</SelectItem>
+                                  <SelectItem value="paused">Paused</SelectItem>
+                                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={handleSaveSubscriptionEdit}>
+                              <Save className="w-4 h-4 mr-1" />
+                              Save
                             </Button>
-                          )}
+                            <Button size="sm" variant="outline" onClick={() => setEditingSubscription(null)}>
+                              Cancel
+                            </Button>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        /* View Mode */
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={selectedSubscriptions.has(sub.id)}
+                            onCheckedChange={(checked) => {
+                              const newSet = new Set(selectedSubscriptions);
+                              if (checked) {
+                                newSet.add(sub.id);
+                              } else {
+                                newSet.delete(sub.id);
+                              }
+                              setSelectedSubscriptions(newSet);
+                            }}
+                            className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{sub.client?.name || 'Unknown'}</span>
+                                  <Badge variant={
+                                    sub.status === 'active' ? 'default' :
+                                    sub.status === 'paused' ? 'secondary' : 'destructive'
+                                  }>
+                                    {sub.status}
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                  {sub.plan?.name || sub.plan_id} • ${(sub.monthly_price / 100).toFixed(2)}/month
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Started {format(parseISO(sub.started_at), 'MMM d, yyyy')}
+                                  {sub.next_billing_date && ` • Next billing: ${format(parseISO(sub.next_billing_date), 'MMM d')}`}
+                                </p>
+                                {sub.client?.phone && (
+                                  <a href={`tel:${sub.client.phone}`} className="text-xs text-green-600 hover:underline">
+                                    {sub.client.phone}
+                                  </a>
+                                )}
+                              </div>
+                              <div className="flex gap-1 flex-wrap">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => handleEditSubscription(sub)}
+                                >
+                                  <Edit className="w-3 h-3 mr-1" />
+                                  Edit
+                                </Button>
+                                {sub.status === 'active' && (
+                                  <>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button size="sm" variant="outline">Pause</Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Pause subscription?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            This will pause {sub.client?.name}'s subscription. 
+                                            They won't be billed until resumed.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Keep Active</AlertDialogCancel>
+                                          <AlertDialogAction 
+                                            onClick={() => handleSubscriptionStatusChange(sub.id, 'paused')}
+                                            className="bg-yellow-600 hover:bg-yellow-700"
+                                          >
+                                            Pause
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button size="sm" variant="destructive">Cancel</Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Cancel subscription?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            This will permanently cancel {sub.client?.name}'s subscription.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Keep Active</AlertDialogCancel>
+                                          <AlertDialogAction 
+                                            onClick={() => handleSubscriptionStatusChange(sub.id, 'cancelled')}
+                                            className="bg-destructive"
+                                          >
+                                            Cancel Subscription
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </>
+                                )}
+                                {sub.status === 'paused' && (
+                                  <Button 
+                                    size="sm"
+                                    onClick={() => handleSubscriptionStatusChange(sub.id, 'active')}
+                                  >
+                                    Resume
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 {subscriptions.filter(s => subscriptionFilter === 'all' || s.status === subscriptionFilter).length === 0 && (

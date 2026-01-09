@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Star, Heart, Wrench, Sun, Home, Users, Camera, Calendar, Smartphone, ShieldCheck, Gift, MapPin, Clock, Zap, Plus, Minus, Send, Loader2, Check } from "lucide-react";
+import { Star, Heart, Wrench, Sun, Home, Users, Camera, Calendar, Smartphone, ShieldCheck, Gift, MapPin, Clock, Zap, Plus, Minus, Send, Loader2, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from "@/components/ui/carousel";
 import { submitQuoteRequest } from "@/lib/supabase";
 import lakeshoreMap from "@/assets/lakeshore villas.png";
 
@@ -203,12 +204,24 @@ const monthlyPlans = [
 const SpecialPackages = () => {
   const [showCustomBuilder, setShowCustomBuilder] = useState(false);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [isFromScheduler, setIsFromScheduler] = useState(false);
   
   // Listen for event to open custom plan builder from other components
   useEffect(() => {
-    const handleOpenBuilder = () => setShowCustomBuilder(true);
+    const handleOpenBuilder = () => {
+      setIsFromScheduler(false);
+      setShowCustomBuilder(true);
+    };
+    const handleOpenBuilderFromScheduler = () => {
+      setIsFromScheduler(true);
+      setShowCustomBuilder(true);
+    };
     window.addEventListener('openCustomPlanBuilder', handleOpenBuilder);
-    return () => window.removeEventListener('openCustomPlanBuilder', handleOpenBuilder);
+    window.addEventListener('openCustomPlanBuilderForBooking', handleOpenBuilderFromScheduler);
+    return () => {
+      window.removeEventListener('openCustomPlanBuilder', handleOpenBuilder);
+      window.removeEventListener('openCustomPlanBuilderForBooking', handleOpenBuilderFromScheduler);
+    };
   }, []);
   const [quoteName, setQuoteName] = useState('');
   const [quotePhone, setQuotePhone] = useState('');
@@ -285,60 +298,147 @@ const SpecialPackages = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {allPackages.map((pkg, index) => (
-              <Card 
-                key={index}
-                className={`relative border-2 transition-shadow hover:shadow-lg ${
-                  pkg.popular 
-                    ? 'border-accent shadow-md' 
-                    : 'border-border'
-                }`}
-              >
-                {pkg.popular && (
-                  <span className="absolute -top-2.5 left-3 sm:left-6 bg-accent text-accent-foreground px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-medium">
-                    Popular
-                  </span>
-                )}
-                <CardHeader className="p-3 sm:p-4 pb-2 sm:pb-3">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      pkg.popular ? 'bg-accent/10' : 'bg-secondary'
-                    }`}>
-                      <pkg.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${
-                        pkg.popular ? 'text-accent' : 'text-primary'
-                      }`} />
-                    </div>
-                    <div className="min-w-0">
-                      <CardTitle className="font-heading text-sm sm:text-base leading-tight">
-                        {pkg.name}
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground">
-                        {pkg.duration}
-                      </p>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-3 sm:p-4 pt-0">
-                  <div className="mb-2 sm:mb-3">
-                    <span className="font-heading text-lg sm:text-xl text-primary">
-                      {pkg.price}
-                    </span>
-                  </div>
-                  <ul className="space-y-1">
-                    {pkg.features.map((feature, featureIndex) => (
-                      <li 
-                        key={featureIndex}
-                        className="flex items-start gap-1.5 text-muted-foreground text-xs sm:text-sm"
-                      >
-                        <span className="text-primary mt-0.5 text-xs">✓</span>
-                        <span className="leading-tight">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            ))}
+          {/* Desktop Carousel - 3 cards visible */}
+          <div className="hidden md:block">
+            <Carousel
+              opts={{
+                align: "start",
+                loop: true,
+              }}
+              className="w-full"
+            >
+              <CarouselContent className="-ml-4">
+                {allPackages.map((pkg, index) => (
+                  <CarouselItem key={index} className="pl-4 basis-1/3">
+                    <Card 
+                      className={`relative border-2 transition-shadow hover:shadow-lg h-full ${
+                        pkg.popular 
+                          ? 'border-accent shadow-md' 
+                          : 'border-border'
+                      }`}
+                    >
+                      {pkg.popular && (
+                        <span className="absolute -top-2.5 left-6 bg-accent text-accent-foreground px-3 py-1 rounded-full text-xs font-medium">
+                          Popular
+                        </span>
+                      )}
+                      <CardHeader className="p-4 pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                            pkg.popular ? 'bg-accent/10' : 'bg-secondary'
+                          }`}>
+                            <pkg.icon className={`w-5 h-5 ${
+                              pkg.popular ? 'text-accent' : 'text-primary'
+                            }`} />
+                          </div>
+                          <div className="min-w-0">
+                            <CardTitle className="font-heading text-base leading-tight">
+                              {pkg.name}
+                            </CardTitle>
+                            <p className="text-xs text-muted-foreground">
+                              {pkg.duration}
+                            </p>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4 pt-0">
+                        <div className="mb-3">
+                          <span className="font-heading text-xl text-primary">
+                            {pkg.price}
+                          </span>
+                        </div>
+                        <ul className="space-y-1">
+                          {pkg.features.map((feature, featureIndex) => (
+                            <li 
+                              key={featureIndex}
+                              className="flex items-start gap-1.5 text-muted-foreground text-sm"
+                            >
+                              <span className="text-primary mt-0.5 text-xs">✓</span>
+                              <span className="leading-tight">{feature}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious className="-left-4 h-10 w-10 border-2 border-primary/30 bg-white hover:bg-primary hover:text-white" />
+              <CarouselNext className="-right-4 h-10 w-10 border-2 border-primary/30 bg-white hover:bg-primary hover:text-white" />
+            </Carousel>
+          </div>
+
+          {/* Mobile Carousel - 1 card visible with swipe */}
+          <div className="md:hidden">
+            <Carousel
+              opts={{
+                align: "center",
+                loop: true,
+              }}
+              className="w-full"
+            >
+              <CarouselContent className="-ml-2">
+                {allPackages.map((pkg, index) => (
+                  <CarouselItem key={index} className="pl-2 basis-[85%]">
+                    <Card 
+                      className={`relative border-2 transition-shadow hover:shadow-lg h-full ${
+                        pkg.popular 
+                          ? 'border-accent shadow-md' 
+                          : 'border-border'
+                      }`}
+                    >
+                      {pkg.popular && (
+                        <span className="absolute -top-2.5 left-4 bg-accent text-accent-foreground px-2 py-0.5 rounded-full text-xs font-medium">
+                          Popular
+                        </span>
+                      )}
+                      <CardHeader className="p-4 pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                            pkg.popular ? 'bg-accent/10' : 'bg-secondary'
+                          }`}>
+                            <pkg.icon className={`w-5 h-5 ${
+                              pkg.popular ? 'text-accent' : 'text-primary'
+                            }`} />
+                          </div>
+                          <div className="min-w-0">
+                            <CardTitle className="font-heading text-base leading-tight">
+                              {pkg.name}
+                            </CardTitle>
+                            <p className="text-xs text-muted-foreground">
+                              {pkg.duration}
+                            </p>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4 pt-0">
+                        <div className="mb-3">
+                          <span className="font-heading text-xl text-primary">
+                            {pkg.price}
+                          </span>
+                        </div>
+                        <ul className="space-y-1">
+                          {pkg.features.map((feature, featureIndex) => (
+                            <li 
+                              key={featureIndex}
+                              className="flex items-start gap-1.5 text-muted-foreground text-sm"
+                            >
+                              <span className="text-primary mt-0.5 text-xs">✓</span>
+                              <span className="leading-tight">{feature}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <div className="flex justify-center gap-2 mt-4">
+                <CarouselPrevious className="relative inset-0 translate-x-0 translate-y-0 h-9 w-9 border-2 border-primary/30 bg-white hover:bg-primary hover:text-white" />
+                <CarouselNext className="relative inset-0 translate-x-0 translate-y-0 h-9 w-9 border-2 border-primary/30 bg-white hover:bg-primary hover:text-white" />
+              </div>
+            </Carousel>
+            <p className="text-center text-xs text-muted-foreground mt-2">Swipe or tap arrows to see more</p>
           </div>
         </div>
       </div>
@@ -359,11 +459,11 @@ const SpecialPackages = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {monthlyPlans.map((plan, index) => (
               <Card 
                 key={index}
-                className={`relative border-2 transition-shadow hover:shadow-lg bg-card ${
+                className={`relative border-2 transition-shadow hover:shadow-lg bg-card h-full ${
                   plan.popular 
                     ? 'border-primary shadow-md' 
                     : plan.isCustom
@@ -372,46 +472,46 @@ const SpecialPackages = () => {
                 }`}
               >
                 {plan.popular && (
-                  <span className="absolute -top-3 left-6 bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm font-medium">
+                  <span className="absolute -top-2.5 left-6 bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-medium">
                     Recommended
                   </span>
                 )}
-                <CardHeader className="pb-4">
+                <CardHeader className="p-4 pb-3">
                   <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
                       plan.popular ? 'bg-primary/10' : plan.isCustom ? 'bg-accent/10' : 'bg-secondary'
                     }`}>
-                      <plan.icon className={`w-6 h-6 ${
+                      <plan.icon className={`w-5 h-5 ${
                         plan.isCustom ? 'text-accent' : 'text-primary'
                       }`} />
                     </div>
-                    <div>
-                      <CardTitle className="font-heading text-lg">
+                    <div className="min-w-0">
+                      <CardTitle className="font-heading text-base leading-tight">
                         {plan.name}
                       </CardTitle>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {plan.duration}
                       </p>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="mb-2">
-                    <span className={`font-heading text-2xl ${plan.isCustom ? 'text-accent' : 'text-primary'}`}>
+                <CardContent className="p-4 pt-0">
+                  <div className="mb-3">
+                    <span className={`font-heading text-xl ${plan.isCustom ? 'text-accent' : 'text-primary'}`}>
                       {plan.price}
                     </span>
                   </div>
-                  <p className="text-xs text-accent font-medium mb-4">
+                  <p className="text-xs text-accent font-medium mb-3">
                     Best for: {plan.bestFor}
                   </p>
-                  <ul className="space-y-2">
+                  <ul className="space-y-1">
                     {plan.features.map((feature, featureIndex) => (
                       <li 
                         key={featureIndex}
-                        className="flex items-center gap-2 text-muted-foreground text-sm"
+                        className="flex items-start gap-1.5 text-muted-foreground text-sm"
                       >
-                        <span className={plan.isCustom ? 'text-accent' : 'text-primary'}>✓</span>
-                        {feature}
+                        <span className={`mt-0.5 text-xs ${plan.isCustom ? 'text-accent' : 'text-primary'}`}>✓</span>
+                        <span className="leading-tight">{feature}</span>
                       </li>
                     ))}
                   </ul>
@@ -477,10 +577,64 @@ const SpecialPackages = () => {
                 <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
                   <Check className="w-5 h-5 text-green-600" />
                 </div>
-                <p className="font-heading text-base text-foreground">Quote Request Sent!</p>
-                <p className="text-xs text-muted-foreground">We'll get back to you soon.</p>
+                <p className="font-heading text-base text-foreground">
+                  {isFromScheduler ? 'Services Added to Booking!' : 'Quote Request Sent!'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {isFromScheduler ? 'Continue with your booking.' : "We'll get back to you soon."}
+                </p>
               </div>
+            ) : isFromScheduler ? (
+              /* Add to Booking Mode - No contact form needed */
+              <>
+                {/* Compact summary row */}
+                <div className="flex items-center justify-between text-xs bg-blue-50 rounded-lg px-3 py-2 border border-blue-200">
+                  <span className="text-blue-700">{selectedServices.length} services</span>
+                  <span className="text-blue-600">{formatTime(selectedTime)}</span>
+                  <span className="font-heading text-blue-700 text-sm">${selectedTotal}/mo</span>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="h-9"
+                    onClick={() => setSelectedServices([])}
+                    disabled={selectedServices.length === 0}
+                  >
+                    <Minus className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    className="flex-1 h-9 bg-blue-600 hover:bg-blue-700"
+                    onClick={() => {
+                      if (selectedServices.length === 0) return;
+                      // Dispatch event with selected services back to scheduler
+                      const servicesData = customPlanServices
+                        .filter(s => selectedServices.includes(s.name))
+                        .map(s => ({ name: s.name, price: s.price, time: s.time }));
+                      window.dispatchEvent(new CustomEvent('customPlanServicesSelected', { 
+                        detail: { services: servicesData, total: selectedTotal, time: selectedTime }
+                      }));
+                      setSubmitted(true);
+                      setTimeout(() => {
+                        setShowCustomBuilder(false);
+                        setSubmitted(false);
+                        setSelectedServices([]);
+                        setIsFromScheduler(false);
+                      }, 1500);
+                    }}
+                    disabled={selectedServices.length === 0}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add to Booking
+                  </Button>
+                </div>
+                <p className="text-xs text-blue-600 text-center">
+                  Your custom plan services will be added to your booking
+                </p>
+              </>
             ) : (
+              /* Request Quote Mode - Full contact form */
               <>
                 {/* Compact summary row */}
                 <div className="flex items-center justify-between text-xs bg-muted/30 rounded-lg px-3 py-2">

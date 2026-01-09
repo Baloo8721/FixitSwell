@@ -69,11 +69,15 @@ import {
   getAllServicesForDropdown,
   addServiceToBooking,
   removeServiceFromBooking,
+  getSubscriptionByToken,
+  updateSubscriptionStatusByToken,
+  selectSubscriptionPaymentMethod,
   DEFAULT_TIME_SLOTS,
   type Booking,
   type Client,
   type Service,
-  type TimeSlot
+  type TimeSlot,
+  type SubscriptionWithDetails
 } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 
@@ -83,6 +87,8 @@ const ManageBooking = () => {
   const { token } = useParams<{ token: string }>();
   const [searchParams] = useSearchParams();
   const [booking, setBooking] = useState<BookingWithDetails | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionWithDetails | null>(null);
+  const [viewMode, setViewMode] = useState<'booking' | 'subscription' | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -194,26 +200,39 @@ const ManageBooking = () => {
     }
 
     setIsLoading(true);
-    const { data, error: fetchError } = await getBookingByToken(token);
     
-    if (fetchError || !data) {
-      setError('Booking not found. The link may be invalid or expired.');
+    // Try loading as booking first
+    const { data: bookingData, error: bookingError } = await getBookingByToken(token);
+    
+    if (bookingData) {
+      setBooking(bookingData);
+      setViewMode('booking');
+      setEditDate(parseISO(bookingData.date));
+      setEditTimeSlot(bookingData.time_slot);
+      setEditServices(bookingData.services?.map(s => s.id || s.name) || []);
+      setEditNotes(bookingData.notes || '');
+      setEditContactForm({
+        name: bookingData.client?.name || '',
+        phone: bookingData.client?.phone || '',
+        email: bookingData.client?.email || '',
+        address: bookingData.client?.address || ''
+      });
       setIsLoading(false);
       return;
     }
-
-    setBooking(data);
-    setEditDate(parseISO(data.date));
-    setEditTimeSlot(data.time_slot);
-    setEditServices(data.services?.map(s => s.id || s.name) || []);
-    setEditNotes(data.notes || '');
-    // Set contact form
-    setEditContactForm({
-      name: data.client?.name || '',
-      phone: data.client?.phone || '',
-      email: data.client?.email || '',
-      address: data.client?.address || ''
-    });
+    
+    // Try loading as subscription
+    const { data: subData, error: subError } = await getSubscriptionByToken(token);
+    
+    if (subData) {
+      setSubscription(subData);
+      setViewMode('subscription');
+      setIsLoading(false);
+      return;
+    }
+    
+    // Neither found
+    setError('Booking not found. The link may be invalid or expired.');
     setIsLoading(false);
   };
 
@@ -408,29 +427,30 @@ const ManageBooking = () => {
   };
 
   const canModify = booking && !['cancelled', 'completed', 'no_show'].includes(booking.status);
+  const canModifySubscription = subscription && subscription.status !== 'cancelled';
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-lg text-muted-foreground">Loading your booking...</p>
+          <p className="text-lg text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
   }
 
-  if (error || !booking) {
+  if (error || (!booking && !subscription)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardContent className="p-8 text-center">
             <XCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
             <h2 className="font-heading text-xl font-bold text-foreground mb-2">
-              Booking Not Found
+              Not Found
             </h2>
             <p className="text-muted-foreground mb-6">
-              {error || 'The booking link may be invalid or expired.'}
+              {error || 'The link may be invalid or expired.'}
             </p>
             <Link to="/">
               <Button>
@@ -443,6 +463,340 @@ const ManageBooking = () => {
       </div>
     );
   }
+
+  // SUBSCRIPTION VIEW
+  if (viewMode === 'subscription' && subscription) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b border-border bg-card">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center gap-4">
+              <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">
+                <Home className="w-5 h-5" />
+              </Link>
+              <h1 className="font-heading text-2xl font-bold text-foreground">Manage Your Subscription</h1>
+            </div>
+          </div>
+        </header>
+
+        <main className="container mx-auto px-4 py-8 max-w-3xl">
+          <Card className="overflow-hidden">
+            <CardHeader className="bg-blue-50 border-b border-blue-200">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <CalendarDays className="w-5 h-5 text-blue-600" />
+                    {subscription.plan?.name || 'Custom Monthly Plan'}
+                  </CardTitle>
+                  <p className="text-muted-foreground mt-1">
+                    ${(subscription.monthly_price / 100).toFixed(2)}/month
+                  </p>
+                </div>
+                <Badge variant="outline" className={
+                  subscription.status === 'active' ? 'bg-green-100 text-green-700 border-green-300' :
+                  subscription.status === 'paused' ? 'bg-yellow-100 text-yellow-700 border-yellow-300' :
+                  'bg-red-100 text-red-700 border-red-300'
+                }>
+                  {subscription.status === 'active' ? '✓ Active' : 
+                   subscription.status === 'paused' ? '⏸ Paused' : '✕ Cancelled'}
+                </Badge>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-6 space-y-6">
+              {/* Subscription Details */}
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
+                    <CalendarDays className="w-5 h-5 text-primary" />
+                    Subscription Details
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                      <span>Started: {format(parseISO(subscription.started_at), 'MMMM d, yyyy')}</span>
+                    </div>
+                    {subscription.next_billing_date && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-muted-foreground" />
+                        <span>Next billing: {format(parseISO(subscription.next_billing_date), 'MMMM d, yyyy')}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-muted-foreground" />
+                      <span className="font-medium text-lg">${(subscription.monthly_price / 100).toFixed(2)}/month</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
+                    <User className="w-5 h-5 text-primary" />
+                    Contact Information
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-muted-foreground" />
+                      <span>{subscription.client?.name}</span>
+                    </div>
+                    {subscription.client?.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-4 h-4 text-muted-foreground" />
+                        <span>{subscription.client.phone}</span>
+                      </div>
+                    )}
+                    {subscription.client?.email && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-muted-foreground" />
+                        <span>{subscription.client.email}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Section */}
+              {subscription.payment_status !== 'paid' && subscription.status === 'active' && (
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
+                    <DollarSign className="w-5 h-5 text-primary" />
+                    Payment
+                  </h3>
+                  
+                  <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-2xl font-bold text-orange-700">
+                        ${(subscription.monthly_price / 100).toFixed(2)}/mo
+                      </span>
+                      <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-300">
+                        {subscription.payment_status === 'pending_collection' ? 'Pay at Visit' : 'Payment Due'}
+                      </Badge>
+                    </div>
+
+                    {subscription.payment_method && subscription.payment_status === 'pending_collection' && (
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
+                        <p className="font-medium text-blue-800">
+                          {subscription.payment_method === 'check' ? '📝 Paying by Check' : '💵 Paying by Cash'}
+                        </p>
+                        <p className="text-sm text-blue-600 mt-1">
+                          We'll collect payment when we arrive for your first visit.
+                        </p>
+                      </div>
+                    )}
+
+                    {!subscription.payment_method && (
+                      <>
+                        <p className="text-sm text-foreground font-medium mb-3">Choose how you'd like to pay:</p>
+                        <div className="grid gap-3">
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button className="flex items-center gap-3 p-4 bg-white border-2 border-primary rounded-lg hover:bg-primary/5 transition-colors text-left">
+                                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                                  <CreditCard className="w-6 h-6 text-primary" />
+                                </div>
+                                <div className="flex-1">
+                                  <p className="font-semibold text-foreground">Pay Now with Card</p>
+                                  <p className="text-sm text-muted-foreground">Credit/Debit card, Apple Pay, Google Pay</p>
+                                </div>
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Pay ${(subscription.monthly_price / 100).toFixed(2)}/month?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  You'll be redirected to complete your payment securely. Your subscription will be activated immediately.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction className="bg-primary">
+                                  <CreditCard className="w-4 h-4 mr-2" />
+                                  Proceed to Payment
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button className="flex items-center gap-3 p-4 bg-white border-2 border-gray-200 rounded-lg hover:border-primary/50 hover:bg-primary/5 transition-colors text-left">
+                                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                  <Banknote className="w-6 h-6 text-green-600" />
+                                </div>
+                                <div className="flex-1">
+                                  <p className="font-semibold text-foreground">Pay at First Visit</p>
+                                  <p className="text-sm text-muted-foreground">Cash or check - we'll collect when we arrive</p>
+                                </div>
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Pay at First Visit?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Please have ${(subscription.monthly_price / 100).toFixed(2)} ready (cash or check) when we arrive for your first visit.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={async () => {
+                                    const { error } = await selectSubscriptionPaymentMethod(token!, 'cash');
+                                    if (error) {
+                                      toast({ title: "Error", description: error.message, variant: "destructive" });
+                                    } else {
+                                      toast({ title: "Payment Method Selected", description: "We'll collect payment at your first visit." });
+                                      loadBooking();
+                                    }
+                                  }}
+                                  className="bg-green-600"
+                                >
+                                  <Banknote className="w-4 h-4 mr-2" />
+                                  Confirm Pay at Visit
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Complete */}
+              {subscription.payment_status === 'paid' && (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                  <div>
+                    <p className="font-semibold text-green-800">Payment Complete</p>
+                    <p className="text-sm text-green-600">Your subscription is active and paid.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              {canModifySubscription && (
+                <div className="flex flex-wrap gap-3 pt-4 border-t border-border">
+                  {subscription.status === 'active' && (
+                    <>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline">
+                            <AlertCircle className="w-4 h-4 mr-2" />
+                            Pause Subscription
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Pause your subscription?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Your subscription will be paused and you won't be billed until you resume. 
+                              You can resume anytime by coming back to this page.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep Active</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={async () => {
+                                const { error } = await updateSubscriptionStatusByToken(token!, 'paused');
+                                if (error) {
+                                  toast({ title: "Error", description: error.message, variant: "destructive" });
+                                } else {
+                                  toast({ title: "Subscription Paused" });
+                                  loadBooking();
+                                }
+                              }}
+                              className="bg-yellow-600"
+                            >
+                              Pause Subscription
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive">
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Cancel Subscription
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Cancel your subscription?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently cancel your subscription. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={async () => {
+                                const { error } = await updateSubscriptionStatusByToken(token!, 'cancelled');
+                                if (error) {
+                                  toast({ title: "Error", description: error.message, variant: "destructive" });
+                                } else {
+                                  toast({ title: "Subscription Cancelled" });
+                                  loadBooking();
+                                }
+                              }}
+                              className="bg-destructive"
+                            >
+                              Cancel Subscription
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </>
+                  )}
+
+                  {subscription.status === 'paused' && (
+                    <Button
+                      onClick={async () => {
+                        const { error } = await updateSubscriptionStatusByToken(token!, 'active');
+                        if (error) {
+                          toast({ title: "Error", description: error.message, variant: "destructive" });
+                        } else {
+                          toast({ title: "Subscription Resumed!" });
+                          loadBooking();
+                        }
+                      }}
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Resume Subscription
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {subscription.status === 'cancelled' && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+                  <XCircle className="w-6 h-6 text-red-600" />
+                  <div>
+                    <p className="font-semibold text-red-800">Subscription Cancelled</p>
+                    <p className="text-sm text-red-600">
+                      This subscription has been cancelled.
+                      {subscription.cancelled_at && ` (${format(parseISO(subscription.cancelled_at), 'MMM d, yyyy')})`}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="mt-6 text-center">
+            <Link to="/" className="text-primary hover:underline inline-flex items-center gap-1">
+              <ArrowLeft className="w-4 h-4" />
+              Back to FixitSwell
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // BOOKING VIEW (existing code)
+  if (!booking) return null;
 
   return (
     <div className="min-h-screen bg-background">
