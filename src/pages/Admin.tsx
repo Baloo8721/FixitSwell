@@ -258,6 +258,7 @@ const Admin = () => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedBooking, setExpandedBooking] = useState<string | null>(null);
+  const [viewingOriginalBooking, setViewingOriginalBooking] = useState<BookingWithDetails | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [timeEntries, setTimeEntries] = useState<Record<string, TimeEntry[]>>({});
   const [activeTimers, setActiveTimers] = useState<Record<string, TimeEntry | null>>({});
@@ -1508,6 +1509,14 @@ Questions? Call us anytime.
     return acc;
   }, new Set<string>());
 
+  // Handle viewing original booking (works even when filtered)
+  const handleViewOriginal = async (originalId: string) => {
+    const original = await getOriginalBooking(originalId);
+    if (original) {
+      setViewingOriginalBooking(original);
+    }
+  };
+
   const handleStatusUpdate = async (bookingId: string, newStatus: Booking['status']) => {
     setUpdatingId(bookingId);
     const { error } = await updateBookingStatus(bookingId, newStatus, 'staff');
@@ -2471,7 +2480,7 @@ Questions? Call us anytime.
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         e.preventDefault();
-                                        setExpandedBooking(booking.follow_up_from!);
+                                        handleViewOriginal(booking.follow_up_from!);
                                       }}
                                       onTouchStart={(e) => {
                                         e.stopPropagation();
@@ -2479,7 +2488,7 @@ Questions? Call us anytime.
                                       onTouchEnd={(e) => {
                                         e.stopPropagation();
                                         e.preventDefault();
-                                        setExpandedBooking(booking.follow_up_from!);
+                                        handleViewOriginal(booking.follow_up_from!);
                                       }}
                                     >
                                       <RotateCcw className="w-3 h-3 inline mr-0.5" />
@@ -5697,6 +5706,119 @@ Questions? Call us anytime.
                 >
                   <RotateCcw className="w-4 h-4" />
                   Create Follow-up
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* View Original Booking Dialog (works even when filtered) */}
+      <Dialog open={!!viewingOriginalBooking} onOpenChange={(open) => !open && setViewingOriginalBooking(null)}>
+        <DialogContent className={`w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden border-l-4 ${
+          viewingOriginalBooking?.status === 'pending' ? 'border-l-yellow-500' :
+          viewingOriginalBooking?.status === 'confirmed' ? 'border-l-blue-500' :
+          viewingOriginalBooking?.status === 'completed' ? 'border-l-green-500' :
+          viewingOriginalBooking?.status === 'cancelled' ? 'border-l-red-500' :
+          viewingOriginalBooking?.status === 'no_show' ? 'border-l-gray-500' : ''
+        }`}>
+          <DialogHeader className="pb-3 border-b">
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="w-5 h-5 text-blue-600" />
+              Original Booking
+              {viewingOriginalBooking && getStatusBadge(viewingOriginalBooking.status)}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {viewingOriginalBooking && (
+            <div className="space-y-4">
+              {/* Client Info */}
+              <div className="p-3 bg-secondary/50 rounded-lg">
+                <div className="flex items-center gap-2 font-medium">
+                  <User className="w-4 h-4" />
+                  {viewingOriginalBooking.client?.name}
+                </div>
+                {viewingOriginalBooking.client?.phone && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                    <Phone className="w-3 h-3" />
+                    {viewingOriginalBooking.client.phone}
+                  </div>
+                )}
+                {viewingOriginalBooking.client?.address && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                    <MapPin className="w-3 h-3" />
+                    {viewingOriginalBooking.client.address}
+                  </div>
+                )}
+              </div>
+
+              {/* Date/Time */}
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                  {format(parseISO(viewingOriginalBooking.date), 'EEEE, MMM d, yyyy')}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                  {viewingOriginalBooking.time_slot}
+                </div>
+              </div>
+
+              {/* Services */}
+              <div>
+                <Label className="text-sm font-medium">Services</Label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {viewingOriginalBooking.services?.map((s, i) => (
+                    <Badge key={i} variant="secondary">
+                      {s.service?.name || s.name || 'Service'}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notes */}
+              {(viewingOriginalBooking.notes || viewingOriginalBooking.internal_notes) && (
+                <div>
+                  <Label className="text-sm font-medium">Notes</Label>
+                  <p className="text-sm p-2 bg-secondary/50 rounded mt-1">
+                    {viewingOriginalBooking.internal_notes || viewingOriginalBooking.notes}
+                  </p>
+                </div>
+              )}
+
+              {/* Invoice Info */}
+              {viewingOriginalBooking.invoice_amount && (
+                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-green-700">Invoice</span>
+                    <Badge className={
+                      viewingOriginalBooking.invoice_status === 'paid' ? 'bg-green-100 text-green-700' :
+                      'bg-yellow-100 text-yellow-700'
+                    }>
+                      ${viewingOriginalBooking.invoice_amount} - {viewingOriginalBooking.invoice_status}
+                    </Badge>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-3 border-t">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setViewingOriginalBooking(null);
+                    setExpandedBooking(viewingOriginalBooking.id);
+                  }}
+                >
+                  Open Full Details
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setViewingOriginalBooking(null)}
+                >
+                  Close
                 </Button>
               </div>
             </div>
