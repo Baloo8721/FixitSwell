@@ -216,11 +216,11 @@ export const ServicesOverlayProvider = ({ children }: { children: ReactNode }) =
                 </div>
               ))}
               
-              {/* Pricing note */}
+              {/* Service note */}
               <div className="bg-secondary/50 rounded-lg p-4 mt-6">
                 <p className="text-sm text-muted-foreground">
-                  <strong className="text-foreground">Pricing Note:</strong> Prices shown are labor only. 
-                  Materials/parts extra. Senior & military discount: 10% off.
+                  <strong className="text-foreground">Note:</strong> Contact us for a free quote. 
+                  Senior & military discount: 10% off.
                 </p>
               </div>
             </div>

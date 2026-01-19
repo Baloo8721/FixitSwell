@@ -116,7 +116,7 @@ const ServicesSection = () => {
           Services We Provide
         </h2>
         <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
-          Clear pricing. No surprises. All work stays within safe, appropriate limits — light repairs, cosmetic fixes, and helpful support.
+          No surprises. All work stays within safe, appropriate limits — light repairs, cosmetic fixes, and helpful support.
         </p>
 
         <Accordion type="single" collapsible className="space-y-4">
@@ -137,14 +137,14 @@ const ServicesSection = () => {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="px-6 pb-6">
-                <ul className="space-y-3 pt-2">
+                <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 pt-2">
                   {category.services.map((service, serviceIndex) => (
                     <li
                       key={serviceIndex}
-                      className="flex items-start gap-3 text-muted-foreground"
+                      className="flex items-start gap-2 text-muted-foreground"
                     >
-                      <span className="text-primary mt-1 text-lg">✓</span>
-                      <span className="text-base leading-relaxed">{service}</span>
+                      <span className="text-primary mt-0.5 text-base flex-shrink-0">✓</span>
+                      <span className="text-sm leading-snug">{service}</span>
                     </li>
                   ))}
                 </ul>
