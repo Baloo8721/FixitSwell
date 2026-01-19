@@ -191,7 +191,7 @@ export const ServicesOverlayProvider = ({ children }: { children: ReactNode }) =
 
       {/* Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh]">
+        <DialogContent className="max-w-lg sm:max-w-2xl max-h-[85vh]">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl">Complete Service List</DialogTitle>
           </DialogHeader>
@@ -202,14 +202,14 @@ export const ServicesOverlayProvider = ({ children }: { children: ReactNode }) =
                   <h3 className="font-heading text-lg text-foreground mb-3 border-b border-border pb-2">
                     {cat.category}
                   </h3>
-                  <ul className="space-y-2">
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                     {cat.services.map((service, serviceIndex) => (
                       <li
                         key={serviceIndex}
                         className="flex items-start gap-2 text-muted-foreground py-1"
                       >
-                        <span className="text-primary mt-0.5">✓</span>
-                        <span className="text-sm leading-relaxed">{service}</span>
+                        <span className="text-primary mt-0.5 flex-shrink-0">✓</span>
+                        <span className="text-sm leading-snug">{service}</span>
                       </li>
                     ))}
                   </ul>
