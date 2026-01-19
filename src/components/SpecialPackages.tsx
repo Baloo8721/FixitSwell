@@ -564,7 +564,6 @@ const SpecialPackages = () => {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium leading-tight">{service.name}</p>
                   </div>
-                  <span className="text-xs font-medium text-primary">${service.price}</span>
                 </label>
               ))}
             </div>
@@ -591,7 +590,6 @@ const SpecialPackages = () => {
                 <div className="flex items-center justify-between text-xs bg-blue-50 rounded-lg px-3 py-2 border border-blue-200">
                   <span className="text-blue-700">{selectedServices.length} services</span>
                   <span className="text-blue-600">{formatTime(selectedTime)}</span>
-                  <span className="font-heading text-blue-700 text-sm">${selectedTotal}/mo</span>
                 </div>
                 
                 <div className="flex gap-2">
@@ -640,7 +638,6 @@ const SpecialPackages = () => {
                 <div className="flex items-center justify-between text-xs bg-muted/30 rounded-lg px-3 py-2">
                   <span>{selectedServices.length} services</span>
                   <span>{formatTime(selectedTime)}</span>
-                  <span className="font-heading text-accent text-sm">${selectedTotal}/mo</span>
                 </div>
 
                 {/* Compact form */}

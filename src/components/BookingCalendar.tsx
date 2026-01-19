@@ -214,7 +214,7 @@ const BookingCalendar = () => {
         id: 'monthly-custom',
         name: 'Custom Monthly Plan',
         category: 'monthly',
-        price: `$${total}/mo`,
+        price: '',
         durationMinutes: time
       };
       
@@ -229,7 +229,7 @@ const BookingCalendar = () => {
           services: updatedServices,
           selectedPlanId: 'monthly-custom',
           customNotes: prev.customNotes + (prev.customNotes ? '\n\n' : '') + 
-            `Custom Monthly Plan Services:\n${services.map(s => `• ${s.name} ($${s.price})`).join('\n')}\nTotal: $${total}/mo`,
+            `Custom Monthly Plan Services:\n${services.map(s => `• ${s.name}`).join('\n')}`,
           durationHours: recommendedDuration
         };
       });
@@ -500,7 +500,7 @@ const BookingCalendar = () => {
       id: plan.id,
       name: isCustomPlan ? 'Custom Monthly Plan (Quote Request)' : plan.name,
       category: 'monthly',
-      price: isCustomPlan ? 'We\'ll call with pricing' : formatPrice(plan.price_min, plan.price_max) + '/mo',
+      price: '',
       durationMinutes: plan.duration_minutes || 90 // Monthly plans typically 1.5hr visits
     };
     
@@ -952,35 +952,34 @@ const BookingCalendar = () => {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {bookingData.services.map((service) => (
-                        <Badge 
-                          key={service.id}
-                          variant="secondary"
-                          className={`text-base py-2 px-3 flex items-center gap-2 border ${
-                            service.category === 'monthly' 
-                              ? 'bg-blue-100 text-blue-700 border-blue-300' 
-                              : service.category === 'package' 
-                                ? 'bg-orange-100 text-orange-700 border-orange-300' 
-                                : 'bg-green-100 text-green-700 border-green-300'
-                          }`}
-                        >
-                          {service.name}
-                          <span className="text-xs opacity-60">
-                            ({(() => {
-                              const hrs = service.durationMinutes / 60;
-                              return hrs % 1 === 0 ? `${hrs} hr` : `${hrs.toFixed(2).replace(/\.?0+$/, '')} hr`;
-                            })()})
-                          </span>
-                          <span className="text-sm opacity-70">{service.price}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveService(service.id)}
-                            className="ml-1 hover:bg-black/10 rounded-full p-0.5"
+                        {bookingData.services.map((service) => (
+                          <Badge 
+                            key={service.id}
+                            variant="secondary"
+                            className={`text-base py-2 px-3 flex items-center gap-2 border ${
+                              service.category === 'monthly' 
+                                ? 'bg-blue-100 text-blue-700 border-blue-300' 
+                                : service.category === 'package' 
+                                  ? 'bg-orange-100 text-orange-700 border-orange-300' 
+                                  : 'bg-green-100 text-green-700 border-green-300'
+                            }`}
                           >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </Badge>
-                      ))}
+                            {service.name}
+                            <span className="text-xs opacity-60">
+                              ({(() => {
+                                const hrs = service.durationMinutes / 60;
+                                return hrs % 1 === 0 ? `${hrs} hr` : `${hrs.toFixed(2).replace(/\.?0+$/, '')} hr`;
+                              })()})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveService(service.id)}
+                              className="ml-1 hover:bg-black/10 rounded-full p-0.5"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </Badge>
+                        ))}
                     </div>
                   </div>
                 )}
@@ -1085,7 +1084,6 @@ const BookingCalendar = () => {
                                     }`}
                                   >
                                     <span className="text-base">{service.name}</span>
-                                    <span className="text-primary font-medium text-base">{formatPrice(service.price_min, service.price_max)}</span>
                                   </button>
                                 ))
                               ) : (
@@ -1111,7 +1109,6 @@ const BookingCalendar = () => {
                                       }`}
                                     >
                                       <span className="text-base">{service.name}</span>
-                                      <span className="text-primary font-medium text-base">{formatPrice(service.price_min, service.price_max)}</span>
                                     </button>
                                   ))}
                                 </div>
@@ -1167,7 +1164,6 @@ const BookingCalendar = () => {
                                 >
                                   <div className="flex justify-between items-start mb-1">
                                     <span className="text-base font-medium">{pkg.name}</span>
-                                    <span className="text-accent font-semibold text-base">{formatPrice(pkg.price_min, pkg.price_max)}</span>
                                   </div>
                                   {pkg.description && (
                                     <p className="text-sm text-muted-foreground">{pkg.description}</p>
@@ -1233,13 +1229,10 @@ const BookingCalendar = () => {
                                       <span className="text-base font-medium">
                                         {isCustomPlan ? 'Custom Monthly Plan' : plan.name}
                                       </span>
-                                      <span className={`font-semibold text-base ${isCustomPlan ? 'text-accent' : 'text-trust'}`}>
-                                        {isCustomPlan ? 'Get a Quote' : `${formatPrice(plan.price_min, plan.price_max)}/mo`}
-                                      </span>
                                     </div>
                                     <p className="text-sm text-muted-foreground mb-1">
                                       {isCustomPlan 
-                                        ? "Pick your own services — we'll reach out with pricing"
+                                        ? "Pick your own services — we'll call with pricing"
                                         : plan.description
                                       }
                                     </p>
