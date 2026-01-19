@@ -1,6 +1,8 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Heart, Shield, Users, Wrench, CalendarDays, Phone, MessageSquare, Mail } from "lucide-react";
-import logo from "@/assets/logo.jpeg";
+import { useState } from "react";
+import logo1 from "@/assets/FIXITSWELLLOGO.png";
+import logo2 from "@/assets/Fixitswelllogo2.png";
 
 interface AboutUsOverlayProps {
   open: boolean;
@@ -8,6 +10,8 @@ interface AboutUsOverlayProps {
 }
 
 const AboutUsOverlay = ({ open, onOpenChange }: AboutUsOverlayProps) => {
+  const [showAltLogo, setShowAltLogo] = useState(false);
+  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card">
@@ -20,13 +24,19 @@ const AboutUsOverlay = ({ open, onOpenChange }: AboutUsOverlayProps) => {
           </DialogDescription>
         </DialogHeader>
 
-        {/* Logo/Image Section */}
+        {/* Logo/Image Section - click to toggle between versions */}
         <div className="flex justify-center mb-6">
-          <img 
-            src={logo} 
-            alt="FixitSwell" 
-            className="w-full max-w-md h-auto object-contain rounded-xl"
-          />
+          <button
+            onClick={() => setShowAltLogo(!showAltLogo)}
+            className="cursor-pointer bg-transparent border-none p-0"
+            title="Click to switch logo style"
+          >
+            <img 
+              src={showAltLogo ? logo2 : logo1} 
+              alt="FixitSwell" 
+              className="w-full max-w-xl h-auto object-contain rounded-xl transition-all duration-300"
+            />
+          </button>
         </div>
 
         {/* Bio Content */}
