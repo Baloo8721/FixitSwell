@@ -984,50 +984,6 @@ const BookingCalendar = () => {
                   </div>
                 )}
 
-                {/* Time Conflict Warning */}
-                {timeConflict.hasConflict && bookingData.services.length > 0 && (
-                  <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm text-amber-800 font-medium mb-2">
-                          Your selected services total {(timeConflict.requiredMinutes / 60).toFixed(1).replace(/\.0$/, '')} hours, 
-                          but only {(timeConflict.availableMinutes / 60).toFixed(1).replace(/\.0$/, '')} hours are available 
-                          from your chosen time. This may need to be split into 2 visits.
-                        </p>
-                        <p className="text-xs text-amber-700 mb-3">
-                          We'll fill your chosen day and coordinate the rest with you.
-                        </p>
-                        {timeConflict.suggestedDay && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="border-amber-400 text-amber-700 hover:bg-amber-100"
-                            onClick={() => {
-                              // Go back to step 1 so user can pick a new date
-                              setCurrentStep('datetime');
-                              setFindingAlternative(true);
-                              // Scroll to top of booking card so user sees the suggestion
-                              setTimeout(() => {
-                                cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                              }, 100);
-                            }}
-                          >
-                            <CalendarDays className="w-4 h-4 mr-2" />
-                            Find a day that fits everything →
-                          </Button>
-                        )}
-                        {!timeConflict.suggestedDay && (
-                          <p className="text-xs text-amber-600 italic">
-                            No single day available in the next 2 weeks. We'll coordinate multiple visits.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 {/* Individual Services Dropdown */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">

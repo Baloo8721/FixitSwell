@@ -14,7 +14,7 @@ const HeroSection = () => {
         </h1>
         
         <p className="text-body-lg text-muted-foreground mb-8 max-w-2xl mx-auto text-balance">
-          Helping with everyday home tasks, tech help, and small fixes — 
+          Your friendly neighborhood handyman — helping with everyday home tasks, tech help, and small fixes, 
           done right, done kindly, by someone who truly cares.
         </p>
 
