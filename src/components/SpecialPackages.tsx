@@ -130,24 +130,20 @@ const allPackages = [
   },
 ];
 
-// Services available for custom monthly plan
+// Services available for custom monthly/quarterly plan (recurring maintenance only)
 const customPlanServices = [
   { name: "Light Bulb Replacement (High/Hard)", price: 75, time: 30 },
-  { name: "Smoke Detector Battery Swap", price: 95, time: 45 },
+  { name: "Smoke Detector Battery Check", price: 95, time: 45 },
   { name: "Filter Service (HVAC/Water/Fridge)", price: 85, time: 30 },
-  { name: "Small Picture / Art Hanging", price: 45, time: 15 },
-  { name: "Cabinet Hinge Repair / Adjust", price: 45, time: 30 },
-  { name: "Furniture Repair (Glue/Sand/Tighten)", price: 85, time: 60 },
-  { name: "Blind / Curtain Rod Install", price: 75, time: 30 },
-  { name: "Door Lock / Deadbolt Swap", price: 85, time: 30 },
-  { name: "Outlet or Switch Replacement", price: 55, time: 15 },
-  { name: "Shower Head Replacement", price: 75, time: 30 },
-  { name: "Caulking Touch-up", price: 80, time: 45 },
-  { name: "Phone / Tablet / Device Help", price: 85, time: 45 },
-  { name: "Tech Troubleshooting (30 min)", price: 50, time: 30 },
-  { name: "Non-Slip Mats / Night Light Setup", price: 95, time: 60 },
-  { name: "Fire Extinguisher Mount & Check", price: 65, time: 30 },
   { name: "HVAC Drip Line Flush", price: 120, time: 60 },
+  { name: "Fire Extinguisher Check", price: 65, time: 30 },
+  { name: "Home Safety / Hazard Walkthrough", price: 75, time: 45 },
+  { name: "Tech Support / Device Help", price: 85, time: 45 },
+  { name: "Monthly Yard / Litter Clean", price: 75, time: 45 },
+  { name: "Gutter Check & Clean", price: 95, time: 60 },
+  { name: "Appliance Deep Clean (Oven/Fridge)", price: 125, time: 60 },
+  { name: "Dryer Vent Clean", price: 145, time: 45 },
+  { name: "Caulking Inspection & Touch-up", price: 80, time: 45 },
 ];
 
 // Monthly Subscription Plans
@@ -539,10 +535,10 @@ const SpecialPackages = () => {
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="font-heading text-lg flex items-center gap-2">
               <Wrench className="w-5 h-5 text-accent" />
-              Build Your Custom Plan
+              Build Your Custom Monthly Plan
             </DialogTitle>
             <p className="text-xs text-muted-foreground">
-              Select services for your monthly visit
+              Select recurring maintenance services for your monthly visits
             </p>
           </DialogHeader>
 
