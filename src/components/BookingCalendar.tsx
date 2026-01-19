@@ -791,7 +791,7 @@ const BookingCalendar = () => {
             
             <div className="grid md:grid-cols-2 gap-6 md:gap-8 items-start">
               {/* Calendar */}
-              <div className="flex justify-center overflow-x-auto px-2">
+              <div className="flex justify-center w-full">
                 <Calendar
                   mode="single"
                   selected={bookingData.date}
@@ -801,10 +801,10 @@ const BookingCalendar = () => {
                     if (findingAlternative) setFindingAlternative(false);
                   }}
                   disabled={(date) => isBefore(date, startOfToday()) || isBefore(addDays(new Date(), 60), date)}
-                  className="rounded-xl border-2 border-border p-3 sm:p-4 bg-background pointer-events-auto w-full min-w-[320px] max-w-[360px]"
+                  className="rounded-xl border-2 border-border p-2 sm:p-4 bg-background pointer-events-auto w-full max-w-[340px] sm:max-w-[360px]"
                   classNames={{
-                    months: "flex flex-col space-y-4",
-                    month: "space-y-4",
+                    months: "flex flex-col space-y-3",
+                    month: "space-y-3",
                     caption: "flex justify-center pt-1 relative items-center",
                     caption_label: "text-base sm:text-lg font-heading font-semibold",
                     nav: "space-x-1 flex items-center",
@@ -813,10 +813,10 @@ const BookingCalendar = () => {
                     nav_button_next: "absolute right-1",
                     table: "w-full border-collapse",
                     head_row: "flex justify-between",
-                    head_cell: "text-muted-foreground rounded-md w-10 sm:w-11 font-medium text-xs sm:text-sm text-center",
+                    head_cell: "text-muted-foreground rounded-md w-9 sm:w-11 font-medium text-xs sm:text-sm text-center",
                     row: "flex w-full mt-1 justify-between",
-                    cell: "h-10 w-10 sm:h-11 sm:w-11 text-center text-sm sm:text-base p-0 relative focus-within:relative focus-within:z-20",
-                    day: "h-10 w-10 sm:h-11 sm:w-11 p-0 font-medium aria-selected:opacity-100 hover:bg-primary/10 rounded-lg transition-colors",
+                    cell: "h-9 w-9 sm:h-11 sm:w-11 text-center text-sm sm:text-base p-0 relative focus-within:relative focus-within:z-20",
+                    day: "h-9 w-9 sm:h-11 sm:w-11 p-0 font-medium aria-selected:opacity-100 hover:bg-primary/10 rounded-lg transition-colors",
                     day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground rounded-lg",
                     day_today: "bg-accent/20 text-accent-foreground font-bold",
                     day_outside: "text-muted-foreground opacity-50",
@@ -986,12 +986,17 @@ const BookingCalendar = () => {
 
                 {/* Individual Services Dropdown */}
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-heading text-xl text-foreground flex items-center gap-2">
-                      <Wrench className="w-5 h-5 text-primary" />
-                      Individual Services
-                    </h4>
-                    <div className="relative" ref={servicesDropdownRef}>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h4 className="font-heading text-xl text-foreground flex items-center gap-2">
+                        <Wrench className="w-5 h-5 text-primary" />
+                        Individual Services
+                      </h4>
+                      <p className="text-muted-foreground text-base mt-1">
+                        One-time repairs, installations, tech help & more
+                      </p>
+                    </div>
+                    <div className="relative w-full sm:w-auto" ref={servicesDropdownRef}>
                       <Button
                         type="button"
                         variant="outline"
@@ -1000,7 +1005,7 @@ const BookingCalendar = () => {
                           setPackagesDropdownOpen(false);
                           setPlansDropdownOpen(false);
                         }}
-                        className="flex items-center gap-2 bg-white border-2 border-primary/30 hover:border-primary hover:bg-primary/5 text-lg px-4 py-3 h-auto"
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white border-2 border-primary/30 hover:border-primary hover:bg-primary/5 text-lg px-5 py-4 h-auto"
                       >
                         <Plus className="w-5 h-5 text-primary" />
                         <span>Add Service</span>
@@ -1009,7 +1014,7 @@ const BookingCalendar = () => {
                       
                       {/* Services Dropdown */}
                       {servicesDropdownOpen && (
-                        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border-2 border-border rounded-xl shadow-xl z-50 max-h-80 overflow-hidden">
+                        <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-full sm:w-96 bg-white border-2 border-border rounded-xl shadow-xl z-50 max-h-80 overflow-hidden">
                           {/* Search Input */}
                           <div className="p-3 border-b border-border sticky top-0 bg-white">
                             <div className="relative">
@@ -1075,19 +1080,21 @@ const BookingCalendar = () => {
                       )}
                     </div>
                   </div>
-                  <p className="text-muted-foreground text-base">
-                    One-time repairs, installations, tech help & more
-                  </p>
                 </div>
 
                 {/* Value Packages Dropdown */}
-                <div className="space-y-3 pt-4 border-t-2 border-amber-300/30">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-heading text-xl text-foreground flex items-center gap-2">
-                      <Package className="w-5 h-5 text-accent" />
-                      Value Packages
-                    </h4>
-                    <div className="relative" ref={packagesDropdownRef}>
+                <div className="space-y-3 pt-5 border-t-2 border-amber-300/30">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h4 className="font-heading text-xl text-foreground flex items-center gap-2">
+                        <Package className="w-5 h-5 text-accent" />
+                        Value Packages
+                      </h4>
+                      <p className="text-muted-foreground text-base mt-1">
+                        Bundled services at discounted rates
+                      </p>
+                    </div>
+                    <div className="relative w-full sm:w-auto" ref={packagesDropdownRef}>
                       <Button
                         type="button"
                         variant="outline"
@@ -1096,7 +1103,7 @@ const BookingCalendar = () => {
                           setServicesDropdownOpen(false);
                           setPlansDropdownOpen(false);
                         }}
-                        className="flex items-center gap-2 bg-white border-2 border-accent/30 hover:border-accent hover:bg-accent/5 text-lg px-4 py-3 h-auto"
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white border-2 border-accent/30 hover:border-accent hover:bg-accent/5 text-lg px-5 py-4 h-auto"
                       >
                         <Plus className="w-5 h-5 text-accent" />
                         <span>Add Package</span>
@@ -1105,7 +1112,7 @@ const BookingCalendar = () => {
                       
                       {/* Packages Dropdown */}
                       {packagesDropdownOpen && (
-                        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border-2 border-border rounded-xl shadow-xl z-50 overflow-hidden">
+                        <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-full sm:w-96 bg-white border-2 border-border rounded-xl shadow-xl z-50 overflow-hidden">
                           <div className="max-h-72 overflow-y-auto">
                             {packageServices.length > 0 ? (
                               packageServices.map((pkg) => (
@@ -1136,19 +1143,21 @@ const BookingCalendar = () => {
                       )}
                     </div>
                   </div>
-                  <p className="text-muted-foreground text-base">
-                    Bundled services at discounted rates
-                  </p>
                 </div>
 
                 {/* Monthly Plans Dropdown */}
-                <div className="space-y-3 pt-4 border-t-2 border-amber-300/30">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-heading text-xl text-foreground flex items-center gap-2">
-                      <CalendarCheck className="w-5 h-5 text-trust" />
-                      Monthly Plans
-                    </h4>
-                    <div className="relative" ref={plansDropdownRef}>
+                <div className="space-y-3 pt-5 border-t-2 border-amber-300/30">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h4 className="font-heading text-xl text-foreground flex items-center gap-2">
+                        <CalendarCheck className="w-5 h-5 text-trust" />
+                        Monthly Plans
+                      </h4>
+                      <p className="text-muted-foreground text-base mt-1">
+                        Regular monthly visits with ongoing support
+                      </p>
+                    </div>
+                    <div className="relative w-full sm:w-auto" ref={plansDropdownRef}>
                       <Button
                         type="button"
                         variant="outline"
@@ -1157,7 +1166,7 @@ const BookingCalendar = () => {
                           setServicesDropdownOpen(false);
                           setPackagesDropdownOpen(false);
                         }}
-                        className="flex items-center gap-2 bg-white border-2 border-trust/30 hover:border-trust hover:bg-trust/5 text-lg px-4 py-3 h-auto"
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white border-2 border-trust/30 hover:border-trust hover:bg-trust/5 text-lg px-5 py-4 h-auto"
                       >
                         <Plus className="w-5 h-5 text-trust" />
                         <span>Add Plan</span>
@@ -1166,7 +1175,7 @@ const BookingCalendar = () => {
                       
                       {/* Plans Dropdown */}
                       {plansDropdownOpen && (
-                        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border-2 border-border rounded-xl shadow-xl z-50 overflow-hidden">
+                        <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-full sm:w-96 bg-white border-2 border-border rounded-xl shadow-xl z-50 overflow-hidden">
                           <div className="max-h-72 overflow-y-auto">
                             {monthlyPlans.length > 0 ? (
                               monthlyPlans.map((plan) => {
@@ -1205,13 +1214,10 @@ const BookingCalendar = () => {
                       )}
                     </div>
                   </div>
-                  <p className="text-muted-foreground text-base">
-                    Regular monthly visits with ongoing support
-                  </p>
                 </div>
 
                 {/* Custom Notes */}
-                <div className="pt-4 border-t-2 border-amber-300/30">
+                <div className="pt-5 border-t-2 border-amber-300/30">
                   <Label htmlFor="custom-notes" className="text-lg text-foreground font-medium block mb-2">
                     Tell us what you need — describe your project or request:
                   </Label>
