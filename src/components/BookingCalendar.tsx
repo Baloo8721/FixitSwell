@@ -1208,14 +1208,6 @@ const BookingCalendar = () => {
                   <p className="text-muted-foreground text-base">
                     Regular monthly visits with ongoing support
                   </p>
-                  {/* Link to custom plan builder - opens in "Add to Booking" mode */}
-                  <button 
-                    type="button"
-                    className="inline-flex items-center gap-1 text-sm text-accent hover:text-accent/80 underline underline-offset-2"
-                    onClick={() => window.dispatchEvent(new CustomEvent('openCustomPlanBuilderForBooking'))}
-                  >
-                    Want to build your own custom plan? Use our Plan Builder →
-                  </button>
                 </div>
 
                 {/* Custom Notes */}
