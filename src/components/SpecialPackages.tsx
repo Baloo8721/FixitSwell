@@ -747,7 +747,7 @@ const SpecialPackages = () => {
               Referrals
             </span>
             <h2 className="font-heading text-heading-md text-foreground mb-4">
-              Refer a Friend & Get Rewarded!
+              Refer a Neighbor & Get Rewarded!
             </h2>
             <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
               Know a neighbor, friend, or family member in the community who could use a hand? Refer them to us and you'll both benefit.
@@ -755,17 +755,20 @@ const SpecialPackages = () => {
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-6">
               <div className="bg-card border-2 border-accent rounded-xl p-6 text-center min-w-[180px]">
-                <span className="font-heading text-3xl text-accent">$25 OFF</span>
+                <span className="font-heading text-3xl text-accent">25% OFF</span>
                 <p className="text-muted-foreground text-sm mt-1">Your next service</p>
               </div>
               <div className="bg-card border-2 border-primary rounded-xl p-6 text-center min-w-[180px]">
-                <span className="font-heading text-3xl text-primary">$25 OFF</span>
+                <span className="font-heading text-3xl text-primary">25% OFF</span>
                 <p className="text-muted-foreground text-sm mt-1">Their first service</p>
               </div>
             </div>
             
-            <p className="text-foreground font-medium">
-              Just have your friend mention your name when they call or text!
+            <p className="text-foreground font-medium mb-2">
+              Just have your neighbor mention your name when they call or text!
+            </p>
+            <p className="text-muted-foreground text-sm">
+              Referral discount applies after new service is completed.
             </p>
           </div>
         </div>
