@@ -927,11 +927,11 @@ const BookingCalendar = () => {
         {currentStep === 'services' && (
           <div className="space-y-6">
             <div className="text-center mb-6">
-              <h3 className="font-heading text-heading-sm text-foreground mb-2">
+              <h3 className="font-heading text-heading-sm text-foreground mb-3">
                 What Do You Need Help With?
               </h3>
-              <p className="text-lg text-muted-foreground">
-                Tap to select services, or describe what you need below
+              <p className="text-xl text-foreground font-medium bg-primary/10 rounded-lg py-3 px-4 inline-block">
+                Select services below, or describe what you need
               </p>
             </div>
 
@@ -945,20 +945,7 @@ const BookingCalendar = () => {
                 {/* Selected Services Display */}
                 {bookingData.services.length > 0 && (
                   <div className="bg-white rounded-lg p-4 border-2 border-green-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-sm font-medium text-muted-foreground">Selected Services:</p>
-                      <p className="text-sm text-muted-foreground">
-                        Total: <span className="font-semibold text-foreground">
-                          {(() => {
-                            const totalMins = bookingData.services.reduce((sum, s) => sum + s.durationMinutes, 0);
-                            const hrs = totalMins / 60;
-                            return hrs % 1 === 0 ? `${hrs} hr${hrs > 1 ? 's' : ''}` : `${hrs.toFixed(2).replace(/\.?0+$/, '')} hrs`;
-                          })()}
-                        </span>
-                        <span className="mx-1">→</span>
-                        <span className="font-semibold text-primary">{bookingData.durationHours} hr{bookingData.durationHours > 1 ? 's' : ''} visit</span>
-                      </p>
-                    </div>
+                    <p className="text-sm font-medium text-muted-foreground mb-3">Selected Services:</p>
                     <div className="flex flex-wrap gap-2">
                         {bookingData.services.map((service) => (
                           <Badge 
@@ -973,12 +960,6 @@ const BookingCalendar = () => {
                             }`}
                           >
                             {service.name}
-                            <span className="text-xs opacity-60">
-                              ({(() => {
-                                const hrs = service.durationMinutes / 60;
-                                return hrs % 1 === 0 ? `${hrs} hr` : `${hrs.toFixed(2).replace(/\.?0+$/, '')} hr`;
-                              })()})
-                            </span>
                             <button
                               type="button"
                               onClick={() => handleRemoveService(service.id)}

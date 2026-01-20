@@ -222,7 +222,7 @@ const ManageBooking = () => {
       setEditDate(parseISO(bookingData.date));
       setEditTimeSlot(bookingData.time_slot);
       setEditServices(bookingData.services?.map(s => s.id || s.name) || []);
-      setEditNotes(bookingData.notes || '');
+      setEditNotes(getClientVisibleNotes(bookingData.notes));
       setEditContactForm({
         name: bookingData.client?.name || '',
         phone: bookingData.client?.phone || '',
@@ -1678,9 +1678,9 @@ const ManageBooking = () => {
                   />
                   <div className="grid sm:grid-cols-2 gap-1 max-h-48 overflow-y-auto">
                     {allServices
-                      .filter(s => s.category === 'service' && 
+                      .filter(s => 
                         (quickServiceInput === '' || s.label.toLowerCase().includes(quickServiceInput.toLowerCase())))
-                      .slice(0, 20)
+                      .slice(0, 30)
                       .map((service) => (
                       <label
                         key={service.id}
