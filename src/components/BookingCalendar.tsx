@@ -342,11 +342,19 @@ const BookingCalendar = () => {
     return emailRegex.test(email);
   };
 
+  // Phone validation helper - accepts common US formats (10-11 digits)
+  const isValidPhone = (phone: string) => {
+    // Remove all non-digits
+    const digits = phone.replace(/\D/g, '');
+    // Valid if 10 or 11 digits (with or without country code)
+    return digits.length >= 10 && digits.length <= 11;
+  };
+
   const canProceed = () => {
     switch (currentStep) {
       case 'datetime': return bookingData.date !== undefined && bookingData.timeSlot !== '';
       case 'services': return bookingData.services.length > 0 || bookingData.customNotes.trim() !== '';
-      case 'details': return bookingData.name && bookingData.email && isValidEmail(bookingData.email) && bookingData.phone && bookingData.address;
+      case 'details': return bookingData.name && bookingData.email && isValidEmail(bookingData.email) && bookingData.phone && isValidPhone(bookingData.phone) && bookingData.address;
       default: return true;
     }
   };
@@ -624,7 +632,7 @@ const BookingCalendar = () => {
                 size="lg"
                 className="bg-primary hover:bg-primary/90 text-lg"
               >
-                <a href={`/manage-booking/${completedBookingToken}`}>
+                <a href={`/manage/${completedBookingToken}`}>
                   <CheckCircle2 className="w-5 h-5 mr-2" />
                   View & Manage Your Booking
                 </a>
@@ -1381,11 +1389,15 @@ const BookingCalendar = () => {
                   value={bookingData.phone}
                   onChange={(e) => setBookingData(prev => ({ ...prev, phone: e.target.value }))}
                   placeholder="e.g., (555) 123-4567"
-                  className="h-14 text-lg rounded-xl"
+                  className={`h-14 text-lg rounded-xl ${bookingData.phone && !isValidPhone(bookingData.phone) ? 'border-red-500 focus:ring-red-500' : ''}`}
                 />
-                <p className="text-sm text-muted-foreground">
-                  We'll call to confirm your appointment
-                </p>
+                {bookingData.phone && !isValidPhone(bookingData.phone) ? (
+                  <p className="text-sm text-red-500">Please enter a valid 10-digit phone number</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    We'll call to confirm your appointment
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

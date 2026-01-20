@@ -1251,7 +1251,7 @@ const Admin = () => {
       if (subError) throw subError;
       
       // Mark message as replied with quote details
-      const quoteDetails = `Custom Monthly Plan Quote Sent!\n\nServices:\n${quoteServices.map(s => `• ${s.name} ($${s.price})`).join('\n')}\n\nMonthly Price: $${quoteCustomPrice}\nManage Link: ${window.location.origin}/manage-booking/${subscription.manage_token}`;
+      const quoteDetails = `Custom Monthly Plan Quote Sent!\n\nServices:\n${quoteServices.map(s => `• ${s.name} ($${s.price})`).join('\n')}\n\nMonthly Price: $${quoteCustomPrice}\nManage Link: ${window.location.origin}/manage/${subscription.manage_token}`;
       
       await replyToContactMessage(msg.id, quoteDetails);
       

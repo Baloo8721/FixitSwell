@@ -156,6 +156,18 @@ const ManageBooking = () => {
   const [showServiceSuggestions, setShowServiceSuggestions] = useState(false);
   const [addingService, setAddingService] = useState(false);
 
+  // Filter out admin-only notes from client view
+  const getClientVisibleNotes = (notes: string | null): string => {
+    if (!notes) return '';
+    // Remove lines starting with admin prefixes
+    const lines = notes.split('\n');
+    const filtered = lines.filter(line => 
+      !line.startsWith('⚠️ MULTI-VISIT') &&
+      !line.startsWith('MULTI-VISIT')
+    );
+    return filtered.join('\n').trim();
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!token || !e.target.files || e.target.files.length === 0) return;
 
@@ -1078,11 +1090,6 @@ const ManageBooking = () => {
                                 }}
                               >
                                 {service.label}
-                                {service.price_min && (
-                                  <span className="text-muted-foreground ml-2">
-                                    ${(service.price_min / 100).toFixed(0)}
-                                  </span>
-                                )}
                               </button>
                             ))}
                           {allServices.filter(s => 
@@ -1108,7 +1115,7 @@ const ManageBooking = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setInlineNotesValue(booking.notes || '');
+                          setInlineNotesValue(getClientVisibleNotes(booking.notes));
                           setEditingNotes(true);
                         }}
                       >
@@ -1137,7 +1144,7 @@ const ManageBooking = () => {
                     </div>
                   ) : (
                     <p className="text-sm p-3 bg-secondary/50 rounded-lg">
-                      {booking.notes || <span className="text-muted-foreground italic">No notes yet</span>}
+                      {getClientVisibleNotes(booking.notes) || <span className="text-muted-foreground italic">No notes yet</span>}
                     </p>
                   )}
                 </div>
