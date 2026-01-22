@@ -150,34 +150,54 @@ const customPlanServices = [
 const monthlyPlans = [
   {
     icon: ShieldCheck,
-    name: "Safety First",
-    price: "$125/month",
+    name: "Essential Care",
+    price: "$149/month",
     duration: "1.5 hrs/visit",
-    features: [
-      "Smoke detector check",
-      "Light bulb changes",
-      "Air filter swap",
-      "Hazard audit",
-      "Fire extinguisher check",
+    tagline: "Tech support, safety checks, and light home care",
+    highlights: [
+      "Wellness check-in + family updates",
+      "Tech help, Maintenance (AC filters, smoke alarm checks, bulbs)",
+      "Light cleaning / Safety checks (trips, leaks, hazards)",
     ],
-    popular: false,
-    bestFor: "Seniors living alone",
+    features: [
+      "Tech help (TV, remote, phone, Wi-Fi)",
+      "Smoke/CO detector testing + batteries",
+      "AC filter change",
+      "Dryer lint cleaning & airflow check",
+      "Light bulb replacement (up to 4)",
+      "Secure loose handles, railings, grab bars",
+      "Trip-hazard & safety checks",
+      "Leak checks & home hazard check",
+      "Fan & vent dusting",
+      "Surface wiping throughout home",
+      "Light organizing & tidy-up",
+      "Heavy lifting help (furniture, boxes)",
+      "Wellness check-in + family updates",
+    ],
+    popular: true,
+    bestFor: "Seniors who want safety, tech & routine upkeep",
     isCustom: false,
   },
   {
-    icon: Smartphone,
-    name: "Tech & Comfort",
-    price: "$145/month",
-    duration: "1.5 hrs/visit",
-    features: [
-      "Wi-Fi check & updates",
-      "Smart home maintenance",
-      "AC drip line flush",
-      "Appliance filter clean",
-      "Remote control help",
+    icon: Home,
+    name: "Complete Home Care",
+    price: "$229/month",
+    duration: "2.5 hrs/visit",
+    tagline: "All Essential Care services PLUS",
+    highlights: [
+      "Yard & garden cleanup (pet waste, weeds)",
+      "Porch/walkway/carport sweeping",
+      "Exterior home checks & gap sealing",
     ],
-    popular: true,
-    bestFor: "Tech-frustrated residents",
+    features: [
+      "Everything in Essential Care, PLUS:",
+      "Yard & garden cleanup (pet waste, weeds)",
+      "Watering plants & light garden care",
+      "Porch & walkway sweeping",
+      "Exterior mobile home checks & gap sealing",
+    ],
+    popular: false,
+    bestFor: "Seniors who want inside AND outside handled",
     isCustom: false,
   },
   {
@@ -185,11 +205,14 @@ const monthlyPlans = [
     name: "Custom Monthly Plan",
     price: "You Build It!",
     duration: "Based on services",
+    tagline: null,
+    highlights: null,
     features: [
       "Pick your own services",
       "Same tasks each month",
       "Add or adjust anytime",
       "We quote your custom plan",
+      "Only pay for what you need",
     ],
     popular: false,
     bestFor: "Your unique needs",
@@ -201,7 +224,10 @@ const SpecialPackages = () => {
   const [showCustomBuilder, setShowCustomBuilder] = useState(false);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [isFromScheduler, setIsFromScheduler] = useState(false);
-  
+  const [showEssentialPlan, setShowEssentialPlan] = useState(false);
+  const [showCompletePlan, setShowCompletePlan] = useState(false);
+  const [showSuppliesInfo, setShowSuppliesInfo] = useState(false);
+
   // Listen for event to open custom plan builder from other components
   useEffect(() => {
     const handleOpenBuilder = () => {
@@ -226,8 +252,8 @@ const SpecialPackages = () => {
   const [submitted, setSubmitted] = useState(false);
 
   const toggleService = (serviceName: string) => {
-    setSelectedServices(prev => 
-      prev.includes(serviceName) 
+    setSelectedServices(prev =>
+      prev.includes(serviceName)
         ? prev.filter(s => s !== serviceName)
         : [...prev, serviceName]
     );
@@ -250,7 +276,7 @@ const SpecialPackages = () => {
 
   const handleRequestQuote = async () => {
     if (!quoteName.trim() || selectedServices.length === 0) return;
-    
+
     setIsSubmitting(true);
     const { error } = await submitQuoteRequest({
       name: quoteName.trim(),
@@ -262,7 +288,7 @@ const SpecialPackages = () => {
     });
 
     setIsSubmitting(false);
-    
+
     if (!error) {
       setSubmitted(true);
       setTimeout(() => {
@@ -295,45 +321,39 @@ const SpecialPackages = () => {
           </div>
 
           {/* Desktop Carousel - 3 cards visible */}
-          <div className="hidden md:block">
+          <div className="hidden md:block overflow-visible">
             <Carousel
               opts={{
                 align: "start",
                 loop: true,
               }}
-              className="w-full"
+              className="w-full overflow-visible"
             >
-              <CarouselContent className="-ml-4">
+              <CarouselContent className="-ml-4 overflow-visible pt-4">
                 {allPackages.map((pkg, index) => (
-                  <CarouselItem key={index} className="pl-4 basis-1/3">
-                    <Card 
-                      className={`relative border-2 transition-shadow hover:shadow-lg h-full ${
-                        pkg.popular 
-                          ? 'border-accent shadow-md' 
-                          : 'border-border'
-                      }`}
+                  <CarouselItem key={index} className="pl-4 basis-1/3 overflow-visible">
+                    <Card
+                      className={`relative overflow-visible border-2 transition-shadow hover:shadow-lg h-full ${pkg.popular
+                        ? 'border-accent shadow-md'
+                        : 'border-border'
+                        }`}
                     >
                       {pkg.popular && (
-                        <span className="absolute -top-2.5 left-6 bg-accent text-accent-foreground px-3 py-1 rounded-full text-xs font-medium">
+                        <span className="absolute z-10 -top-3 left-6 bg-accent text-accent-foreground px-3 py-1 rounded-full text-xs font-medium shadow-sm">
                           Popular
                         </span>
                       )}
                       <CardHeader className="p-4 pb-3">
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                            pkg.popular ? 'bg-accent/10' : 'bg-secondary'
-                          }`}>
-                            <pkg.icon className={`w-5 h-5 ${
-                              pkg.popular ? 'text-accent' : 'text-primary'
-                            }`} />
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${pkg.popular ? 'bg-accent/10' : 'bg-secondary'
+                            }`}>
+                            <pkg.icon className={`w-5 h-5 ${pkg.popular ? 'text-accent' : 'text-primary'
+                              }`} />
                           </div>
                           <div className="min-w-0">
                             <CardTitle className="font-heading text-base leading-tight">
                               {pkg.name}
                             </CardTitle>
-                            <p className="text-xs text-muted-foreground">
-                              {pkg.duration}
-                            </p>
                           </div>
                         </div>
                       </CardHeader>
@@ -345,7 +365,7 @@ const SpecialPackages = () => {
                         </div>
                         <ul className="space-y-1">
                           {pkg.features.map((feature, featureIndex) => (
-                            <li 
+                            <li
                               key={featureIndex}
                               className="flex items-start gap-1.5 text-muted-foreground text-sm"
                             >
@@ -365,45 +385,39 @@ const SpecialPackages = () => {
           </div>
 
           {/* Mobile Carousel - 1 card visible with swipe */}
-          <div className="md:hidden">
+          <div className="md:hidden overflow-visible">
             <Carousel
               opts={{
                 align: "center",
                 loop: true,
               }}
-              className="w-full"
+              className="w-full overflow-visible"
             >
-              <CarouselContent className="-ml-2">
+              <CarouselContent className="-ml-2 overflow-visible pt-4">
                 {allPackages.map((pkg, index) => (
-                  <CarouselItem key={index} className="pl-2 basis-[85%]">
-                    <Card 
-                      className={`relative border-2 transition-shadow hover:shadow-lg h-full ${
-                        pkg.popular 
-                          ? 'border-accent shadow-md' 
-                          : 'border-border'
-                      }`}
+                  <CarouselItem key={index} className="pl-2 basis-[85%] overflow-visible">
+                    <Card
+                      className={`relative overflow-visible border-2 transition-shadow hover:shadow-lg h-full ${pkg.popular
+                        ? 'border-accent shadow-md'
+                        : 'border-border'
+                        }`}
                     >
                       {pkg.popular && (
-                        <span className="absolute -top-2.5 left-4 bg-accent text-accent-foreground px-2 py-0.5 rounded-full text-xs font-medium">
+                        <span className="absolute z-10 -top-3 left-4 bg-accent text-accent-foreground px-2 py-0.5 rounded-full text-xs font-medium shadow-sm">
                           Popular
                         </span>
                       )}
                       <CardHeader className="p-4 pb-3">
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                            pkg.popular ? 'bg-accent/10' : 'bg-secondary'
-                          }`}>
-                            <pkg.icon className={`w-5 h-5 ${
-                              pkg.popular ? 'text-accent' : 'text-primary'
-                            }`} />
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${pkg.popular ? 'bg-accent/10' : 'bg-secondary'
+                            }`}>
+                            <pkg.icon className={`w-5 h-5 ${pkg.popular ? 'text-accent' : 'text-primary'
+                              }`} />
                           </div>
                           <div className="min-w-0">
                             <CardTitle className="font-heading text-base leading-tight">
                               {pkg.name}
                             </CardTitle>
-                            <p className="text-xs text-muted-foreground">
-                              {pkg.duration}
-                            </p>
                           </div>
                         </div>
                       </CardHeader>
@@ -415,7 +429,7 @@ const SpecialPackages = () => {
                         </div>
                         <ul className="space-y-1">
                           {pkg.features.map((feature, featureIndex) => (
-                            <li 
+                            <li
                               key={featureIndex}
                               className="flex items-start gap-1.5 text-muted-foreground text-sm"
                             >
@@ -457,15 +471,14 @@ const SpecialPackages = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {monthlyPlans.map((plan, index) => (
-              <Card 
+              <Card
                 key={index}
-                className={`relative border-2 transition-shadow hover:shadow-lg bg-card h-full ${
-                  plan.popular 
-                    ? 'border-primary shadow-md' 
-                    : plan.isCustom
+                className={`relative border-2 transition-shadow hover:shadow-lg bg-card h-full flex flex-col ${plan.popular
+                  ? 'border-primary shadow-md'
+                  : plan.isCustom
                     ? 'border-accent/50 border-dashed'
                     : 'border-border'
-                }`}
+                  }`}
               >
                 {plan.popular && (
                   <span className="absolute -top-2.5 left-6 bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-medium">
@@ -474,57 +487,110 @@ const SpecialPackages = () => {
                 )}
                 <CardHeader className="p-4 pb-3">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                      plan.popular ? 'bg-primary/10' : plan.isCustom ? 'bg-accent/10' : 'bg-secondary'
-                    }`}>
-                      <plan.icon className={`w-5 h-5 ${
-                        plan.isCustom ? 'text-accent' : 'text-primary'
-                      }`} />
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${plan.popular ? 'bg-primary/10' : plan.isCustom ? 'bg-accent/10' : 'bg-secondary'
+                      }`}>
+                      <plan.icon className={`w-5 h-5 ${plan.isCustom ? 'text-accent' : 'text-primary'
+                        }`} />
                     </div>
                     <div className="min-w-0">
                       <CardTitle className="font-heading text-base leading-tight">
                         {plan.name}
                       </CardTitle>
-                      <p className="text-xs text-muted-foreground">
-                        {plan.duration}
-                      </p>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-4 pt-0">
+                <CardContent className="p-4 pt-0 flex flex-col flex-1">
                   <div className="mb-3">
                     <span className={`font-heading text-xl ${plan.isCustom ? 'text-accent' : 'text-primary'}`}>
                       {plan.price}
                     </span>
                   </div>
-                  <p className="text-xs text-accent font-medium mb-3">
-                    Best for: {plan.bestFor}
-                  </p>
-                  <ul className="space-y-1">
-                    {plan.features.map((feature, featureIndex) => (
-                      <li 
-                        key={featureIndex}
-                        className="flex items-start gap-1.5 text-muted-foreground text-sm"
-                      >
-                        <span className={`mt-0.5 text-xs ${plan.isCustom ? 'text-accent' : 'text-primary'}`}>✓</span>
-                        <span className="leading-tight">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  
-                  {plan.isCustom && (
-                    <Button 
-                      onClick={() => setShowCustomBuilder(true)}
-                      className="w-full mt-4 bg-accent hover:bg-accent/90"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Build Your Plan
-                    </Button>
+                  {/* For Essential/Complete: show tagline + highlights */}
+                  {plan.tagline && plan.highlights ? (
+                    <>
+                      <p className="text-sm text-muted-foreground italic mb-3">
+                        {plan.name === "Complete Home Care" ? (
+                          <>"All Essential Care services <span className="font-bold text-foreground">PLUS</span>"</>
+                        ) : (
+                          <>"{plan.tagline}"</>
+                        )}
+                      </p>
+                      <ul className="space-y-1.5">
+                        {plan.highlights.map((highlight, idx) => (
+                          <li
+                            key={idx}
+                            className="flex items-start gap-2 text-foreground text-sm"
+                          >
+                            <span className="mt-0.5 text-sm font-bold text-primary">✓</span>
+                            <span className="leading-relaxed font-medium">{highlight}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    /* For Custom: first item as tagline, rest as checkmark list */
+                    <>
+                      <p className="text-sm text-muted-foreground italic mb-3">
+                        "{plan.features[0]}"
+                      </p>
+                      <ul className="space-y-1.5 mt-4">
+                        {plan.features.slice(1).map((feature, featureIndex) => (
+                          <li
+                            key={featureIndex}
+                            className="flex items-start gap-2 text-foreground text-sm"
+                          >
+                            <span className="mt-0.5 text-sm font-bold text-accent">✓</span>
+                            <span className="leading-relaxed font-medium">{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
                   )}
+
+                  {/* Button - pushed to bottom */}
+                  <div className="mt-auto pt-3">
+                    {plan.name === "Essential Care" && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowEssentialPlan(true)}
+                        className="w-full text-primary border-primary hover:bg-primary/10"
+                      >
+                        View All Services
+                      </Button>
+                    )}
+
+                    {plan.name === "Complete Home Care" && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowCompletePlan(true)}
+                        className="w-full text-primary border-primary hover:bg-primary/10"
+                      >
+                        View All Services
+                      </Button>
+                    )}
+
+                    {plan.isCustom && (
+                      <Button
+                        onClick={() => setShowCustomBuilder(true)}
+                        className="w-full bg-accent hover:bg-accent/90"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Build Your Plan
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
           </div>
+
+          {/* Supplies included note - centered below all plans */}
+          <button
+            onClick={() => setShowSuppliesInfo(true)}
+            className="w-full text-center text-sm text-green-600 font-medium mt-4 hover:underline cursor-pointer"
+          >
+            ✓ Batteries, filters & bulbs included with plans *
+          </button>
 
         </div>
       </div>
@@ -545,15 +611,14 @@ const SpecialPackages = () => {
           <ScrollArea className="flex-1 min-h-0 pr-2">
             <div className="space-y-1.5">
               {customPlanServices.map((service, idx) => (
-                <label 
+                <label
                   key={idx}
-                  className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
-                    selectedServices.includes(service.name)
-                      ? 'bg-accent/10 border-accent'
-                      : 'bg-card border-border hover:bg-muted/50'
-                  }`}
+                  className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${selectedServices.includes(service.name)
+                    ? 'bg-accent/10 border-accent'
+                    : 'bg-card border-border hover:bg-muted/50'
+                    }`}
                 >
-                  <Checkbox 
+                  <Checkbox
                     checked={selectedServices.includes(service.name)}
                     onCheckedChange={() => toggleService(service.name)}
                   />
@@ -587,10 +652,10 @@ const SpecialPackages = () => {
                   <span className="text-blue-700">{selectedServices.length} services</span>
                   <span className="text-blue-600">{formatTime(selectedTime)}</span>
                 </div>
-                
+
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     className="h-9"
                     onClick={() => setSelectedServices([])}
@@ -598,7 +663,7 @@ const SpecialPackages = () => {
                   >
                     <Minus className="w-4 h-4" />
                   </Button>
-                  <Button 
+                  <Button
                     className="flex-1 h-9 bg-blue-600 hover:bg-blue-700"
                     onClick={() => {
                       if (selectedServices.length === 0) return;
@@ -606,7 +671,7 @@ const SpecialPackages = () => {
                       const servicesData = customPlanServices
                         .filter(s => selectedServices.includes(s.name))
                         .map(s => ({ name: s.name, price: s.price, time: s.time }));
-                      window.dispatchEvent(new CustomEvent('customPlanServicesSelected', { 
+                      window.dispatchEvent(new CustomEvent('customPlanServicesSelected', {
                         detail: { services: servicesData, total: selectedTotal, time: selectedTime }
                       }));
                       setSubmitted(true);
@@ -638,30 +703,30 @@ const SpecialPackages = () => {
 
                 {/* Compact form */}
                 <div className="grid grid-cols-3 gap-2">
-                  <Input 
-                    placeholder="Name *" 
+                  <Input
+                    placeholder="Name *"
                     value={quoteName}
                     onChange={(e) => setQuoteName(e.target.value)}
                     className="h-8 text-sm"
                   />
-                  <Input 
-                    placeholder="Phone" 
+                  <Input
+                    placeholder="Phone"
                     value={quotePhone}
                     onChange={(e) => setQuotePhone(e.target.value)}
                     className="h-8 text-sm"
                   />
-                  <Input 
-                    placeholder="Email" 
+                  <Input
+                    placeholder="Email"
                     type="email"
                     value={quoteEmail}
                     onChange={(e) => setQuoteEmail(e.target.value)}
                     className="h-8 text-sm"
                   />
                 </div>
-                
+
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     className="h-9"
                     onClick={() => setSelectedServices([])}
@@ -669,7 +734,7 @@ const SpecialPackages = () => {
                   >
                     <Minus className="w-4 h-4" />
                   </Button>
-                  <Button 
+                  <Button
                     className="flex-1 h-9 bg-accent hover:bg-accent/90"
                     onClick={handleRequestQuote}
                     disabled={selectedServices.length === 0 || !quoteName.trim() || isSubmitting}
@@ -685,6 +750,144 @@ const SpecialPackages = () => {
               </>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Essential Care Plan Modal */}
+      <Dialog open={showEssentialPlan} onOpenChange={setShowEssentialPlan}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-lg flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-primary" />
+              Essential Care Plan
+            </DialogTitle>
+            <p className="text-primary font-heading text-xl">$149/month</p>
+            <p className="text-xs text-accent font-medium">
+              Best for: Seniors who want safety, tech & routine upkeep
+            </p>
+          </DialogHeader>
+
+          <div className="max-h-[50vh] overflow-y-auto pr-2">
+            <ul className="space-y-2.5 py-2">
+              {monthlyPlans[0].features.map((feature, idx) => (
+                <li
+                  key={idx}
+                  className="flex items-start gap-2 text-foreground text-sm"
+                >
+                  <span className="mt-0.5 text-sm text-primary font-bold">✓</span>
+                  <span className="leading-relaxed font-medium">{feature}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-green-600 font-medium mt-3 pt-3 border-t border-border">
+              ✓ Batteries, filters & bulbs included
+            </p>
+          </div>
+
+          <div className="pt-3 border-t border-border">
+            <Button
+              onClick={() => setShowEssentialPlan(false)}
+              className="w-full bg-primary hover:bg-primary/90"
+            >
+              Got It
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Complete Home Care Plan Modal */}
+      <Dialog open={showCompletePlan} onOpenChange={setShowCompletePlan}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-lg flex items-center gap-2">
+              <Home className="w-5 h-5 text-primary" />
+              Complete Home Care Plan
+            </DialogTitle>
+            <p className="text-primary font-heading text-xl">$229/month</p>
+            <p className="text-xs text-accent font-medium">
+              Best for: Seniors who want inside AND outside handled
+            </p>
+          </DialogHeader>
+
+          <div className="max-h-[50vh] overflow-y-auto pr-2">
+            <div className="bg-primary/10 border border-primary/30 rounded-lg px-3 py-2 mb-4">
+              <p className="text-sm font-bold text-primary text-center">
+                ✨ Everything in Essential Care, PLUS:
+              </p>
+            </div>
+
+            {/* Essential Care features */}
+            <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Essential Care Services:</p>
+            <ul className="space-y-2 mb-4">
+              {monthlyPlans[0].features.map((feature, idx) => (
+                <li
+                  key={idx}
+                  className="flex items-start gap-2 text-foreground text-sm"
+                >
+                  <span className="mt-0.5 text-sm text-primary font-bold">✓</span>
+                  <span className="leading-relaxed font-medium">{feature}</span>
+                </li>
+              ))}
+            </ul>
+
+            {/* Additional Complete Care features */}
+            <p className="text-xs text-muted-foreground font-medium mb-2 uppercase tracking-wide">Plus Outdoor Services:</p>
+            <ul className="space-y-2">
+              {monthlyPlans[1].features.slice(1).map((feature, idx) => (
+                <li
+                  key={idx}
+                  className="flex items-start gap-2 text-foreground text-sm"
+                >
+                  <span className="mt-0.5 text-sm text-primary font-bold">✓</span>
+                  <span className="leading-relaxed font-medium">{feature}</span>
+                </li>
+              ))}
+            </ul>
+
+            <p className="text-xs text-green-600 font-medium mt-3 pt-3 border-t border-border">
+              ✓ Batteries, filters & bulbs included
+            </p>
+          </div>
+
+          <div className="pt-3 border-t border-border">
+            <Button
+              onClick={() => setShowCompletePlan(false)}
+              className="w-full bg-primary hover:bg-primary/90"
+            >
+              Got It
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Supplies Info Popup */}
+      <Dialog open={showSuppliesInfo} onOpenChange={setShowSuppliesInfo}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-lg">
+              What's Included with Plans
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="flex items-start gap-2">
+              <span className="text-primary font-bold">✓</span>
+              <span className="text-sm">Smoke alarm batteries replaced</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-primary font-bold">✓</span>
+              <span className="text-sm">AC filters changed</span>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-primary font-bold">✓</span>
+              <span className="text-sm">Up to 4 light bulbs included</span>
+            </div>
+          </div>
+          <Button
+            onClick={() => setShowSuppliesInfo(false)}
+            className="w-full bg-primary hover:bg-primary/90"
+          >
+            Got It
+          </Button>
         </DialogContent>
       </Dialog>
 
@@ -748,7 +951,7 @@ const SpecialPackages = () => {
             <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
               Know a neighbor, friend, or family member in the community who could use a hand? Refer them to us and you'll both benefit.
             </p>
-            
+
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-6">
               <div className="bg-card border-2 border-accent rounded-xl p-6 text-center min-w-[180px]">
                 <span className="font-heading text-3xl text-accent">25% OFF</span>
@@ -759,7 +962,7 @@ const SpecialPackages = () => {
                 <p className="text-muted-foreground text-sm mt-1">Their first service</p>
               </div>
             </div>
-            
+
             <p className="text-foreground font-medium mb-2">
               Just have your neighbor mention your name when they call or text!
             </p>

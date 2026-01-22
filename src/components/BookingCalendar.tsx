@@ -156,6 +156,13 @@ const BookingCalendar = () => {
     availableMinutes: number;
     suggestedDay: { date: string; startTime: string; startTimeLabel: string } | null;
   }>({ hasConflict: false, requiredMinutes: 0, availableMinutes: 0, suggestedDay: null });
+  
+  // No slots available state
+  const [noSlotsAvailable, setNoSlotsAvailable] = useState(false);
+  const [nextAvailableDay, setNextAvailableDay] = useState<{
+    date: Date;
+    dateLabel: string;
+  } | null>(null);
   const [findingAlternative, setFindingAlternative] = useState(false);
 
   // Fetch all services on mount (includes individual, packages, bundles, monthly plans)
@@ -251,8 +258,29 @@ const BookingCalendar = () => {
       const dateStr = format(bookingData.date, 'yyyy-MM-dd');
       const durationMinutes = bookingData.durationHours * 60;
       getAvailableTimeSlots(dateStr, durationMinutes)
-        .then(slots => {
+        .then(async (slots) => {
           setAvailableSlots(slots);
+          
+          // Check if no slots are available
+          const hasAvailableSlot = slots.some(s => s.available);
+          setNoSlotsAvailable(!hasAvailableSlot);
+          
+          if (!hasAvailableSlot) {
+            // Find next available day
+            const nextDay = await findNextAvailableDayForDuration(dateStr, 60);
+            if (nextDay) {
+              setNextAvailableDay({
+                date: new Date(nextDay.date + 'T12:00:00'),
+                dateLabel: format(new Date(nextDay.date + 'T12:00:00'), 'EEEE, MMMM d')
+              });
+            } else {
+              setNextAvailableDay(null);
+            }
+          } else {
+            setNoSlotsAvailable(false);
+            setNextAvailableDay(null);
+          }
+          
           setIsLoading(false);
           // Small scroll to reveal time slots after they load
           setTimeout(() => {
@@ -261,6 +289,8 @@ const BookingCalendar = () => {
         })
         .catch(() => {
           setAvailableSlots(DEFAULT_TIME_SLOTS);
+          setNoSlotsAvailable(false);
+          setNextAvailableDay(null);
           setIsLoading(false);
         });
     }
@@ -616,7 +646,7 @@ const BookingCalendar = () => {
             <h4 className="font-heading text-lg text-foreground mb-3">Your Appointment Details:</h4>
             <ul className="space-y-2 text-lg">
               <li><strong>Date:</strong> {bookingData.date && format(bookingData.date, 'EEEE, MMMM d, yyyy')}</li>
-              <li><strong>Time:</strong> {bookingData.timeLabel} ({bookingData.durationHours}hr block)</li>
+              <li><strong>Time:</strong> {bookingData.timeLabel}</li>
               <li><strong>Address:</strong> {bookingData.address}</li>
               {bookingData.services.length > 0 && (
                 <li><strong>Services:</strong> {bookingData.services.map(s => s.name).join(', ')}</li>
@@ -835,77 +865,84 @@ const BookingCalendar = () => {
               </div>
 
               {/* Time Slots - Show when date is selected */}
-              <div ref={timeSlotsRef} className="space-y-4">
+              <div ref={timeSlotsRef} className="space-y-3">
                 {bookingData.date ? (
                   <>
                     <div className="text-center md:text-left">
-                      <p className="text-lg font-medium text-foreground mb-1">
+                      <p className="text-base font-medium text-foreground">
                         {format(bookingData.date, 'EEEE, MMMM d')}
                       </p>
-                      <p className="text-sm text-muted-foreground">Choose an available time:</p>
-                    </div>
-                    
-                    {/* Duration Selection - Show first */}
-                    <div className="mb-4">
-                      <p className="text-sm text-muted-foreground mb-2 text-center md:text-left">
-                        How long do you need?
-                      </p>
-                      <div className="grid grid-cols-4 gap-2">
-                        {DURATION_OPTIONS.map((option) => (
-                          <button
-                            key={option.hours}
-                            onClick={() => setBookingData(prev => ({ 
-                              ...prev, 
-                              durationHours: option.hours 
-                            }))}
-                            className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${
-                              bookingData.durationHours === option.hours
-                                ? 'border-primary bg-primary text-primary-foreground'
-                                : 'border-border bg-card hover:border-primary/50 hover:bg-primary/5 text-foreground'
-                            }`}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
+                      <p className="text-sm text-muted-foreground">Pick a start time:</p>
                     </div>
 
                     {isLoading ? (
-                      <div className="flex justify-center py-8">
-                        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                      <div className="flex justify-center py-6">
+                        <Loader2 className="w-6 h-6 animate-spin text-primary" />
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-3">
-                        {availableSlots.map((slot) => (
-                          <button
-                            key={slot.id}
-                            onClick={() => slot.available && setBookingData(prev => ({ 
-                              ...prev, 
-                              timeSlot: slot.time,
-                              timeLabel: slot.label
-                            }))}
-                            disabled={!slot.available}
-                            className={`p-4 rounded-xl border-2 text-lg font-medium transition-all flex items-center justify-center gap-2 ${
-                              bookingData.timeSlot === slot.time
-                                ? 'border-primary bg-primary text-primary-foreground'
-                                : slot.available
-                                  ? 'border-border bg-card hover:border-primary/50 hover:bg-primary/5 text-foreground'
-                                  : 'border-border bg-muted text-muted-foreground cursor-not-allowed opacity-50'
-                            }`}
-                          >
-                            <Clock className={`w-5 h-5 ${
-                              bookingData.timeSlot === slot.time ? 'text-primary-foreground' : 'text-primary'
-                            }`} />
-                            {slot.label}
-                          </button>
-                        ))}
-                      </div>
+                      <>
+                        {/* No slots available message - shown above the grid */}
+                        {noSlotsAvailable && (
+                          <div className="text-center py-4 px-3 space-y-3 bg-orange-50 border border-orange-200 rounded-lg mb-3">
+                            <p className="text-orange-800 font-medium">
+                              No times available on {format(bookingData.date, 'EEEE')}.
+                            </p>
+                            {nextAvailableDay && (
+                              <div className="space-y-2">
+                                <p className="text-sm text-orange-700">
+                                  Next opening: <span className="font-semibold">{nextAvailableDay.dateLabel}</span>
+                                </p>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => {
+                                    setBookingData(prev => ({
+                                      ...prev,
+                                      date: nextAvailableDay.date,
+                                      timeSlot: '',
+                                      timeLabel: ''
+                                    }));
+                                    setNoSlotsAvailable(false);
+                                  }}
+                                  className="bg-orange-600 hover:bg-orange-700"
+                                >
+                                  Book {format(nextAvailableDay.date, 'EEEE')} instead
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Time slots grid - always shown */}
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                          {availableSlots.map((slot) => (
+                            <button
+                              key={slot.id}
+                              onClick={() => slot.available && setBookingData(prev => ({ 
+                                ...prev, 
+                                timeSlot: slot.time,
+                                timeLabel: slot.label
+                              }))}
+                              disabled={!slot.available}
+                              className={`py-2.5 px-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                                bookingData.timeSlot === slot.time
+                                  ? 'border-primary bg-primary text-primary-foreground'
+                                  : slot.available
+                                    ? 'border-border bg-card hover:border-primary/50 hover:bg-primary/5 text-foreground'
+                                    : 'border-border bg-muted text-muted-foreground cursor-not-allowed opacity-50'
+                              }`}
+                            >
+                              {slot.label}
+                            </button>
+                          ))}
+                        </div>
+                      </>
                     )}
 
                     {bookingData.timeSlot && (
-                      <div className="bg-primary/10 rounded-xl p-4 text-center mt-4">
-                        <p className="text-primary font-medium">
-                          Selected: {format(bookingData.date, 'MMM d')} at {bookingData.timeLabel} ({bookingData.durationHours}hr block)
+                      <div className="bg-primary/10 rounded-lg p-3 text-center">
+                        <p className="text-primary font-medium text-sm">
+                          ✓ {format(bookingData.date, 'MMM d')} at {bookingData.timeLabel}
                         </p>
                       </div>
                     )}
@@ -1453,7 +1490,7 @@ const BookingCalendar = () => {
               
               <div className="flex justify-between items-start border-b border-border pb-3">
                 <span className="text-muted-foreground text-lg">Time:</span>
-                <span className="text-foreground text-lg font-medium">{bookingData.timeLabel} ({bookingData.durationHours}hr block)</span>
+                <span className="text-foreground text-lg font-medium">{bookingData.timeLabel}</span>
               </div>
 
               <div className="flex justify-between items-start border-b border-border pb-3">
