@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Star, Heart, Wrench, Sun, Home, Users, Camera, Calendar, Smartphone, ShieldCheck, Gift, MapPin, Clock, Zap, Plus, Minus, Send, Loader2, Check, ChevronLeft, ChevronRight, Sparkles, Search, X, ImagePlus, ChevronDown } from "lucide-react";
+import { Star, Heart, Wrench, Sun, Home, Users, Camera, Calendar, Smartphone, ShieldCheck, Gift, MapPin, Clock, Zap, Plus, Minus, Send, Loader2, Check, ChevronLeft, ChevronRight, Sparkles, X, ImagePlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -352,17 +352,11 @@ const SpecialPackages = () => {
 
   // Custom plan builder state
   const [allSupabaseServices, setAllSupabaseServices] = useState<ServiceOption[]>([]);
-  const [serviceSearch, setServiceSearch] = useState('');
-  const [customPlanSelectedServices, setCustomPlanSelectedServices] = useState<ServiceOption[]>([]);
   const [customPlanNotes, setCustomPlanNotes] = useState('');
   const [customPlanImages, setCustomPlanImages] = useState<UploadedImage[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [emailError, setEmailError] = useState('');
-
-  // Dropdown states for custom plan builder
-  const [customServicesDropdownOpen, setCustomServicesDropdownOpen] = useState(false);
-  const customServicesDropdownRef = useRef<HTMLDivElement>(null);
 
   // Fetch services from Supabase on mount
   useEffect(() => {
@@ -393,17 +387,6 @@ const SpecialPackages = () => {
     };
   }, []);
 
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (customServicesDropdownRef.current && !customServicesDropdownRef.current.contains(event.target as Node)) {
-        setCustomServicesDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const [quoteName, setQuoteName] = useState('');
   const [quotePhone, setQuotePhone] = useState('');
   const [quoteEmail, setQuoteEmail] = useState('');
@@ -423,7 +406,7 @@ const SpecialPackages = () => {
     return acc;
   }, {} as Record<string, ServiceOption[]>);
 
-  // Site category labels
+  // Site category labels (used by BookingCalendar via props or context if needed)
   const SITE_CATEGORY_LABELS: Record<string, string> = {
     'assembly': 'Assembly, Mounting & Setups',
     'maintenance': 'Maintenance, Repairs & To-Do Lists',
@@ -431,85 +414,6 @@ const SpecialPackages = () => {
     'safety': 'Safety & Senior Support, Tech Help',
     'outdoor': 'Outdoor, Yard & Seasonal',
     'organizing': 'Organizing & General Help',
-  };
-
-  // Routine/monthly maintenance service IDs for custom plan builder
-  const ROUTINE_MAINTENANCE_SERVICE_IDS = [
-    // Cleaning & Organizing
-    'pet-yard-clean',      // Monthly Yard / Litter Clean
-    'house-clean',         // Standard House Clean (Sweep/Mop/Vac)
-    'furniture-rearrange', // Furniture Rearrange / Declutter
-    'kitchen-org',         // Kitchen / Cupboard / Pantry Org
-    'closet-org',          // Closet / Utility / Laundry Org
-    'junk-removal',        // Junk Removal (Small Load)
-    // Outdoor & Pressure Washing
-    'gutter-clean',        // Gutter Cleaning & Minor Repair
-    'pressure-driveway',   // Pressure Wash Driveway
-    'pressure-exterior',   // Pressure Wash Windows / Exterior
-    'roof-debris',         // Roof Debris Clean & Leak Patch
-    // Routine Maintenance & Repairs
-    'appliance-clean',     // Appliance Deep Clean (Oven/Fridge)
-    'caulking',            // Caulking (Tub/Shower/Kitchen)
-    'dryer-vent',          // Dryer Vent Clean (Pipe & Filter)
-    'filter-service',      // Filter Service (HVAC/Water/Fridge)
-    'hvac-drip',           // HVAC Drip Line (Vac & Vinegar)
-    'bulb-high',           // Light Bulb Replacement (High/Hard)
-    'smoke-battery',       // Smoke Detector Battery (Whole House)
-    // Safety
-    'fire-extinguisher',   // Fire Extinguisher Mount & Check
-    'hazard-audit',        // Home Hazard Audit (Trip/Elec/Fire)
-    'non-slip-setup',      // Non-Slip Mats / Night Light Setup
-    // Tech Support
-    'device-help',         // Phone / Tablet / Device Help
-    'tech-help',           // Tech Troubleshooting / Help
-  ];
-
-  // Filter routine services for custom plan builder
-  const routineMaintenanceServices = individualServices.filter(
-    service => ROUTINE_MAINTENANCE_SERVICE_IDS.includes(service.id)
-  );
-
-  // Group routine services by site_category for custom plan dropdown
-  const routineServicesByCategory = routineMaintenanceServices.reduce((acc, service) => {
-    const cat = service.site_category || 'Other';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(service);
-    return acc;
-  }, {} as Record<string, ServiceOption[]>);
-
-  // Custom plan builder category labels (more relevant for monthly services)
-  const ROUTINE_CATEGORY_LABELS: Record<string, string> = {
-    'organizing': 'Cleaning & Organizing',
-    'outdoor': 'Outdoor & Pressure Washing',
-    'repairs': 'Routine Maintenance',
-    'safety': 'Safety Checks',
-    'tech': 'Tech Support',
-  };
-
-  // Filter routine services based on search
-  const filteredRoutineServices = routineMaintenanceServices.filter(service =>
-    service.name.toLowerCase().includes(serviceSearch.toLowerCase())
-  );
-
-  // Filter services based on search (for individual services only - used in booking calendar)
-  const filteredIndividualServices = individualServices.filter(service =>
-    service.name.toLowerCase().includes(serviceSearch.toLowerCase())
-  );
-
-  // Check if service is selected
-  const isServiceSelected = (serviceId: string) => {
-    return customPlanSelectedServices.some(s => s.id === serviceId);
-  };
-
-  // Add/remove service from selection
-  const toggleServiceSelection = (service: ServiceOption) => {
-    setCustomPlanSelectedServices(prev => {
-      const exists = prev.find(s => s.id === service.id);
-      if (exists) {
-        return prev.filter(s => s.id !== service.id);
-      }
-      return [...prev, service];
-    });
   };
 
   // Image handling
@@ -556,8 +460,8 @@ const SpecialPackages = () => {
     }
     setEmailError('');
 
-    // Must have either notes, services, or images
-    if (!customPlanNotes.trim() && customPlanSelectedServices.length === 0 && customPlanImages.length === 0) {
+    // Must have either notes or images
+    if (!customPlanNotes.trim() && customPlanImages.length === 0) {
       return;
     }
 
@@ -576,13 +480,10 @@ const SpecialPackages = () => {
       setUploadingImages(false);
     }
 
-    // Build the services list for the quote
-    const serviceNames = customPlanSelectedServices.map(s => s.name);
-
     // Create message with notes and image count
     let messageAddendum = '';
     if (customPlanNotes.trim()) {
-      messageAddendum += `\n\nCustomer Notes:\n${customPlanNotes.trim()}`;
+      messageAddendum += `\n\nCustomer Request:\n${customPlanNotes.trim()}`;
     }
     if (imageUrls.length > 0) {
       messageAddendum += `\n\n${imageUrls.length} photo(s) attached:\n${imageUrls.join('\n')}`;
@@ -592,7 +493,7 @@ const SpecialPackages = () => {
       name: quoteName.trim(),
       email: quoteEmail.trim(),
       phone: quotePhone.trim() || undefined,
-      services: serviceNames.length > 0 ? serviceNames : ['Custom request - see notes'],
+      services: ['Custom Monthly Plan Request'],
       estimatedTotal: 0,
       estimatedTime: 'TBD' + messageAddendum
     });
@@ -605,10 +506,8 @@ const SpecialPackages = () => {
         setShowCustomBuilder(false);
         setSubmitted(false);
         setSelectedServices([]);
-        setCustomPlanSelectedServices([]);
         setCustomPlanNotes('');
         setCustomPlanImages([]);
-        setServiceSearch('');
         setQuoteName('');
         setQuotePhone('');
         setQuoteEmail('');
@@ -939,7 +838,6 @@ const SpecialPackages = () => {
         setShowCustomBuilder(open);
         if (!open) {
           // Reset state when closing
-          setServiceSearch('');
           setEmailError('');
         }
       }}>
@@ -968,131 +866,28 @@ const SpecialPackages = () => {
             </div>
           ) : (
             <>
-              <div className="flex-1 overflow-y-auto min-h-0 space-y-4 pr-1">
-                {/* Selected Services Display */}
-                {customPlanSelectedServices.length > 0 && (
-                  <div className="bg-accent/5 rounded-lg p-3 border border-accent/20">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Selected ({customPlanSelectedServices.length}):</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {customPlanSelectedServices.map((service) => (
-                        <span
-                          key={service.id}
-                          className="inline-flex items-center gap-1 bg-white text-foreground border border-border px-2 py-1 rounded-full text-xs shadow-sm"
-                        >
-                          {service.name}
-                          <button
-                            onClick={() => toggleServiceSelection(service)}
-                            className="hover:text-red-500 ml-0.5"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Routine Maintenance Services Dropdown */}
-                <div className="relative" ref={customServicesDropdownRef}>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setCustomServicesDropdownOpen(!customServicesDropdownOpen);
-                      setServiceSearch('');
-                    }}
-                    className="w-full flex items-center justify-between gap-2 bg-white border-2 border-primary/30 hover:border-primary hover:bg-primary/5 h-11"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Wrench className="w-4 h-4 text-primary" />
-                      <span>Add Routine Service</span>
-                    </div>
-                    <ChevronDown className={`w-4 h-4 transition-transform ${customServicesDropdownOpen ? 'rotate-180' : ''}`} />
-                  </Button>
-
-                  {customServicesDropdownOpen && (
-                    <div className="absolute left-0 right-0 mt-1 bg-white border-2 border-border rounded-lg shadow-xl z-50 max-h-64 overflow-hidden">
-                      {/* Search Input */}
-                      <div className="p-2 border-b border-border sticky top-0 bg-white">
-                        <div className="relative">
-                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Search routine services..."
-                            value={serviceSearch}
-                            onChange={(e) => setServiceSearch(e.target.value)}
-                            className="pl-8 h-9 text-sm"
-                            autoFocus
-                          />
-                        </div>
-                      </div>
-
-                      {/* Services List */}
-                      <div className="overflow-y-auto max-h-48">
-                        {serviceSearch.trim() ? (
-                          filteredRoutineServices.length > 0 ? (
-                            filteredRoutineServices.map((service) => (
-                              <button
-                                key={service.id}
-                                type="button"
-                                onClick={() => toggleServiceSelection(service)}
-                                disabled={isServiceSelected(service.id)}
-                                className={`w-full text-left px-3 py-2 text-sm flex justify-between items-center hover:bg-primary/5 transition-colors ${isServiceSelected(service.id) ? 'opacity-50 bg-gray-50' : ''
-                                  }`}
-                              >
-                                <span>{service.name}</span>
-                                {isServiceSelected(service.id) && <Check className="w-4 h-4 text-primary" />}
-                              </button>
-                            ))
-                          ) : (
-                            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-                              No services found
-                            </div>
-                          )
-                        ) : (
-                          Object.entries(routineServicesByCategory).map(([category, services]) => (
-                            <div key={category}>
-                              <div className="px-3 py-1.5 bg-gray-50 text-xs font-medium text-muted-foreground sticky top-0">
-                                {ROUTINE_CATEGORY_LABELS[category] || category}
-                              </div>
-                              {services.map((service) => (
-                                <button
-                                  key={service.id}
-                                  type="button"
-                                  onClick={() => toggleServiceSelection(service)}
-                                  disabled={isServiceSelected(service.id)}
-                                  className={`w-full text-left px-3 py-2 text-sm flex justify-between items-center hover:bg-primary/5 transition-colors ${isServiceSelected(service.id) ? 'opacity-50 bg-gray-50' : ''
-                                    }`}
-                                >
-                                  <span>{service.name}</span>
-                                  {isServiceSelected(service.id) && <Check className="w-4 h-4 text-primary" />}
-                                </button>
-                              ))}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Notes Section */}
+              <div className="flex-1 overflow-y-auto min-h-[200px] space-y-4 pr-1">
+                {/* Services Needed Section */}
                 <div>
-                  <Label className="text-sm font-medium mb-2 block">
-                    Describe what you need help with
+                  <Label className="text-sm font-medium mb-1 block">
+                    What monthly services do you need?
                   </Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Examples: yard cleanup, house cleaning, gutter cleaning, pressure washing, filter changes, light bulbs, appliance cleaning, tech help
+                  </p>
                   <Textarea
-                    placeholder="Tell us about your home maintenance needs, any specific issues, or questions you have..."
+                    placeholder="Tell us what you need help with..."
                     value={customPlanNotes}
                     onChange={(e) => setCustomPlanNotes(e.target.value)}
-                    rows={4}
-                    className="resize-none"
+                    rows={5}
+                    className="resize-none text-base"
                   />
                 </div>
 
                 {/* Photo Upload Section */}
                 <div>
                   <Label className="text-sm font-medium mb-2 block">
-                    Add photos (optional) — show us what you need help with
+                    Add photos (optional)
                   </Label>
 
                   {/* Image Preview Grid */}
@@ -1163,37 +958,36 @@ const SpecialPackages = () => {
               </div>
 
               {/* Contact Form - Always visible at bottom */}
-              <div className="border-t pt-3 space-y-3 flex-shrink-0 bg-background">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="border-t pt-2 space-y-2 flex-shrink-0 bg-background">
+                <div className="grid grid-cols-2 gap-2">
                   <Input
                     placeholder="Name *"
                     value={quoteName}
                     onChange={(e) => setQuoteName(e.target.value)}
-                    className="h-9"
+                    className="h-9 text-sm"
                   />
                   <Input
                     placeholder="Phone"
                     value={quotePhone}
                     onChange={(e) => setQuotePhone(e.target.value)}
-                    className="h-9"
+                    className="h-9 text-sm"
                   />
-                  <div>
-                    <Input
-                      placeholder="Email *"
-                      type="email"
-                      value={quoteEmail}
-                      onChange={(e) => {
-                        setQuoteEmail(e.target.value);
-                        setEmailError('');
-                      }}
-                      className={`h-9 ${emailError ? 'border-red-500' : ''}`}
-                    />
-                    {emailError && (
-                      <p className="text-xs text-red-500 mt-0.5">{emailError}</p>
-                    )}
-                  </div>
                 </div>
-
+                <div>
+                  <Input
+                    placeholder="Email *"
+                    type="email"
+                    value={quoteEmail}
+                    onChange={(e) => {
+                      setQuoteEmail(e.target.value);
+                      setEmailError('');
+                    }}
+                    className={`h-9 text-sm ${emailError ? 'border-red-500' : ''}`}
+                  />
+                  {emailError && (
+                    <p className="text-xs text-red-500 mt-0.5">{emailError}</p>
+                  )}
+                </div>
                 <Button
                   className="w-full h-10 bg-accent hover:bg-accent/90"
                   onClick={handleRequestQuote}
@@ -1204,7 +998,7 @@ const SpecialPackages = () => {
                   ) : (
                     <Send className="w-4 h-4 mr-2" />
                   )}
-                  {uploadingImages ? 'Uploading photos...' : isSubmitting ? 'Sending...' : 'Request Custom Quote'}
+                  {uploadingImages ? 'Uploading...' : isSubmitting ? 'Sending...' : 'Request Quote'}
                 </Button>
               </div>
             </>
