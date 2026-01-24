@@ -10,115 +10,100 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 const serviceCategories = [
   {
-    category: "Tech & Security",
-    services: [
-      "Video Doorbell / Ring Install",
-      "Smart Door Lock / Deadbolt Install",
-      "Security Camera / Wifi Cam Setup",
-      "Smart Thermostat Setup",
-      "Wifi Extender / Mesh Setup",
-      "Tech Troubleshooting / Help",
-      "Streaming / TV App / Remote Setup",
-      "Phone / Tablet / Device Help",
-      "Scam & Fraud Awareness Training",
-    ],
-  },
-  {
-    category: "Mounting",
+    category: "Assembly, Mounting & Setups",
     services: [
       "TV Mount (Up to 65\")",
-      "TV Mount (70\"+ or Brick/Stone)",
       "Soundbar / Speaker Mount",
       "Large Mirror / Heavy Art",
       "Small Picture / Art Hanging",
-    ],
-  },
-  {
-    category: "Assembly",
-    services: [
       "Desk / Table / Shelf Assembly",
       "Bed Frame Assembly",
       "Patio Set / Outdoor Furniture",
       "Custom Carpentry (Tables/Desks)",
+      "Blind / Curtain Rod Install",
+      "Ceiling Fan Install",
+      "Light Fixture Swap",
+      "Video Doorbell / Ring Install",
+      "Smart Door Lock / Deadbolt Install",
+      "Security Camera / Wifi Cam Setup",
+      "Grab Bar / Handrail Install",
+      "Fire Extinguisher Mount & Check",
+      "Pet Gate / Enclosure Install",
+      "Appliance Install (Fridge/Micro/DW)",
+      "Washer / Dryer Hookup",
+      "Wall Painting (Small Room)",
+      "Wall Painting (Large Room)",
+      "Ceiling Painting",
     ],
   },
   {
-    category: "Plumbing",
+    category: "Maintenance, Repairs & To-Do Lists",
     services: [
       "Faucet Replacement",
       "Shower Head Replacement",
       "Garbage Disposal Install",
-      "Toilet Repair (Valve/Flapper/Grout)",
+      "Toilet Repair (Valve/Flapper)",
       "Toilet Replacement (Full Install)",
       "Drain Snaking / Clog Removal",
       "Caulking (Tub/Shower/Kitchen)",
-    ],
-  },
-  {
-    category: "Electrical",
-    services: [
-      "Ceiling Fan Install",
-      "Light Fixture Swap / Exterior Light",
       "Outlet or Switch Replacement",
-      "Light Bulb Replacement (High/Hard)",
-      "Smoke Detector Unit Swap",
-      "Smoke Detector Battery (Whole House)",
-      "Flood Light / Motion Sensor",
-    ],
-  },
-  {
-    category: "Interior Repair",
-    services: [
       "Drywall Patch / Wall Repair",
+      "Cabinet Hinge Repair",
+      "Interior/Exterior Trim Touchups",
+      "Baseboard / Trim Repair",
       "Door Lock / Deadbolt Swap",
       "Closet Door Repair / Track Adjust",
-      "Blind / Curtain Rod Install",
-      "Baseboard / Trim Repair",
-      "Cabinet Hinge Repair / Adjust",
-      "Furniture Repair (Glue/Sand/Tighten)",
       "Door Sweep / Window Strip / Barrier",
-    ],
-  },
-  {
-    category: "Painting",
-    services: [
-      "Wall Painting (Small Room)",
-      "Wall Painting (Large Room)",
-      "Ceiling Painting",
+      "Furniture Repair (Glue/Sand/Tighten)",
+      "Dryer Vent Clean",
+      "Fence / Gate / Deck Repair",
+      "Irrigation / Sprinkler Repair",
+      "Roof Debris Clean & Leak Patch",
+      "Mobile Home Roof Coating (UV-Reflective & Waterproof)",
       "Cabinet Painting / Refinishing",
-      "Furniture Paint & Seal",
-      "Interior/Exterior Trim Touchups",
-      "Whole House Interior",
-      "Whole House Exterior",
+      "To-Do Lists & Touch-Ups",
     ],
   },
   {
-    category: "Appliance Care",
+    category: "Pressure Washing & Home Cleaning",
     services: [
-      "Appliance Install (Fridge/Micro/DW)",
-      "Washer / Dryer Hookup",
-      "Old Appliance / Trash Removal",
-      "Dryer Vent Clean (Pipe & Filter)",
+      "Pressure Wash Driveway",
+      "Pressure Wash Carports & Walkways",
+      "Pressure Wash Windows / Exterior",
+      "Roof Cleaning",
+      "Gutter Cleaning & Minor Repair",
+      "Standard House Clean",
       "Appliance Deep Clean (Oven/Fridge)",
       "Filter Service (HVAC/Water/Fridge)",
       "HVAC Drip Line (Vac & Vinegar)",
     ],
   },
   {
-    category: "Outdoor",
+    category: "Safety & Senior Support, Tech Help",
     services: [
-      "Gutter Cleaning & Minor Repair",
-      "Pressure Wash Driveway",
-      "Pressure Wash Windows / Exterior",
-      "Fence / Gate / Deck Repair",
-      "Irrigation / Sprinkler Repair",
-      "Roof Debris Clean & Leak Patch",
-      "Roof Elastic / Waterproof Coating",
+      "Smart Thermostat Setup",
+      "Wifi Extender / Mesh Setup",
+      "Tech Troubleshooting / Help",
+      "Streaming / TV App / Remote Setup",
+      "Phone / Tablet / Device Help",
+      "Free Scam & Fraud Awareness Training",
+      "Home Hazard Audit (Trip/Elec/Fire)",
+      "Handrails / Fall / Anti-Slip Solutions",
+      "Non-Slip Mats / Night Light Setup",
+      "Smoke Detector Battery (Whole House)",
+      "Smoke Detector Unit Swap",
+      "Light Bulb Replacement (High/Hard)",
+      "Flood Light / Motion Sensor",
+      "Wellness Check-ins & Snowbird Monitoring",
+      "Delivery / Contractor Wait Time",
     ],
   },
   {
-    category: "Seasonal",
+    category: "Outdoor, Yard & Seasonal",
     services: [
+      "Light Yard Cleanup & Gardening",
+      "Landscaping & Pet Waste Cleanup",
+      "Monthly Yard / Litter Clean",
       "Storm Prep (Boards/Bags/Tie Downs)",
       "Storm Takedown & Storage",
       "Holiday Light Setup",
@@ -126,33 +111,19 @@ const serviceCategories = [
     ],
   },
   {
-    category: "Cleaning & Organizing",
+    category: "Organizing & General Help",
     services: [
       "Kitchen / Cupboard / Pantry Org",
       "Closet / Utility / Laundry Org",
+      "Storage & Room Organizing",
       "Garage / Shed / Item Sort",
+      "Heavy Lifting & Sorting",
       "Junk Removal (Small Load)",
+      "Old Appliance / Trash Removal",
       "Furniture Rearrange / Declutter",
       "Item Valuation / Garage Sale Help",
-      "Standard House Clean (Sweep/Mop/Vac)",
-    ],
-  },
-  {
-    category: "Safety & Senior Support",
-    services: [
-      "Grab Bar / Handrail Install",
-      "Fire Extinguisher Mount & Check",
-      "Home Hazard Audit (Trip/Elec/Fire)",
-      "Non-Slip Mats / Night Light Setup",
-    ],
-  },
-  {
-    category: "Concierge & Extras",
-    services: [
-      "Delivery / Contractor Wait Time",
       "Real Estate Photo / Video / Drone",
-      "Pet Gate / Enclosure / Custom Home",
-      "Monthly Yard / Litter Clean",
+      "\"I Just Need an Extra Hand\" Help",
     ],
   },
 ];
@@ -178,7 +149,7 @@ export const ServicesOverlayProvider = ({ children }: { children: ReactNode }) =
   return (
     <ServicesOverlayContext.Provider value={{ open, setOpen }}>
       {children}
-      
+
       {/* Floating button */}
       <button
         onClick={() => setOpen(true)}
@@ -191,68 +162,69 @@ export const ServicesOverlayProvider = ({ children }: { children: ReactNode }) =
 
       {/* Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg sm:max-w-2xl max-h-[85vh]">
+        <DialogContent className="max-w-lg sm:max-w-3xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle className="font-heading text-xl">Complete Service List</DialogTitle>
+            <DialogTitle className="font-heading text-xl text-center">Complete Service List</DialogTitle>
+            <p className="text-sm text-muted-foreground text-center">Everything we can help with</p>
           </DialogHeader>
-          <ScrollArea className="h-[65vh] pr-4">
-            <div className="space-y-6">
+          <ScrollArea className="h-[60vh] pr-4">
+            <div className="space-y-4">
               {serviceCategories.map((cat, catIndex) => (
-                <div key={catIndex}>
-                  <h3 className="font-heading text-lg text-foreground mb-3 border-b border-border pb-2">
+                <div key={catIndex} className="bg-secondary/30 rounded-xl p-4">
+                  <h3 className="font-heading text-base text-primary mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-primary rounded-full"></span>
                     {cat.category}
                   </h3>
-                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
                     {cat.services.map((service, serviceIndex) => (
                       <li
                         key={serviceIndex}
-                        className="flex items-start gap-2 text-muted-foreground py-1"
+                        className="flex items-start gap-2 text-foreground"
                       >
-                        <span className="text-primary mt-0.5 flex-shrink-0">✓</span>
+                        <span className="text-primary mt-0.5 flex-shrink-0 text-sm">✓</span>
                         <span className="text-sm leading-snug">{service}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
               ))}
-              
+
               {/* Service note */}
-              <div className="bg-secondary/50 rounded-lg p-4 mt-6">
-                <p className="text-sm text-muted-foreground">
-                  <strong className="text-foreground">Note:</strong> Contact us for a free quote. 
-                  Senior & military discount: 10% off.
+              <div className="bg-primary/10 border border-primary/20 rounded-xl p-4">
+                <p className="text-sm text-foreground text-center">
+                  <strong>Free quotes!</strong> Senior & military discount: 10% off.
                 </p>
               </div>
             </div>
           </ScrollArea>
-          
+
           {/* Action links */}
           <div className="border-t border-border pt-4 mt-4">
             <div className="flex flex-wrap items-center justify-center gap-2">
-              <a 
-                href="#booking" 
+              <a
+                href="#booking"
                 onClick={() => setOpen(false)}
                 className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors"
               >
                 <CalendarDays className="w-4 h-4" />
                 Book Now
               </a>
-              <a 
-                href="tel:+18137381655" 
+              <a
+                href="tel:+18137381655"
                 className="inline-flex items-center gap-1.5 bg-secondary text-foreground px-3 py-2 rounded-full text-sm font-medium hover:bg-secondary/80 transition-colors"
               >
                 <Phone className="w-4 h-4 text-primary" />
                 Call
               </a>
-              <a 
-                href="sms:+18137381655" 
+              <a
+                href="sms:+18137381655"
                 className="inline-flex items-center gap-1.5 bg-secondary text-foreground px-3 py-2 rounded-full text-sm font-medium hover:bg-secondary/80 transition-colors"
               >
                 <MessageSquare className="w-4 h-4 text-primary" />
                 Text
               </a>
-              <a 
-                href="#message-form" 
+              <a
+                href="#message-form"
                 onClick={() => setOpen(false)}
                 className="inline-flex items-center gap-1.5 bg-secondary text-foreground px-3 py-2 rounded-full text-sm font-medium hover:bg-secondary/80 transition-colors"
               >

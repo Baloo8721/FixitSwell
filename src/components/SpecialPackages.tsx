@@ -1,149 +1,268 @@
-import { useState, useEffect } from "react";
-import { Star, Heart, Wrench, Sun, Home, Users, Camera, Calendar, Smartphone, ShieldCheck, Gift, MapPin, Clock, Zap, Plus, Minus, Send, Loader2, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Star, Heart, Wrench, Sun, Home, Users, Camera, Calendar, Smartphone, ShieldCheck, Gift, MapPin, Clock, Zap, Plus, Minus, Send, Loader2, Check, ChevronLeft, ChevronRight, Sparkles, Search, X, ImagePlus, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from "@/components/ui/carousel";
-import { submitQuoteRequest } from "@/lib/supabase";
+import { submitQuoteRequest, getServicesForBooking, uploadBookingImage } from "@/lib/supabase";
 import lakeshoreMap from "@/assets/lakeshore villas.png";
 
-// All Bundled Packages (9 total)
+// Type for uploaded images
+interface UploadedImage {
+  file: File;
+  preview: string;
+  url?: string;
+}
+
+// Type for service from Supabase
+interface ServiceOption {
+  id: string;
+  name: string;
+  category: 'service' | 'package' | 'monthly';
+  site_category?: string;
+  price_min: number | null;
+  price_max: number | null;
+}
+
+const MAX_IMAGES = 10;
+
+// All Bundled Packages (7 total)
 const allPackages = [
   {
+    id: "tune-up",
     icon: Wrench,
     name: "Basic Home Tune-Up",
-    price: "$150–$250",
-    duration: "2 hours",
-    features: [
-      "Light bulb replacement",
-      "Battery changes (smoke detectors)",
+    price: "$195",
+    priceNote: "Mobile homes; for residential call for quote",
+    tagline: "Perfect for quick home maintenance needs—essential upkeep.",
+    highlights: [
+      "Light bulb replacements",
+      "Smoke detector battery changes/replace",
       "Filter replacements (AC/water)",
-      "Door tweaks & adjustments",
+      "Door, Hinges & closet adjustments",
+      "To-do list items and general help",
+    ],
+    fullDetails: [
+      "Light bulbs replacement (included)",
+      "Smoke detector battery swap or replacement",
+      "Filter replacements (AC/water)",
+      "Air vents cleaning & dusting",
+      "Door, Hinges & closet adjustments",
+      "To-do list items and general help",
+    ],
+    notes: [
+      "Up to 4 bulbs included in price",
+      "AC filter and smoke detector batteries included",
+      "New smoke detectors available if needed",
     ],
     popular: true,
   },
   {
-    icon: Sun,
-    name: "Seasonal Prep Bundle",
-    price: "$200–$350",
-    duration: "3 hours",
-    features: [
-      "Gutter cleaning",
-      "Seals & caulking check",
-      "Skirting wash",
-      "Storm or hurricane prep",
+    id: "home-refresh-curb-appeal",
+    icon: Sparkles,
+    name: "Home Refresh & Curb Appeal",
+    price: "$425–$575",
+    priceNote: "Mobile homes; for residential call for quote",
+    tagline: "Refresh your home's look and feel inside and out—boost comfort, appeal, and pride of ownership.",
+    highlights: [
+      "Pressure wash driveway/carport/patio",
+      "Exterior window cleaning",
+      "Touch-up paint (trim, house numbers)",
+      "Light yard cleanup & maintenance",
+    ],
+    fullDetails: [
+      "Light bulb replacement (included)",
+      "Smoke detector battery swap or replacement",
+      "Filter replacements (AC/water)",
+      "Air vents cleaning & dusting",
+      "Door & closet adjustments",
+      "Pressure wash driveway/carport/patio/walkways",
+      "Exterior window cleaning",
+      "Touch-up paint (trim, house numbers)",
+      "Light yard cleanup (weeding, edging, porch sweep)",
+    ],
+    notes: [
+      "Up to 4 bulbs included in price",
+      "AC filter and smoke detector batteries included",
+      "New smoke detectors available if needed",
+      "On-site assistance only; Can dispose of items/debris for a fee",
+      "Client provides paint or we can provide/pickup paint for a small charge/fee",
     ],
     popular: false,
   },
   {
+    id: "seasonal-storm-holiday",
+    icon: Sun,
+    name: "Seasonal Storm / Holiday Ready",
+    price: "$450–$625",
+    priceNote: "Mobile homes; for residential call for quote",
+    tagline: "Protect your home from Storms with complete prep or let us handle your seasonal/holiday display setup.",
+    highlights: [
+      "Gutter cleaning & debris removal",
+      "Exterior pressure wash",
+      "Storm prep walkthrough & checklist",
+      "Holiday lights & decorations setup",
+    ],
+    fullDetails: [
+      {
+        section: "Storm Prep", items: [
+          "Gutter cleaning & debris removal",
+          "Roof clearing & debris removal",
+          "Seals & caulking (small areas)",
+          "Exterior pressure wash (home, carport, driveway)",
+          "Sandbag placement & tie-down securing",
+          "Window/shutter storm prep",
+          "Light yard debris cleanup",
+          "Storm prep walkthrough & checklist",
+        ]
+      },
+      {
+        section: "Holiday Display Setup", items: [
+          "Holiday lights & decorations installation/takedown",
+          "Safe mounting, stringing, and securing",
+        ]
+      },
+    ],
+    notes: [
+      "Roof leak repairs & UV-resistant coating available separately—contact for quote",
+      "Client provides sandbags, shutters/wood, lights, and decorations",
+      "Wood/sandbag delivery available for small fee",
+      "Debris is trashed and bagged and curbed for pickup or can take/dispose for a fee",
+    ],
+    popular: false,
+  },
+  {
+    id: "move-assist",
     icon: Home,
     name: "Move-In/Move-Out Assist",
-    price: "$200–$600",
-    duration: "Half day",
-    features: [
-      "Furniture setup & assembly",
-      "Light cleanup",
-      "Minor fixes & touch-ups",
-      "Organizing help",
+    price: "$495–$795",
+    priceNote: "Mobile homes; for residential call for quote",
+    tagline: "Stress-free help during moves—Assistance for assembly, cleanup, and setup.",
+    highlights: [
+      "Furniture assembly assistance",
+      "Light cleanup & organizing",
+      "Minor drywall repairs & touch-up painting",
+      "Tech setup (TV/remotes/devices)",
+    ],
+    fullDetails: [
+      "Furniture assembly assistance",
+      "Cleanup & organizing",
+      "Minor repairs and touch-ups",
+      "Painting (doors, trim, small areas)",
+      "Tech setup (TV/remotes/devices)",
+      "Lifting & moving assistance (on site only)",
+      "Storage/closet organizing",
+    ],
+    notes: [
+      "Paint for touch-ups/doors/etc provided by client",
+      "We can provide/pickup paint for a small charge/fee",
+      "On-site assistance only; Can dispose of items/debris for a fee",
     ],
     popular: false,
   },
   {
+    id: "staging",
     icon: Camera,
     name: "Mobile Home Staging",
-    price: "$150–$400",
-    duration: "2–4 hours",
-    features: [
-      "Cosmetic touch-ups",
+    price: "$345–$545",
+    priceNote: "Mobile homes only; for residential call for quote",
+    tagline: "Prepare your mobile home to sell quickly—cosmetic and functional enhancements.",
+    highlights: [
+      "Cosmetic touch-ups & paint",
       "Organizing & decluttering",
-      "Quick home photos",
-      "Get your home sale-ready",
+      "Exterior curb appeal refresh",
+      "Optional: Photos/Video/Drone package",
+    ],
+    fullDetails: [
+      "Cosmetic touch-ups & paint",
+      "Organizing & decluttering",
+      "Minor repairs (handles, hinges, drawer slides)",
+      "Exterior curb appeal (pressure wash entry, clean windows, touch-up mailbox/numbers)",
+      "Final walkthrough & staging recommendations",
+    ],
+    addOn: {
+      name: "Photos/Video/Drone",
+      price: "Starting at $195",
+      note: "Media package can also be added to any other service—contact for pricing",
+      items: [
+        "25–35 professional photos",
+        "30-second highlight video",
+        "90-second walkthrough video",
+        "Drone footage (exterior/park views)",
+        "Delivery in 24–48 hours",
+      ],
+    },
+    notes: [
+      "Touch-up paint: client provides or available at cost",
     ],
     popular: false,
   },
   {
-    icon: Users,
-    name: "Group Neighbor Day",
-    price: "$200–$600",
-    duration: "Full day",
-    features: [
-      "Discounted for 3–5 neighbors",
-      "Same-day multi-home service",
-      "Great for mobile home parks",
-      "Coordinate & save!",
-    ],
-    popular: false,
-  },
-  {
+    id: "senior-safety-tech",
     icon: ShieldCheck,
-    name: "Senior Safety Overhaul",
-    price: "$375",
-    duration: "3 hours",
-    features: [
-      "Install 2 grab bars",
-      "Full home hazard audit",
-      "Night light setup",
-      "Smoke alarm battery swap",
+    name: "Senior Safety & Tech Setup",
+    price: "$445–$595",
+    priceNote: "Mobile homes; for residential call for quote",
+    tagline: "Make your home safer and smarter for independent living—Safety Audit, installs, and personalized training.",
+    highlights: [
+      "Home safety audit & solutions",
+      "Grab bar installation (up to 2)",
+      "Night lights & smoke alarms",
+      "Smart doorbell/lock & device training",
+    ],
+    fullDetails: [
+      {
+        section: "Safety Upgrades", items: [
+          "Home safety audit (trip hazards, lighting, accessibility)",
+          "Anti-slip grip tape installation & solutions",
+          "Night lights installed (we provide up to 4 LED lights/units)",
+          "Smoke alarm battery swap/replacement",
+          "Fire extinguisher check",
+          "Grab bar installation (up to 2; will install up to 2 for package, extra $ per grab bar)",
+        ]
+      },
+      {
+        section: "Tech Help", items: [
+          "Doorbells, Doorlocks, & Wifi Cameras installation",
+          "Device training & setup for all installed tech",
+        ]
+      },
+    ],
+    notes: [
+      "Includes installation of up to 2 grab bars (we supply at our cost or client's purchased)",
+      "New smoke alarms available at additional cost",
+      "Includes install of Doorbell(x1), Doorlocks(x1) and Wifi Cameras(x1), Actual parts/devices supplied by customer or available at cost",
+      "Extra grab bars (more than 2) available at additional cost",
     ],
     popular: false,
   },
   {
-    icon: Smartphone,
-    name: "Tech Refresh Bundle",
-    price: "$250",
-    duration: "2 hours",
-    features: [
-      "Video doorbell install",
-      "Smart lock install",
-      "30-min device training",
+    id: "neighbor-day",
+    icon: Users,
+    name: "Neighbor Group Package",
+    price: "Save!",
+    priceNote: "Call or text for group pricing and details",
+    tagline: "When neighbors schedule service together, everyone gets a discount.",
+    highlights: [
+      "Discounted rates for groups",
+      "Each home chooses their own services",
+      "More neighbors = bigger savings",
+      "Great for mobile home parks",
+    ],
+    fullDetails: [
+      "The more neighbors who join, the bigger the savings!",
+      "Each home can choose their own services based on what they need most",
+      "Perfect for coordinating community maintenance days",
+    ],
+    notes: [
+      "Call or text for group pricing and details",
     ],
     popular: false,
   },
-  {
-    icon: Zap,
-    name: "Curb Appeal Bundle",
-    price: "$350",
-    duration: "3.5 hours",
-    features: [
-      "Pressure wash driveway/patio",
-      "Clean exterior windows",
-      "Refresh house numbers/mailbox",
-    ],
-    popular: false,
-  },
-  {
-    icon: Sun,
-    name: "Storm Season Ready",
-    price: "$450",
-    duration: "4 hours",
-    features: [
-      "Gutter clean",
-      "Tie-down inspection & tighten",
-      "Window/shutter check",
-      "Yard debris removal",
-    ],
-    popular: false,
-  },
-];
-
-// Services available for custom monthly/quarterly plan (recurring maintenance only)
-const customPlanServices = [
-  { name: "Light Bulb Replacement (High/Hard)", price: 75, time: 30 },
-  { name: "Smoke Detector Battery Check", price: 95, time: 45 },
-  { name: "Filter Service (HVAC/Water/Fridge)", price: 85, time: 30 },
-  { name: "HVAC Drip Line Flush", price: 120, time: 60 },
-  { name: "Fire Extinguisher Check", price: 65, time: 30 },
-  { name: "Home Safety / Hazard Walkthrough", price: 75, time: 45 },
-  { name: "Tech Support / Device Help", price: 85, time: 45 },
-  { name: "Monthly Yard / Litter Clean", price: 75, time: 45 },
-  { name: "Gutter Check & Clean", price: 95, time: 60 },
-  { name: "Appliance Deep Clean (Oven/Fridge)", price: 125, time: 60 },
-  { name: "Dryer Vent Clean", price: 145, time: 45 },
-  { name: "Caulking Inspection & Touch-up", price: 80, time: 45 },
 ];
 
 // Monthly Subscription Plans
@@ -153,15 +272,16 @@ const monthlyPlans = [
     name: "Essential Care",
     price: "$149/month",
     duration: "1.5 hrs/visit",
-    tagline: "Tech support, safety checks, and light home care",
+    tagline: "Tech support, Safety checks, and Home care",
     highlights: [
       "Wellness check-in + family updates",
-      "Tech help, Maintenance (AC filters, smoke alarm checks, bulbs)",
+      "Tech help, Maintenance (AC filters, smoke alarm checks/replace, bulbs)",
       "Light cleaning / Safety checks (trips, leaks, hazards)",
     ],
     features: [
       "Tech help (TV, remote, phone, Wi-Fi)",
       "Smoke/CO detector testing + batteries",
+      "Fire extinguisher check",
       "AC filter change",
       "Dryer lint cleaning & airflow check",
       "Light bulb replacement (up to 4)",
@@ -186,14 +306,15 @@ const monthlyPlans = [
     tagline: "All Essential Care services PLUS",
     highlights: [
       "Yard & garden cleanup (pet waste, weeds)",
-      "Porch/walkway/carport sweeping",
-      "Exterior home checks & gap sealing",
+      "Porch/walkway/carport blowing off debris",
+      "Light gardening & plant care",
+      "Exterior Home checks & gap sealing",
     ],
     features: [
       "Everything in Essential Care, PLUS:",
       "Yard & garden cleanup (pet waste, weeds)",
       "Watering plants & light garden care",
-      "Porch & walkway sweeping",
+      "Porch/walkway/carport blowing off debris",
       "Exterior mobile home checks & gap sealing",
     ],
     popular: false,
@@ -211,8 +332,8 @@ const monthlyPlans = [
       "Pick your own services",
       "Same tasks each month",
       "Add or adjust anytime",
-      "We quote your custom plan",
       "Only pay for what you need",
+      "We work with any budget! Contact us for a free quote",
     ],
     popular: false,
     bestFor: "Your unique needs",
@@ -227,6 +348,32 @@ const SpecialPackages = () => {
   const [showEssentialPlan, setShowEssentialPlan] = useState(false);
   const [showCompletePlan, setShowCompletePlan] = useState(false);
   const [showSuppliesInfo, setShowSuppliesInfo] = useState(false);
+  const [selectedBundle, setSelectedBundle] = useState<typeof allPackages[0] | null>(null);
+
+  // Custom plan builder state
+  const [allSupabaseServices, setAllSupabaseServices] = useState<ServiceOption[]>([]);
+  const [serviceSearch, setServiceSearch] = useState('');
+  const [customPlanSelectedServices, setCustomPlanSelectedServices] = useState<ServiceOption[]>([]);
+  const [customPlanNotes, setCustomPlanNotes] = useState('');
+  const [customPlanImages, setCustomPlanImages] = useState<UploadedImage[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [emailError, setEmailError] = useState('');
+
+  // Dropdown states for custom plan builder
+  const [customServicesDropdownOpen, setCustomServicesDropdownOpen] = useState(false);
+  const customServicesDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch services from Supabase on mount
+  useEffect(() => {
+    const loadServices = async () => {
+      const { data } = await getServicesForBooking();
+      if (data) {
+        setAllSupabaseServices(data);
+      }
+    };
+    loadServices();
+  }, []);
 
   // Listen for event to open custom plan builder from other components
   useEffect(() => {
@@ -245,46 +392,209 @@ const SpecialPackages = () => {
       window.removeEventListener('openCustomPlanBuilderForBooking', handleOpenBuilderFromScheduler);
     };
   }, []);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (customServicesDropdownRef.current && !customServicesDropdownRef.current.contains(event.target as Node)) {
+        setCustomServicesDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const [quoteName, setQuoteName] = useState('');
   const [quotePhone, setQuotePhone] = useState('');
   const [quoteEmail, setQuoteEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const toggleService = (serviceName: string) => {
-    setSelectedServices(prev =>
-      prev.includes(serviceName)
-        ? prev.filter(s => s !== serviceName)
-        : [...prev, serviceName]
-    );
+  // Group services by category
+  const individualServices = allSupabaseServices.filter(s => s.category === 'service');
+  const packageServices = allSupabaseServices.filter(s => s.category === 'package');
+  const monthlyPlanServices = allSupabaseServices.filter(s => s.category === 'monthly');
+
+  // Group individual services by site_category
+  const servicesByCategory = individualServices.reduce((acc, service) => {
+    const cat = service.site_category || 'Other';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(service);
+    return acc;
+  }, {} as Record<string, ServiceOption[]>);
+
+  // Site category labels
+  const SITE_CATEGORY_LABELS: Record<string, string> = {
+    'assembly': 'Assembly, Mounting & Setups',
+    'maintenance': 'Maintenance, Repairs & To-Do Lists',
+    'cleaning': 'Pressure Washing & Home Cleaning',
+    'safety': 'Safety & Senior Support, Tech Help',
+    'outdoor': 'Outdoor, Yard & Seasonal',
+    'organizing': 'Organizing & General Help',
   };
 
-  const selectedTotal = customPlanServices
-    .filter(s => selectedServices.includes(s.name))
-    .reduce((sum, s) => sum + s.price, 0);
+  // Routine/monthly maintenance service IDs for custom plan builder
+  const ROUTINE_MAINTENANCE_SERVICE_IDS = [
+    // Cleaning & Organizing
+    'pet-yard-clean',      // Monthly Yard / Litter Clean
+    'house-clean',         // Standard House Clean (Sweep/Mop/Vac)
+    'furniture-rearrange', // Furniture Rearrange / Declutter
+    'kitchen-org',         // Kitchen / Cupboard / Pantry Org
+    'closet-org',          // Closet / Utility / Laundry Org
+    'junk-removal',        // Junk Removal (Small Load)
+    // Outdoor & Pressure Washing
+    'gutter-clean',        // Gutter Cleaning & Minor Repair
+    'pressure-driveway',   // Pressure Wash Driveway
+    'pressure-exterior',   // Pressure Wash Windows / Exterior
+    'roof-debris',         // Roof Debris Clean & Leak Patch
+    // Routine Maintenance & Repairs
+    'appliance-clean',     // Appliance Deep Clean (Oven/Fridge)
+    'caulking',            // Caulking (Tub/Shower/Kitchen)
+    'dryer-vent',          // Dryer Vent Clean (Pipe & Filter)
+    'filter-service',      // Filter Service (HVAC/Water/Fridge)
+    'hvac-drip',           // HVAC Drip Line (Vac & Vinegar)
+    'bulb-high',           // Light Bulb Replacement (High/Hard)
+    'smoke-battery',       // Smoke Detector Battery (Whole House)
+    // Safety
+    'fire-extinguisher',   // Fire Extinguisher Mount & Check
+    'hazard-audit',        // Home Hazard Audit (Trip/Elec/Fire)
+    'non-slip-setup',      // Non-Slip Mats / Night Light Setup
+    // Tech Support
+    'device-help',         // Phone / Tablet / Device Help
+    'tech-help',           // Tech Troubleshooting / Help
+  ];
 
-  const selectedTime = customPlanServices
-    .filter(s => selectedServices.includes(s.name))
-    .reduce((sum, s) => sum + s.time, 0);
+  // Filter routine services for custom plan builder
+  const routineMaintenanceServices = individualServices.filter(
+    service => ROUTINE_MAINTENANCE_SERVICE_IDS.includes(service.id)
+  );
 
-  const formatTime = (mins: number) => {
-    if (mins < 60) return `${mins} min`;
-    const hrs = Math.floor(mins / 60);
-    const remainMins = mins % 60;
-    return remainMins > 0 ? `${hrs}h ${remainMins}m` : `${hrs}h`;
+  // Group routine services by site_category for custom plan dropdown
+  const routineServicesByCategory = routineMaintenanceServices.reduce((acc, service) => {
+    const cat = service.site_category || 'Other';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(service);
+    return acc;
+  }, {} as Record<string, ServiceOption[]>);
+
+  // Custom plan builder category labels (more relevant for monthly services)
+  const ROUTINE_CATEGORY_LABELS: Record<string, string> = {
+    'organizing': 'Cleaning & Organizing',
+    'outdoor': 'Outdoor & Pressure Washing',
+    'repairs': 'Routine Maintenance',
+    'safety': 'Safety Checks',
+    'tech': 'Tech Support',
+  };
+
+  // Filter routine services based on search
+  const filteredRoutineServices = routineMaintenanceServices.filter(service =>
+    service.name.toLowerCase().includes(serviceSearch.toLowerCase())
+  );
+
+  // Filter services based on search (for individual services only - used in booking calendar)
+  const filteredIndividualServices = individualServices.filter(service =>
+    service.name.toLowerCase().includes(serviceSearch.toLowerCase())
+  );
+
+  // Check if service is selected
+  const isServiceSelected = (serviceId: string) => {
+    return customPlanSelectedServices.some(s => s.id === serviceId);
+  };
+
+  // Add/remove service from selection
+  const toggleServiceSelection = (service: ServiceOption) => {
+    setCustomPlanSelectedServices(prev => {
+      const exists = prev.find(s => s.id === service.id);
+      if (exists) {
+        return prev.filter(s => s.id !== service.id);
+      }
+      return [...prev, service];
+    });
+  };
+
+  // Image handling
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const remainingSlots = MAX_IMAGES - customPlanImages.length;
+    const filesToAdd = Array.from(files).slice(0, remainingSlots);
+
+    const newImages: UploadedImage[] = filesToAdd.map(file => ({
+      file,
+      preview: URL.createObjectURL(file)
+    }));
+
+    setCustomPlanImages(prev => [...prev, ...newImages]);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setCustomPlanImages(prev => {
+      const newImages = [...prev];
+      URL.revokeObjectURL(newImages[index].preview);
+      newImages.splice(index, 1);
+      return newImages;
+    });
+  };
+
+  // Email validation
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
   };
 
   const handleRequestQuote = async () => {
-    if (!quoteName.trim() || selectedServices.length === 0) return;
+    // Validate required fields
+    if (!quoteName.trim()) return;
+    if (!quoteEmail.trim() || !validateEmail(quoteEmail.trim())) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+    setEmailError('');
+
+    // Must have either notes, services, or images
+    if (!customPlanNotes.trim() && customPlanSelectedServices.length === 0 && customPlanImages.length === 0) {
+      return;
+    }
 
     setIsSubmitting(true);
+
+    // Upload images if any
+    let imageUrls: string[] = [];
+    if (customPlanImages.length > 0) {
+      setUploadingImages(true);
+      for (const img of customPlanImages) {
+        const { data } = await uploadBookingImage(img.file);
+        if (data) {
+          imageUrls.push(data.url);
+        }
+      }
+      setUploadingImages(false);
+    }
+
+    // Build the services list for the quote
+    const serviceNames = customPlanSelectedServices.map(s => s.name);
+
+    // Create message with notes and image count
+    let messageAddendum = '';
+    if (customPlanNotes.trim()) {
+      messageAddendum += `\n\nCustomer Notes:\n${customPlanNotes.trim()}`;
+    }
+    if (imageUrls.length > 0) {
+      messageAddendum += `\n\n${imageUrls.length} photo(s) attached:\n${imageUrls.join('\n')}`;
+    }
+
     const { error } = await submitQuoteRequest({
       name: quoteName.trim(),
-      email: quoteEmail.trim() || undefined,
+      email: quoteEmail.trim(),
       phone: quotePhone.trim() || undefined,
-      services: selectedServices,
-      estimatedTotal: selectedTotal,
-      estimatedTime: formatTime(selectedTime)
+      services: serviceNames.length > 0 ? serviceNames : ['Custom request - see notes'],
+      estimatedTotal: 0,
+      estimatedTime: 'TBD' + messageAddendum
     });
 
     setIsSubmitting(false);
@@ -295,9 +605,14 @@ const SpecialPackages = () => {
         setShowCustomBuilder(false);
         setSubmitted(false);
         setSelectedServices([]);
+        setCustomPlanSelectedServices([]);
+        setCustomPlanNotes('');
+        setCustomPlanImages([]);
+        setServiceSearch('');
         setQuoteName('');
         setQuotePhone('');
         setQuoteEmail('');
+        setEmailError('');
       }, 2000);
     }
   };
@@ -333,7 +648,7 @@ const SpecialPackages = () => {
                 {allPackages.map((pkg, index) => (
                   <CarouselItem key={index} className="pl-4 basis-1/3 overflow-visible">
                     <Card
-                      className={`relative overflow-visible border-2 transition-shadow hover:shadow-lg h-full ${pkg.popular
+                      className={`relative overflow-visible border-2 transition-shadow hover:shadow-lg h-full flex flex-col ${pkg.popular
                         ? 'border-accent shadow-md'
                         : 'border-border'
                         }`}
@@ -357,23 +672,27 @@ const SpecialPackages = () => {
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent className="p-4 pt-0">
-                        <div className="mb-3">
+                      <CardContent className="p-4 pt-0 flex flex-col flex-1">
+                        <div className="mb-2 text-center">
                           <span className="font-heading text-xl text-primary">
                             {pkg.price}
                           </span>
                         </div>
-                        <ul className="space-y-1">
-                          {pkg.features.map((feature, featureIndex) => (
-                            <li
-                              key={featureIndex}
-                              className="flex items-start gap-1.5 text-muted-foreground text-sm"
-                            >
-                              <span className="text-primary mt-0.5 text-xs">✓</span>
-                              <span className="leading-tight">{feature}</span>
-                            </li>
-                          ))}
-                        </ul>
+                        <div className="flex-1 flex items-center min-h-[4.5rem]">
+                          <p className="text-muted-foreground text-sm leading-relaxed text-center w-full">
+                            {pkg.tagline}
+                          </p>
+                        </div>
+                        <div className="pt-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedBundle(pkg)}
+                            className="w-full text-primary border-primary hover:bg-primary/10"
+                          >
+                            View What's Included
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   </CarouselItem>
@@ -397,7 +716,7 @@ const SpecialPackages = () => {
                 {allPackages.map((pkg, index) => (
                   <CarouselItem key={index} className="pl-2 basis-[85%] overflow-visible">
                     <Card
-                      className={`relative overflow-visible border-2 transition-shadow hover:shadow-lg h-full ${pkg.popular
+                      className={`relative overflow-visible border-2 transition-shadow hover:shadow-lg h-full flex flex-col ${pkg.popular
                         ? 'border-accent shadow-md'
                         : 'border-border'
                         }`}
@@ -421,23 +740,27 @@ const SpecialPackages = () => {
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent className="p-4 pt-0">
-                        <div className="mb-3">
+                      <CardContent className="p-4 pt-0 flex flex-col flex-1">
+                        <div className="mb-2 text-center">
                           <span className="font-heading text-xl text-primary">
                             {pkg.price}
                           </span>
                         </div>
-                        <ul className="space-y-1">
-                          {pkg.features.map((feature, featureIndex) => (
-                            <li
-                              key={featureIndex}
-                              className="flex items-start gap-1.5 text-muted-foreground text-sm"
-                            >
-                              <span className="text-primary mt-0.5 text-xs">✓</span>
-                              <span className="leading-tight">{feature}</span>
-                            </li>
-                          ))}
-                        </ul>
+                        <div className="flex-1 flex items-center min-h-[4.5rem]">
+                          <p className="text-muted-foreground text-sm leading-relaxed text-center w-full">
+                            {pkg.tagline}
+                          </p>
+                        </div>
+                        <div className="pt-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedBundle(pkg)}
+                            className="w-full text-primary border-primary hover:bg-primary/10"
+                          >
+                            View What's Included
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   </CarouselItem>
@@ -450,6 +773,14 @@ const SpecialPackages = () => {
             </Carousel>
             <p className="text-center text-xs text-muted-foreground mt-2">Swipe or tap arrows to see more</p>
           </div>
+
+          {/* Residential quote link */}
+          <a
+            href="#contact"
+            className="block text-center text-sm text-primary font-medium mt-6 hover:underline cursor-pointer"
+          >
+            Mobile homes; for residential call for quote
+          </a>
         </div>
       </div>
 
@@ -500,7 +831,7 @@ const SpecialPackages = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="p-4 pt-0 flex flex-col flex-1">
-                  <div className="mb-3">
+                  <div className="mb-3 text-center">
                     <span className={`font-heading text-xl ${plan.isCustom ? 'text-accent' : 'text-primary'}`}>
                       {plan.price}
                     </span>
@@ -508,11 +839,11 @@ const SpecialPackages = () => {
                   {/* For Essential/Complete: show tagline + highlights */}
                   {plan.tagline && plan.highlights ? (
                     <>
-                      <p className="text-sm text-muted-foreground italic mb-3">
+                      <p className="text-sm text-foreground font-bold mb-3 text-center">
                         {plan.name === "Complete Home Care" ? (
-                          <>"All Essential Care services <span className="font-bold text-foreground">PLUS</span>"</>
+                          <>All Essential Care services PLUS</>
                         ) : (
-                          <>"{plan.tagline}"</>
+                          <>{plan.tagline}</>
                         )}
                       </p>
                       <ul className="space-y-1.5">
@@ -521,8 +852,8 @@ const SpecialPackages = () => {
                             key={idx}
                             className="flex items-start gap-2 text-foreground text-sm"
                           >
-                            <span className="mt-0.5 text-sm font-bold text-primary">✓</span>
-                            <span className="leading-relaxed font-medium">{highlight}</span>
+                            <span className="mt-0.5 text-sm text-primary">✓</span>
+                            <span className="leading-relaxed">{highlight}</span>
                           </li>
                         ))}
                       </ul>
@@ -530,8 +861,8 @@ const SpecialPackages = () => {
                   ) : (
                     /* For Custom: first item as tagline, rest as checkmark list */
                     <>
-                      <p className="text-sm text-muted-foreground italic mb-3">
-                        "{plan.features[0]}"
+                      <p className="text-sm text-foreground font-bold mb-3 text-center">
+                        {plan.features[0]}
                       </p>
                       <ul className="space-y-1.5 mt-4">
                         {plan.features.slice(1).map((feature, featureIndex) => (
@@ -539,8 +870,8 @@ const SpecialPackages = () => {
                             key={featureIndex}
                             className="flex items-start gap-2 text-foreground text-sm"
                           >
-                            <span className="mt-0.5 text-sm font-bold text-accent">✓</span>
-                            <span className="leading-relaxed font-medium">{feature}</span>
+                            <span className="mt-0.5 text-sm text-accent">✓</span>
+                            <span className="leading-relaxed">{feature}</span>
                           </li>
                         ))}
                       </ul>
@@ -555,7 +886,7 @@ const SpecialPackages = () => {
                         onClick={() => setShowEssentialPlan(true)}
                         className="w-full text-primary border-primary hover:bg-primary/10"
                       >
-                        View All Services
+                        View What's Included
                       </Button>
                     )}
 
@@ -565,7 +896,7 @@ const SpecialPackages = () => {
                         onClick={() => setShowCompletePlan(true)}
                         className="w-full text-primary border-primary hover:bg-primary/10"
                       >
-                        View All Services
+                        View What's Included
                       </Button>
                     )}
 
@@ -592,164 +923,292 @@ const SpecialPackages = () => {
             ✓ Batteries, filters & bulbs included with plans *
           </button>
 
+          {/* Residential quote link */}
+          <a
+            href="#contact"
+            className="block text-center text-sm text-primary font-medium mt-2 hover:underline cursor-pointer"
+          >
+            Mobile homes; for residential call for quote
+          </a>
+
         </div>
       </div>
 
       {/* Custom Plan Builder Modal */}
-      <Dialog open={showCustomBuilder} onOpenChange={setShowCustomBuilder}>
+      <Dialog open={showCustomBuilder} onOpenChange={(open) => {
+        setShowCustomBuilder(open);
+        if (!open) {
+          // Reset state when closing
+          setServiceSearch('');
+          setEmailError('');
+        }
+      }}>
         <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="font-heading text-lg flex items-center gap-2">
               <Wrench className="w-5 h-5 text-accent" />
               Build Your Custom Monthly Plan
             </DialogTitle>
-            <p className="text-xs text-muted-foreground">
-              Select recurring maintenance services for your monthly visits
+            <p className="text-sm text-muted-foreground">
+              Tell us what you need - we'll create a custom quote for you
             </p>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 min-h-0 pr-2">
-            <div className="space-y-1.5">
-              {customPlanServices.map((service, idx) => (
-                <label
-                  key={idx}
-                  className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${selectedServices.includes(service.name)
-                    ? 'bg-accent/10 border-accent'
-                    : 'bg-card border-border hover:bg-muted/50'
-                    }`}
-                >
-                  <Checkbox
-                    checked={selectedServices.includes(service.name)}
-                    onCheckedChange={() => toggleService(service.name)}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium leading-tight">{service.name}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </ScrollArea>
-
-          {/* Summary & Contact Info - Always visible at bottom */}
-          <div className="border-t pt-3 space-y-2 flex-shrink-0 bg-background">
-            {submitted ? (
-              <div className="text-center py-4">
-                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                  <Check className="w-5 h-5 text-green-600" />
-                </div>
-                <p className="font-heading text-base text-foreground">
-                  {isFromScheduler ? 'Services Added to Booking!' : 'Quote Request Sent!'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {isFromScheduler ? 'Continue with your booking.' : "We'll get back to you soon."}
-                </p>
+          {submitted ? (
+            <div className="text-center py-8">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Check className="w-6 h-6 text-green-600" />
               </div>
-            ) : isFromScheduler ? (
-              /* Add to Booking Mode - No contact form needed */
-              <>
-                {/* Compact summary row */}
-                <div className="flex items-center justify-between text-xs bg-blue-50 rounded-lg px-3 py-2 border border-blue-200">
-                  <span className="text-blue-700">{selectedServices.length} services</span>
-                  <span className="text-blue-600">{formatTime(selectedTime)}</span>
-                </div>
+              <p className="font-heading text-lg text-foreground">
+                Quote Request Sent!
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                We'll get back to you soon with your custom quote.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex-1 overflow-y-auto min-h-0 space-y-4 pr-1">
+                {/* Selected Services Display */}
+                {customPlanSelectedServices.length > 0 && (
+                  <div className="bg-accent/5 rounded-lg p-3 border border-accent/20">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Selected ({customPlanSelectedServices.length}):</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {customPlanSelectedServices.map((service) => (
+                        <span
+                          key={service.id}
+                          className="inline-flex items-center gap-1 bg-white text-foreground border border-border px-2 py-1 rounded-full text-xs shadow-sm"
+                        >
+                          {service.name}
+                          <button
+                            onClick={() => toggleServiceSelection(service)}
+                            className="hover:text-red-500 ml-0.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-                <div className="flex gap-2">
+                {/* Routine Maintenance Services Dropdown */}
+                <div className="relative" ref={customServicesDropdownRef}>
                   <Button
+                    type="button"
                     variant="outline"
-                    size="sm"
-                    className="h-9"
-                    onClick={() => setSelectedServices([])}
-                    disabled={selectedServices.length === 0}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    className="flex-1 h-9 bg-blue-600 hover:bg-blue-700"
                     onClick={() => {
-                      if (selectedServices.length === 0) return;
-                      // Dispatch event with selected services back to scheduler
-                      const servicesData = customPlanServices
-                        .filter(s => selectedServices.includes(s.name))
-                        .map(s => ({ name: s.name, price: s.price, time: s.time }));
-                      window.dispatchEvent(new CustomEvent('customPlanServicesSelected', {
-                        detail: { services: servicesData, total: selectedTotal, time: selectedTime }
-                      }));
-                      setSubmitted(true);
-                      setTimeout(() => {
-                        setShowCustomBuilder(false);
-                        setSubmitted(false);
-                        setSelectedServices([]);
-                        setIsFromScheduler(false);
-                      }, 1500);
+                      setCustomServicesDropdownOpen(!customServicesDropdownOpen);
+                      setServiceSearch('');
                     }}
-                    disabled={selectedServices.length === 0}
+                    className="w-full flex items-center justify-between gap-2 bg-white border-2 border-primary/30 hover:border-primary hover:bg-primary/5 h-11"
                   >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add to Booking
+                    <div className="flex items-center gap-2">
+                      <Wrench className="w-4 h-4 text-primary" />
+                      <span>Add Routine Service</span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${customServicesDropdownOpen ? 'rotate-180' : ''}`} />
                   </Button>
-                </div>
-                <p className="text-xs text-blue-600 text-center">
-                  Your custom plan services will be added to your booking
-                </p>
-              </>
-            ) : (
-              /* Request Quote Mode - Full contact form */
-              <>
-                {/* Compact summary row */}
-                <div className="flex items-center justify-between text-xs bg-muted/30 rounded-lg px-3 py-2">
-                  <span>{selectedServices.length} services</span>
-                  <span>{formatTime(selectedTime)}</span>
+
+                  {customServicesDropdownOpen && (
+                    <div className="absolute left-0 right-0 mt-1 bg-white border-2 border-border rounded-lg shadow-xl z-50 max-h-64 overflow-hidden">
+                      {/* Search Input */}
+                      <div className="p-2 border-b border-border sticky top-0 bg-white">
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search routine services..."
+                            value={serviceSearch}
+                            onChange={(e) => setServiceSearch(e.target.value)}
+                            className="pl-8 h-9 text-sm"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+
+                      {/* Services List */}
+                      <div className="overflow-y-auto max-h-48">
+                        {serviceSearch.trim() ? (
+                          filteredRoutineServices.length > 0 ? (
+                            filteredRoutineServices.map((service) => (
+                              <button
+                                key={service.id}
+                                type="button"
+                                onClick={() => toggleServiceSelection(service)}
+                                disabled={isServiceSelected(service.id)}
+                                className={`w-full text-left px-3 py-2 text-sm flex justify-between items-center hover:bg-primary/5 transition-colors ${isServiceSelected(service.id) ? 'opacity-50 bg-gray-50' : ''
+                                  }`}
+                              >
+                                <span>{service.name}</span>
+                                {isServiceSelected(service.id) && <Check className="w-4 h-4 text-primary" />}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                              No services found
+                            </div>
+                          )
+                        ) : (
+                          Object.entries(routineServicesByCategory).map(([category, services]) => (
+                            <div key={category}>
+                              <div className="px-3 py-1.5 bg-gray-50 text-xs font-medium text-muted-foreground sticky top-0">
+                                {ROUTINE_CATEGORY_LABELS[category] || category}
+                              </div>
+                              {services.map((service) => (
+                                <button
+                                  key={service.id}
+                                  type="button"
+                                  onClick={() => toggleServiceSelection(service)}
+                                  disabled={isServiceSelected(service.id)}
+                                  className={`w-full text-left px-3 py-2 text-sm flex justify-between items-center hover:bg-primary/5 transition-colors ${isServiceSelected(service.id) ? 'opacity-50 bg-gray-50' : ''
+                                    }`}
+                                >
+                                  <span>{service.name}</span>
+                                  {isServiceSelected(service.id) && <Check className="w-4 h-4 text-primary" />}
+                                </button>
+                              ))}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Compact form */}
-                <div className="grid grid-cols-3 gap-2">
+                {/* Notes Section */}
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">
+                    Describe what you need help with
+                  </Label>
+                  <Textarea
+                    placeholder="Tell us about your home maintenance needs, any specific issues, or questions you have..."
+                    value={customPlanNotes}
+                    onChange={(e) => setCustomPlanNotes(e.target.value)}
+                    rows={4}
+                    className="resize-none"
+                  />
+                </div>
+
+                {/* Photo Upload Section */}
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">
+                    Add photos (optional) — show us what you need help with
+                  </Label>
+
+                  {/* Image Preview Grid */}
+                  {customPlanImages.length > 0 && (
+                    <div className="grid grid-cols-4 gap-2 mb-2">
+                      {customPlanImages.map((img, index) => (
+                        <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 border">
+                          <img
+                            src={img.preview}
+                            alt={`Upload ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index)}
+                            className="absolute top-1 right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Upload Button */}
+                  {customPlanImages.length < MAX_IMAGES && (
+                    <div className="flex gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleImageSelect}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-2"
+                      >
+                        <ImagePlus className="w-4 h-4" />
+                        Add Photos
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (fileInputRef.current) {
+                            fileInputRef.current.capture = 'environment';
+                            fileInputRef.current.click();
+                          }
+                        }}
+                        className="flex items-center gap-2"
+                      >
+                        <Camera className="w-4 h-4" />
+                        Take Photo
+                      </Button>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {customPlanImages.length}/{MAX_IMAGES} photos
+                  </p>
+                </div>
+              </div>
+
+              {/* Contact Form - Always visible at bottom */}
+              <div className="border-t pt-3 space-y-3 flex-shrink-0 bg-background">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <Input
                     placeholder="Name *"
                     value={quoteName}
                     onChange={(e) => setQuoteName(e.target.value)}
-                    className="h-8 text-sm"
+                    className="h-9"
                   />
                   <Input
                     placeholder="Phone"
                     value={quotePhone}
                     onChange={(e) => setQuotePhone(e.target.value)}
-                    className="h-8 text-sm"
+                    className="h-9"
                   />
-                  <Input
-                    placeholder="Email"
-                    type="email"
-                    value={quoteEmail}
-                    onChange={(e) => setQuoteEmail(e.target.value)}
-                    className="h-8 text-sm"
-                  />
+                  <div>
+                    <Input
+                      placeholder="Email *"
+                      type="email"
+                      value={quoteEmail}
+                      onChange={(e) => {
+                        setQuoteEmail(e.target.value);
+                        setEmailError('');
+                      }}
+                      className={`h-9 ${emailError ? 'border-red-500' : ''}`}
+                    />
+                    {emailError && (
+                      <p className="text-xs text-red-500 mt-0.5">{emailError}</p>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9"
-                    onClick={() => setSelectedServices([])}
-                    disabled={selectedServices.length === 0 || isSubmitting}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    className="flex-1 h-9 bg-accent hover:bg-accent/90"
-                    onClick={handleRequestQuote}
-                    disabled={selectedServices.length === 0 || !quoteName.trim() || isSubmitting}
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4 mr-2" />
-                    )}
-                    {isSubmitting ? 'Sending...' : 'Request Quote'}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
+                <Button
+                  className="w-full h-10 bg-accent hover:bg-accent/90"
+                  onClick={handleRequestQuote}
+                  disabled={!quoteName.trim() || !quoteEmail.trim() || isSubmitting || uploadingImages}
+                >
+                  {isSubmitting || uploadingImages ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4 mr-2" />
+                  )}
+                  {uploadingImages ? 'Uploading photos...' : isSubmitting ? 'Sending...' : 'Request Custom Quote'}
+                </Button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -891,6 +1350,124 @@ const SpecialPackages = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Bundle Details Overlay */}
+      <Dialog open={!!selectedBundle} onOpenChange={(open) => !open && setSelectedBundle(null)}>
+        <DialogContent className="max-w-md max-h-[80vh] flex flex-col overflow-hidden">
+          {selectedBundle && (
+            <>
+              <DialogHeader className="flex-shrink-0 pb-2">
+                <DialogTitle className="font-heading text-xl flex items-center gap-3">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <selectedBundle.icon className="w-5 h-5 text-primary" />
+                  </div>
+                  <span>{selectedBundle.name}</span>
+                </DialogTitle>
+                <p className="text-primary font-heading text-2xl font-bold">{selectedBundle.price}</p>
+                {selectedBundle.priceNote && (
+                  <p className="text-sm text-muted-foreground">
+                    {selectedBundle.priceNote}
+                  </p>
+                )}
+              </DialogHeader>
+
+              <div className="flex-1 overflow-y-auto min-h-0 pr-1">
+                <div className="space-y-5 py-3">
+                  {/* Tagline */}
+                  <p className="text-base text-foreground leading-relaxed font-medium">
+                    {selectedBundle.tagline}
+                  </p>
+
+                  {/* Full Details */}
+                  {Array.isArray(selectedBundle.fullDetails) && selectedBundle.fullDetails.length > 0 && (
+                    <div className="space-y-4">
+                      {/* Check if it's sectioned or flat list */}
+                      {typeof selectedBundle.fullDetails[0] === 'string' ? (
+                        <div className="bg-secondary/50 rounded-lg p-4">
+                          <p className="text-sm text-primary font-bold mb-3 uppercase tracking-wide">
+                            What's Included
+                          </p>
+                          <ul className="space-y-2.5">
+                            {(selectedBundle.fullDetails as string[]).map((item, idx) => (
+                              <li key={idx} className="flex items-start gap-3 text-foreground">
+                                <span className="mt-0.5 text-base text-primary font-bold flex-shrink-0">✓</span>
+                                <span className="text-base leading-relaxed">{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        // Sectioned list
+                        (selectedBundle.fullDetails as Array<{ section: string; items: string[] }>).map((section, sIdx) => (
+                          <div key={sIdx} className="bg-secondary/50 rounded-lg p-4">
+                            <p className="text-sm text-primary font-bold mb-3 uppercase tracking-wide">
+                              {section.section}
+                            </p>
+                            <ul className="space-y-2.5">
+                              {section.items.map((item, idx) => (
+                                <li key={idx} className="flex items-start gap-3 text-foreground">
+                                  <span className="mt-0.5 text-base text-primary font-bold flex-shrink-0">✓</span>
+                                  <span className="text-base leading-relaxed">{item}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {/* Add-on section (for staging) */}
+                  {selectedBundle.addOn && (
+                    <div className="bg-accent/10 border-2 border-accent/30 rounded-lg p-4">
+                      <p className="text-base font-bold text-accent mb-2">
+                        Optional Add-On: {selectedBundle.addOn.name}
+                      </p>
+                      <p className="text-sm text-foreground mb-3">
+                        {selectedBundle.addOn.price} — {selectedBundle.addOn.note}
+                      </p>
+                      <ul className="space-y-2">
+                        {selectedBundle.addOn.items.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-3 text-foreground">
+                            <span className="mt-0.5 text-base text-accent font-bold flex-shrink-0">✓</span>
+                            <span className="text-base leading-relaxed">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Notes / Fine Print */}
+                  {selectedBundle.notes && selectedBundle.notes.length > 0 && (
+                    <div className="border-t-2 border-border pt-4 mt-4">
+                      <p className="text-sm text-primary font-bold mb-3 uppercase tracking-wide">
+                        What's Included / Notes
+                      </p>
+                      <ul className="space-y-2">
+                        {selectedBundle.notes.map((note, idx) => (
+                          <li key={idx} className="flex items-start gap-3 text-foreground">
+                            <span className="mt-0.5 text-base text-green-600 font-bold flex-shrink-0">*</span>
+                            <span className="text-sm leading-relaxed">{note}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t-2 border-border flex-shrink-0 bg-background">
+                <Button
+                  onClick={() => setSelectedBundle(null)}
+                  className="w-full bg-primary hover:bg-primary/90 h-12 text-base font-semibold"
+                >
+                  Got It
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Service Area - Compact */}
       <div className="bg-background py-12">
         <div className="container max-w-md mx-auto px-4">
@@ -926,7 +1503,7 @@ const SpecialPackages = () => {
               </div>
               <div className="flex items-center justify-center gap-1 text-sm">
                 <Clock className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                <span className="text-foreground font-bold">Mon–Fri: 8:30 AM – 2:30 PM</span>
+                <span className="text-foreground font-bold">Mon–Fri: 8:30 AM – 4:00 PM</span>
                 <span className="text-muted-foreground">| Weekends: Contact us</span>
               </div>
               <p className="text-sm text-primary font-semibold text-center pt-2 border-t border-border">
@@ -938,35 +1515,35 @@ const SpecialPackages = () => {
       </div>
 
       {/* Referral Rewards Section */}
-      <div className="bg-accent/10 py-12">
-        <div className="container max-w-4xl mx-auto px-4">
+      <div className="bg-accent/10 py-8">
+        <div className="container max-w-2xl mx-auto px-4">
           <div className="text-center">
-            <span className="inline-flex items-center gap-2 text-accent font-semibold mb-3">
-              <Gift className="w-5 h-5" />
+            <span className="inline-flex items-center gap-2 text-accent font-semibold mb-2">
+              <Gift className="w-4 h-4" />
               Referrals
             </span>
-            <h2 className="font-heading text-heading-md text-foreground mb-4">
+            <h2 className="font-heading text-xl text-foreground mb-2">
               Refer a Neighbor & Get Rewarded!
             </h2>
-            <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
+            <p className="text-muted-foreground text-sm mb-4 max-w-md mx-auto">
               Know a neighbor, friend, or family member in the community who could use a hand? Refer them to us and you'll both benefit.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-6">
-              <div className="bg-card border-2 border-accent rounded-xl p-6 text-center min-w-[180px]">
-                <span className="font-heading text-3xl text-accent">25% OFF</span>
-                <p className="text-muted-foreground text-sm mt-1">Your next service</p>
+            <div className="flex flex-row items-center justify-center gap-4 mb-4">
+              <div className="bg-card border-2 border-accent rounded-lg px-4 py-3 text-center min-w-[140px]">
+                <span className="font-heading text-2xl text-accent">25% OFF</span>
+                <p className="text-muted-foreground text-xs mt-0.5">Your next service</p>
               </div>
-              <div className="bg-card border-2 border-primary rounded-xl p-6 text-center min-w-[180px]">
-                <span className="font-heading text-3xl text-primary">25% OFF</span>
-                <p className="text-muted-foreground text-sm mt-1">Their first service</p>
+              <div className="bg-card border-2 border-primary rounded-lg px-4 py-3 text-center min-w-[140px]">
+                <span className="font-heading text-2xl text-primary">25% OFF</span>
+                <p className="text-muted-foreground text-xs mt-0.5">Their first service</p>
               </div>
             </div>
 
-            <p className="text-foreground font-medium mb-2">
+            <p className="text-foreground font-medium text-sm mb-1">
               Just have your neighbor mention your name when they call or text!
             </p>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-muted-foreground text-xs">
               Referral discount applies after new service is completed.
             </p>
           </div>
