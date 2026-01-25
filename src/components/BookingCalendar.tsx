@@ -1020,8 +1020,104 @@ const BookingCalendar = () => {
                   </div>
                 )}
 
-                {/* Value Packages Dropdown */}
+                {/* Individual Services Dropdown */}
                 <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h4 className="font-heading text-xl text-foreground flex items-center gap-2">
+                        <Wrench className="w-5 h-5 text-primary" />
+                        Individual Services
+                      </h4>
+                      <p className="text-muted-foreground text-base mt-1">
+                        One-time repairs, installations, tech help & more
+                      </p>
+                    </div>
+                    <div className="relative w-full sm:w-auto" ref={servicesDropdownRef}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setServicesDropdownOpen(!servicesDropdownOpen);
+                          setPackagesDropdownOpen(false);
+                          setPlansDropdownOpen(false);
+                        }}
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white border-2 border-primary/30 hover:border-primary hover:bg-primary/5 text-lg px-5 py-4 h-auto"
+                      >
+                        <Plus className="w-5 h-5 text-primary" />
+                        <span>Add Service</span>
+                        <ChevronDown className={`w-4 h-4 transition-transform ${servicesDropdownOpen ? 'rotate-180' : ''}`} />
+                      </Button>
+                      
+                      {/* Services Dropdown */}
+                      {servicesDropdownOpen && (
+                        <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-full sm:w-96 bg-white border-2 border-border rounded-xl shadow-xl z-50 max-h-80 overflow-hidden">
+                          {/* Search Input */}
+                          <div className="p-3 border-b border-border sticky top-0 bg-white">
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                              <Input
+                                placeholder="Search services..."
+                                value={serviceSearch}
+                                onChange={(e) => setServiceSearch(e.target.value)}
+                                className="pl-10 text-lg h-12"
+                                autoFocus
+                              />
+                            </div>
+                          </div>
+                          
+                          {/* Services List */}
+                          <div className="overflow-y-auto max-h-56">
+                            {serviceSearch.trim() ? (
+                              filteredServices.length > 0 ? (
+                                filteredServices.map((service) => (
+                                  <button
+                                    key={service.id}
+                                    type="button"
+                                    onClick={() => handleAddService(service)}
+                                    disabled={isServiceSelected(service.id)}
+                                    className={`w-full text-left px-4 py-3 flex justify-between items-center hover:bg-primary/5 transition-colors ${
+                                      isServiceSelected(service.id) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''
+                                    }`}
+                                  >
+                                    <span className="text-base">{service.name}</span>
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="px-4 py-6 text-center text-muted-foreground">
+                                  No services found
+                                </div>
+                              )
+                            ) : (
+                              Object.entries(servicesByCategory).map(([category, services]) => (
+                                <div key={category}>
+                                  <div className="px-4 py-2 bg-gray-50 text-sm font-medium text-muted-foreground sticky top-0">
+                                    {SITE_CATEGORY_LABELS[category] || category}
+                                  </div>
+                                  {services.map((service) => (
+                                    <button
+                                      key={service.id}
+                                      type="button"
+                                      onClick={() => handleAddService(service)}
+                                      disabled={isServiceSelected(service.id)}
+                                      className={`w-full text-left px-4 py-3 flex justify-between items-center hover:bg-primary/5 transition-colors ${
+                                        isServiceSelected(service.id) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''
+                                      }`}
+                                    >
+                                      <span className="text-base">{service.name}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Value Packages Dropdown */}
+                <div className="space-y-3 pt-5 border-t-2 border-amber-300/30">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
                       <h4 className="font-heading text-xl text-foreground flex items-center gap-2">
