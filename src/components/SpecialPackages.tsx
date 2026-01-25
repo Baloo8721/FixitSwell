@@ -847,17 +847,9 @@ const SpecialPackages = () => {
               <Wrench className="w-5 h-5 text-accent" />
               Build Your Custom Monthly Plan
             </DialogTitle>
-            <p className="text-sm text-muted-foreground mb-2">
+            <p className="text-sm text-muted-foreground">
               Tell us what you need - we'll create a custom quote for you
             </p>
-            <a
-              href="#contact"
-              onClick={() => setShowCustomBuilder(false)}
-              className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium text-sm"
-            >
-              <Phone className="w-4 h-4" />
-              Prefer to talk? Contact us directly
-            </a>
           </DialogHeader>
 
           {submitted ? (
@@ -890,6 +882,14 @@ const SpecialPackages = () => {
                     rows={5}
                     className="resize-none text-base"
                   />
+                  <a
+                    href="#contact"
+                    onClick={() => setShowCustomBuilder(false)}
+                    className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium text-sm mt-2"
+                  >
+                    <Phone className="w-4 h-4" />
+                    Prefer to talk? Contact us directly
+                  </a>
                 </div>
 
                 {/* Photo Upload Section */}
