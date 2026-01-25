@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Star, Heart, Wrench, Sun, Home, Users, Camera, Calendar, Smartphone, ShieldCheck, Gift, MapPin, Clock, Zap, Plus, Minus, Send, Loader2, Check, ChevronLeft, ChevronRight, Sparkles, X, ImagePlus } from "lucide-react";
+import { Star, Heart, Wrench, Sun, Home, Users, Camera, Calendar, Smartphone, ShieldCheck, Gift, MapPin, Clock, Zap, Plus, Minus, Send, Loader2, Check, ChevronLeft, ChevronRight, Sparkles, X, ImagePlus, Phone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,7 @@ const allPackages = [
     id: "tune-up",
     icon: Wrench,
     name: "Basic Home Tune-Up",
-    price: "$195",
+    price: "$149",
     priceNote: "Mobile homes; for residential call for quote",
     tagline: "Perfect for quick home maintenance needs—essential upkeep.",
     highlights: [
@@ -847,9 +847,17 @@ const SpecialPackages = () => {
               <Wrench className="w-5 h-5 text-accent" />
               Build Your Custom Monthly Plan
             </DialogTitle>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mb-2">
               Tell us what you need - we'll create a custom quote for you
             </p>
+            <a
+              href="#contact"
+              onClick={() => setShowCustomBuilder(false)}
+              className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium text-sm"
+            >
+              <Phone className="w-4 h-4" />
+              Prefer to talk? Contact us directly
+            </a>
           </DialogHeader>
 
           {submitted ? (
