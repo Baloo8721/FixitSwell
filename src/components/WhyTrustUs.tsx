@@ -39,7 +39,7 @@ const WhyTrustUs = () => {
           Why Seniors Trust Us
         </h2>
         <p className="text-center text-muted-foreground mb-12 max-w-xl mx-auto">
-          With a background in emergency medicine, I understand what it means to truly help people.
+          With a background in emergency medicine and decades of hands-on maintenance & multi-trade experience, we understand what it means to <span className="font-semibold text-foreground">truly help people</span>.
         </p>
 
         <div className="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">

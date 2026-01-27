@@ -30,7 +30,7 @@ const serviceCategories = [
       "Fire Extinguisher Mount & Check",
       "Pet Gate / Enclosure Install",
       "Appliance Install (Fridge/Micro/DW)",
-      "Wall Painting (Small Room)",
+      "Painting / Sanding / Refinishing",
     ],
   },
   {
@@ -64,13 +64,15 @@ const serviceCategories = [
       "Roof Cleaning",
       "Gutter Cleaning & Minor Repair",
       "Standard House Clean",
+      "Mobile Home Roof Coating(UV - Reflective & Waterproof",
     ],
   },
   {
     icon: Heart,
     title: "Safety & Senior Support, Tech Help",
     services: [
-      "Smart Thermostat Setup",
+      "Wellness Check-ins & Snowbird Monitoring",
+      "Smart Devices - Thermostat, Doorbell, Doorlock, Wifi Camera",
       "Wifi Extender / Mesh Setup",
       "Tech Troubleshooting / Help",
       "Streaming / TV App / Remote Setup",
@@ -79,9 +81,6 @@ const serviceCategories = [
       "Home Hazard Audit (Trip/Elec/Fire)",
       "Handrails / Fall / Anti-Slip Solutions",
       "Non-Slip Mats / Night Light Setup",
-      "Smoke Detector Battery (Whole House)",
-      "Light Bulb Replacement (High/Hard)",
-      "Wellness Check-ins & Snowbird Monitoring",
       "Delivery / Contractor Wait Time",
     ],
   },
@@ -126,7 +125,7 @@ const ServicesSection = () => {
           Services We Provide
         </h2>
         <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
-          No surprises. All work stays within safe, appropriate limits — light repairs, cosmetic fixes, and helpful support. We work With all Budgets, Contact us for a free quote
+          No surprises. All work stays within safe, appropriate limits — light repairs, cosmetic fixes, and helpful support. <span className="font-semibold text-foreground">We work with all budgets — contact us for a free quote.</span>
         </p>
 
         <Accordion type="single" collapsible className="space-y-4">
@@ -154,7 +153,7 @@ const ServicesSection = () => {
                       className="flex items-start gap-2 text-muted-foreground"
                     >
                       <span className="text-primary mt-0.5 text-base flex-shrink-0">✓</span>
-                      <span className="text-sm leading-snug">{service}</span>
+                      <span className={`text-sm leading-snug ${service.includes('I Just Need an Extra Hand') ? 'font-semibold text-foreground' : ''}`}>{service}</span>
                     </li>
                   ))}
                 </ul>

@@ -182,7 +182,7 @@ export const ServicesOverlayProvider = ({ children }: { children: ReactNode }) =
                         className="flex items-start gap-2 text-foreground"
                       >
                         <span className="text-primary mt-0.5 flex-shrink-0 text-sm">✓</span>
-                        <span className="text-sm leading-snug">{service}</span>
+                        <span className={`text-sm leading-snug ${service.includes('I Just Need an Extra Hand') ? 'font-semibold text-foreground' : ''}`}>{service}</span>
                       </li>
                     ))}
                   </ul>

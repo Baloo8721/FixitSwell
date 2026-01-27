@@ -349,6 +349,7 @@ const SpecialPackages = () => {
   const [showCompletePlan, setShowCompletePlan] = useState(false);
   const [showSuppliesInfo, setShowSuppliesInfo] = useState(false);
   const [selectedBundle, setSelectedBundle] = useState<typeof allPackages[0] | null>(null);
+  const [showMapImage, setShowMapImage] = useState(false);
 
   // Custom plan builder state
   const [allSupabaseServices, setAllSupabaseServices] = useState<ServiceOption[]>([]);
@@ -530,7 +531,7 @@ const SpecialPackages = () => {
               One-Time Bundled Specials
             </h2>
             <p className="text-muted-foreground mt-3 max-w-xl mx-auto">
-              Save time and money with our bundled services. Clear pricing, no surprises.
+              Save time and money with our bundled services <span className="font-semibold text-foreground">for mobile & manufactured homes</span>. Clear pricing, no surprises.
             </p>
           </div>
 
@@ -678,7 +679,7 @@ const SpecialPackages = () => {
             href="#contact"
             className="block text-center text-sm text-primary font-medium mt-6 hover:underline cursor-pointer"
           >
-            Mobile homes; for residential call for quote
+            Mobile homes; for residential contact us for a quote
           </a>
         </div>
       </div>
@@ -827,7 +828,7 @@ const SpecialPackages = () => {
             href="#contact"
             className="block text-center text-sm text-primary font-medium mt-2 hover:underline cursor-pointer"
           >
-            Mobile homes; for residential call for quote
+            Mobile homes; for residential contact us for a quote
           </a>
 
         </div>
@@ -1152,6 +1153,17 @@ const SpecialPackages = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Lakeshore Villas Map Image Popup */}
+      <Dialog open={showMapImage} onOpenChange={setShowMapImage}>
+        <DialogContent className="max-w-lg p-2">
+          <img
+            src={lakeshoreMap}
+            alt="Lakeshore Villas Community Map"
+            className="w-full h-auto rounded-lg"
+          />
+        </DialogContent>
+      </Dialog>
+
       {/* Bundle Details Overlay */}
       <Dialog open={!!selectedBundle} onOpenChange={(open) => !open && setSelectedBundle(null)}>
         <DialogContent className="max-w-md max-h-[80vh] flex flex-col overflow-hidden">
@@ -1270,48 +1282,130 @@ const SpecialPackages = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Service Area - Compact */}
-      <div className="bg-background py-12">
-        <div className="container max-w-md mx-auto px-4">
-          <div className="bg-card rounded-xl shadow-sm overflow-hidden border border-border">
-            {/* Header */}
-            <div className="px-3 py-2 border-b border-border bg-primary/5">
-              <h3 className="font-heading text-base text-center text-foreground flex items-center justify-center gap-2">
-                <MapPin className="w-4 h-4 text-primary" />
-                Our Service Area
-              </h3>
-            </div>
+      {/* Service Area - Carousel */}
+      <div className="bg-background py-10">
+        <div className="container max-w-xl mx-auto px-4">
+          <div className="text-center mb-6">
+            <span className="inline-flex items-center gap-2 text-primary font-semibold mb-2">
+              <MapPin className="w-4 h-4" />
+              Service Areas
+            </span>
+            <h2 className="font-heading text-xl text-foreground">
+              Where We Work
+            </h2>
+          </div>
 
-            {/* Map Image - fills container edge to edge */}
-            <div className="relative">
-              <img
-                src={lakeshoreMap}
-                alt="Lakeshore Villas Community Map"
-                className="w-full h-auto block"
-              />
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
-                <div className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-2 py-1 rounded-full text-[10px] font-medium shadow-lg">
-                  <span className="w-1 h-1 bg-white rounded-full animate-pulse"></span>
-                  Exclusive Service Area
+          {/* Desktop - side by side */}
+          <div className="hidden sm:flex justify-center gap-3">
+            {/* Lakeshore Villas Card */}
+            <div className="bg-card rounded-lg shadow-sm overflow-hidden border border-border w-[260px] flex-shrink-0">
+              <div className="relative aspect-square cursor-pointer" onClick={() => setShowMapImage(true)}>
+                <img
+                  src={lakeshoreMap}
+                  alt="Lakeshore Villas Community Map"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
+                  <div className="inline-flex items-center gap-1 bg-primary text-primary-foreground px-2 py-0.5 rounded-full text-[10px] font-medium shadow-lg">
+                    <span className="w-1 h-1 bg-white rounded-full animate-pulse"></span>
+                    Active
+                  </div>
                 </div>
               </div>
+              <div className="p-3 space-y-1.5">
+                <div className="text-center">
+                  <h4 className="font-heading text-sm text-foreground">Lakeshore Villas</h4>
+                  <p className="text-xs text-muted-foreground">Mobile home community • Tampa, FL</p>
+                </div>
+                <div className="flex items-center justify-center gap-1 text-xs">
+                  <Clock className="w-3 h-3 text-primary flex-shrink-0" />
+                  <span className="text-foreground font-semibold">Mon–Fri: 8:30 AM – 4:00 PM</span>
+                  <span className="text-muted-foreground">| Weekends: Contact us</span>
+                </div>
+                <p className="text-xs text-primary font-semibold text-center pt-1.5 border-t border-border">
+                  Local neighbors helping neighbors — no travel fees
+                </p>
+              </div>
             </div>
 
-            {/* Info */}
-            <div className="p-3 space-y-2">
-              <div className="text-center">
-                <h4 className="font-heading text-base text-foreground">Lakeshore Villas</h4>
-                <p className="text-xs text-muted-foreground">Mobile home community in Tampa, FL</p>
+            {/* Coming Soon Card */}
+            <div className="bg-card rounded-lg shadow-sm overflow-hidden border-2 border-dashed border-primary/30 w-[260px] flex-shrink-0 flex flex-col">
+              <div className="flex-1 flex flex-col items-center justify-center p-4 text-center aspect-square">
+                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-3">
+                  <MapPin className="w-6 h-6 text-primary/50" />
+                </div>
+                <h4 className="font-heading text-sm text-foreground mb-1">More Areas Coming Soon</h4>
+                <p className="text-xs text-muted-foreground">
+                  We're expanding!
+                </p>
               </div>
-              <div className="flex items-center justify-center gap-1 text-sm">
-                <Clock className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                <span className="text-foreground font-bold">Mon–Fri: 8:30 AM – 4:00 PM</span>
-                <span className="text-muted-foreground">| Weekends: Contact us</span>
-              </div>
-              <p className="text-sm text-primary font-semibold text-center pt-2 border-t border-border">
-                Local neighbors helping neighbors — no travel fees
-              </p>
             </div>
+          </div>
+
+          {/* Mobile Carousel */}
+          <div className="sm:hidden">
+            <Carousel
+              opts={{
+                align: "center",
+                loop: true,
+              }}
+              className="w-full"
+            >
+              <CarouselContent className="ml-0">
+                {/* Lakeshore Villas Card */}
+                <CarouselItem className="basis-[75%] pl-4 first:pl-[12.5%]">
+                  <div className="bg-card rounded-lg shadow-sm overflow-hidden border border-border">
+                    <div className="relative aspect-square cursor-pointer" onClick={() => setShowMapImage(true)}>
+                      <img
+                        src={lakeshoreMap}
+                        alt="Lakeshore Villas Community Map"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
+                        <div className="inline-flex items-center gap-1 bg-primary text-primary-foreground px-2 py-0.5 rounded-full text-[10px] font-medium shadow-lg">
+                          <span className="w-1 h-1 bg-white rounded-full animate-pulse"></span>
+                          Active
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-3 space-y-1.5">
+                      <div className="text-center">
+                        <h4 className="font-heading text-sm text-foreground">Lakeshore Villas</h4>
+                        <p className="text-xs text-muted-foreground">Mobile home community • Tampa, FL</p>
+                      </div>
+                      <div className="flex items-center justify-center gap-1 text-xs">
+                        <Clock className="w-3 h-3 text-primary flex-shrink-0" />
+                        <span className="text-foreground font-semibold">Mon–Fri: 8:30 AM – 4:00 PM</span>
+                        <span className="text-muted-foreground">| Weekends: Contact us</span>
+                      </div>
+                      <p className="text-xs text-primary font-semibold text-center pt-1.5 border-t border-border">
+                        Local neighbors helping neighbors — no travel fees
+                      </p>
+                    </div>
+                  </div>
+                </CarouselItem>
+
+                {/* Coming Soon Card */}
+                <CarouselItem className="basis-[75%] pl-4">
+                  <div className="bg-card rounded-lg shadow-sm overflow-hidden border-2 border-dashed border-primary/30 h-full flex flex-col">
+                    <div className="flex-1 flex flex-col items-center justify-center p-4 text-center aspect-square">
+                      <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-3">
+                        <MapPin className="w-6 h-6 text-primary/50" />
+                      </div>
+                      <h4 className="font-heading text-sm text-foreground mb-1">More Areas Coming Soon</h4>
+                      <p className="text-xs text-muted-foreground">
+                        We're expanding!
+                      </p>
+                    </div>
+                  </div>
+                </CarouselItem>
+              </CarouselContent>
+              <div className="flex justify-center gap-2 mt-3">
+                <CarouselPrevious className="relative inset-0 translate-x-0 translate-y-0 h-8 w-8 border-2 border-primary/30 bg-white hover:bg-primary hover:text-white" />
+                <CarouselNext className="relative inset-0 translate-x-0 translate-y-0 h-8 w-8 border-2 border-primary/30 bg-white hover:bg-primary hover:text-white" />
+              </div>
+            </Carousel>
+            <p className="text-center text-xs text-muted-foreground mt-2">Swipe or tap arrows to see more</p>
           </div>
         </div>
       </div>

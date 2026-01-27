@@ -1,14 +1,12 @@
 import { Phone, Menu, X, Info, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import logo1 from "@/assets/FIXITSWELLLOGO.png";
-import logo2 from "@/assets/Fixitswelllogo2.png";
+import logo from "@/assets/Final logo site .png";
 import AboutUsOverlay from "@/components/AboutUsOverlay";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
-  const [showAltLogo, setShowAltLogo] = useState(false);
 
   const navLinks = [
     { href: "#services", label: "Services" },
@@ -21,18 +19,14 @@ const Header = () => {
       <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border">
         <div className="container max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            {/* Logo - click to toggle between versions */}
-            <button 
-              onClick={() => setShowAltLogo(!showAltLogo)} 
-              className="flex-shrink-0 cursor-pointer bg-transparent border-none p-0"
-              title="Click to switch logo style"
-            >
+            {/* Logo */}
+            <a href="#" className="flex-shrink-0">
               <img 
-                src={showAltLogo ? logo2 : logo1} 
+                src={logo} 
                 alt="FixitSwell - Your Go-To Home Helper" 
-                className="h-[104px] md:h-[125px] w-auto transition-all duration-300" 
+                className="h-[104px] md:h-[125px] w-auto" 
               />
-            </button>
+            </a>
 
             {/* Desktop Nav - centered links with CTA buttons */}
             <nav className="hidden md:flex flex-1 items-center justify-center gap-5 lg:gap-8">

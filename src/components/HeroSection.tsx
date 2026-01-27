@@ -14,7 +14,7 @@ const HeroSection = () => {
         </h1>
 
         <p className="text-body-lg text-muted-foreground mb-8 max-w-2xl mx-auto text-balance">
-          Your neighborhood Handyman — Helping with Home Maintenance, Repairs, Tech help, and Projects Big & Small. Done right, done kindly, by someone who truly cares.
+          Your neighborhood Handyman — Helping with <span className="font-semibold text-foreground">Home Maintenance, Repairs, Tech Help, and Projects Big & Small.</span> Done right, done kindly, by someone who truly cares.
         </p>
 
         {/* CTA Buttons */}
