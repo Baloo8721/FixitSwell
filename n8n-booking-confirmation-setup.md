@@ -45,7 +45,7 @@ Two Edge Functions have been created:
      - Name: `Authorization`
      - Value: `Bearer YOUR_SUPABASE_SERVICE_ROLE_KEY`
    - Headers:
-     - `apikey`: Your Supabase anon key (`eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1ZHZuZ3ZsandleHp0eG50d25uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxMTI4NDgsImV4cCI6MjA4MjY4ODg0OH0.SX_AcKMLx2N2eHHEu05itYDOwSBRHuS0f4fo7G8SSOY`)
+     - `apikey`: Your Supabase anon key (find in Supabase Dashboard → Settings → API → anon public key)
 
 ### Step 4: Add IF Node - Check for Bookings
 

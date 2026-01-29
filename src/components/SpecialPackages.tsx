@@ -1351,9 +1351,9 @@ const SpecialPackages = () => {
               }}
               className="w-full"
             >
-              <CarouselContent className="ml-0">
+              <CarouselContent className="-ml-1">
                 {/* Lakeshore Villas Card */}
-                <CarouselItem className="basis-[75%] pl-4 first:pl-[12.5%]">
+                <CarouselItem className="pl-1 basis-[88%]">
                   <div className="bg-card rounded-lg shadow-sm overflow-hidden border border-border">
                     <div className="relative aspect-square cursor-pointer" onClick={() => setShowMapImage(true)}>
                       <img
@@ -1386,7 +1386,7 @@ const SpecialPackages = () => {
                 </CarouselItem>
 
                 {/* Coming Soon Card */}
-                <CarouselItem className="basis-[75%] pl-4">
+                <CarouselItem className="pl-1 basis-[88%]">
                   <div className="bg-card rounded-lg shadow-sm overflow-hidden border-2 border-dashed border-primary/30 h-full flex flex-col">
                     <div className="flex-1 flex flex-col items-center justify-center p-4 text-center aspect-square">
                       <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-3">
