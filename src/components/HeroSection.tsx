@@ -10,12 +10,21 @@ const HeroSection = () => {
 
       <div className="container max-w-4xl mx-auto text-center relative z-10">
         <h1 className="font-heading text-heading-lg md:text-heading-xl text-foreground mb-6 text-balance">
-          Friendly Help for Everyday Home Tasks
+          Reliable Help for Every Home & Property
         </h1>
 
-        <p className="text-body-lg text-muted-foreground mb-8 max-w-2xl mx-auto text-balance">
-          Your neighborhood Handyman — Helping with <span className="font-semibold text-foreground">Home Maintenance, Repairs, Tech Help, and Projects Big & Small.</span> Done right, done kindly, by someone who truly cares.
+        <p className="text-body-lg text-muted-foreground mb-4 max-w-2xl mx-auto text-balance">
+          <span className="font-semibold text-foreground"> Your Neighborhood Handyman </span> — From Maintenance to Repairs, Tech help, Turnovers & Projects Big or Small. Done right, done kindly—by someone who truly cares.
         </p>
+
+        <div className="flex flex-wrap justify-center gap-2 mb-8">
+          {["Mobile Communities", "Family Residences", "Rentals", "Property Managers", "Commercial"].map((type, index) => (
+            <span key={index} className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1.5 rounded-full text-sm font-medium">
+              <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
+              {type}
+            </span>
+          ))}
+        </div>
 
         {/* CTA Buttons */}
         <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
@@ -69,21 +78,18 @@ const HeroSection = () => {
           </div>
         </div>
 
-        {/* Wellness & Safety badges row */}
-        <div className="flex flex-wrap justify-center gap-4 mb-6">
-          <div className="inline-flex flex-col items-center bg-primary/10 text-primary px-4 py-2 rounded-full font-medium">
-            <div className="flex items-center">
-              <ShieldCheck className="w-5 h-5 mr-2" />
-              <span>Wellness & Safety Checks</span>
+        {/* Wellness & Safety combined badge */}
+        <div className="flex justify-center mb-6">
+          <div className="inline-flex items-center gap-4 bg-primary/10 text-primary px-5 py-2 rounded-full font-medium">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4" />
+              <span className="text-sm">Wellness & Safety Checks</span>
             </div>
-            <span className="text-xs text-primary/70">Family updates for peace of mind</span>
-          </div>
-          <div className="inline-flex flex-col items-center bg-primary/10 text-primary px-4 py-2 rounded-full font-medium">
-            <div className="flex items-center">
-              <Heart className="w-5 h-5 mr-2" />
-              <span>Tailored Maintenance</span>
+            <span className="text-primary/30">•</span>
+            <div className="flex items-center gap-1.5">
+              <Heart className="w-4 h-4" />
+              <span className="text-sm">Tailored Maintenance</span>
             </div>
-            <span className="text-xs text-primary/70">Customized to your needs</span>
           </div>
         </div>
 
@@ -92,7 +98,7 @@ const HeroSection = () => {
           <span>Run & Operated by a Former Paramedic & Professional Maintenance Team — Your Safety Is Our Priority</span>
         </div>
       </div>
-    </section>
+    </section >
   );
 };
 

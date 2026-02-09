@@ -33,30 +33,30 @@ const trustPoints = [
 
 const WhyTrustUs = () => {
   return (
-    <section className="py-section px-4 bg-primary/5">
+    <section className="py-12 px-4 bg-primary/5">
       <div className="container max-w-4xl mx-auto">
-        <h2 className="font-heading text-heading-md text-center text-foreground mb-4">
-          Why Seniors Trust Us
+        <h2 className="font-heading text-heading-md text-center text-foreground mb-3">
+          Why People Trust Us
         </h2>
-        <p className="text-center text-muted-foreground mb-12 max-w-xl mx-auto">
-          With a background in emergency medicine and decades of hands-on maintenance & multi-trade experience, we understand what it means to <span className="font-semibold text-foreground">truly help people</span>.
+        <p className="text-center text-muted-foreground mb-8 max-w-xl mx-auto">
+          With a background in emergency medicine and decades of hands-on maintenance experience, we understand what it means to <span className="font-semibold text-foreground">truly help</span> — whether you're a senior, property manager, or busy homeowner.
         </p>
 
-        <div className="grid sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
+        <div className="grid sm:grid-cols-2 gap-3 max-w-3xl mx-auto">
           {trustPoints.map((point, index) => (
             <div 
               key={index}
-              className="group flex items-center gap-4 p-5 rounded-xl border bg-card border-border 
+              className="group flex items-center gap-3 p-3 rounded-lg border bg-card border-border 
                          hover:bg-medic/10 hover:border-medic/20 hover:scale-[1.02] 
                          transition-all duration-300 ease-out cursor-default"
             >
-              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 
+              <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 
                               bg-secondary text-primary 
                               group-hover:bg-medic group-hover:text-medic-foreground 
                               transition-all duration-300 ease-out">
-                <point.icon className="w-5 h-5" />
+                <point.icon className="w-4 h-4" />
               </div>
-              <span className="text-lg text-muted-foreground group-hover:text-foreground transition-colors duration-300 ease-out">
+              <span className="text-base text-muted-foreground group-hover:text-foreground transition-colors duration-300 ease-out">
                 {point.text}
               </span>
             </div>
