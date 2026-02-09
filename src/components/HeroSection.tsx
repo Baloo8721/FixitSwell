@@ -18,7 +18,7 @@ const HeroSection = () => {
         </p>
 
         <div className="flex flex-wrap justify-center gap-2 mb-8">
-          {["Mobile Communities", "Family Residences", "Rentals", "Property Managers", "Commercial"].map((type, index) => (
+          {["Mobile Home Communities", "Residential", "Property Managers", "Commercial & Rentals"].map((type, index) => (
             <span key={index} className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1.5 rounded-full text-sm font-medium">
               <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
               {type}
