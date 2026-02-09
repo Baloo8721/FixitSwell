@@ -1119,7 +1119,7 @@ const ServicesSection = () => {
 
       {/* Packages Overlay Popup */}
       <Dialog open={showPackagesOverlay} onOpenChange={setShowPackagesOverlay}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl flex items-center gap-2">
               <Star className="w-5 h-5 text-accent" />
@@ -1130,75 +1130,62 @@ const ServicesSection = () => {
             </p>
           </DialogHeader>
           <ScrollArea className="max-h-[65vh] pr-4">
-            {/* Desktop Carousel - 3 cards visible */}
-            <div className="hidden md:block overflow-visible py-4">
-              <Carousel
-                opts={{
-                  align: "start",
-                  loop: true,
-                }}
-                className="w-full overflow-visible"
-              >
-                <CarouselContent className="-ml-4 overflow-visible pt-4">
-                  {allPackages.map((pkg, index) => (
-                    <CarouselItem key={index} className="pl-4 basis-1/3 overflow-visible">
-                      <Card
-                        className={`relative overflow-visible border-2 transition-shadow hover:shadow-lg h-full flex flex-col ${pkg.popular
-                          ? 'border-accent shadow-md'
-                          : 'border-border'
-                          }`}
+            {/* Desktop Grid - 3 columns */}
+            <div className="hidden md:grid md:grid-cols-3 gap-4 py-4">
+              {allPackages.map((pkg, index) => (
+                <Card
+                  key={index}
+                  className={`relative border-2 transition-shadow hover:shadow-lg h-full flex flex-col ${pkg.popular
+                    ? 'border-accent shadow-md'
+                    : 'border-border'
+                    }`}
+                >
+                  {pkg.popular && (
+                    <span className="absolute z-10 -top-2.5 left-4 bg-accent text-accent-foreground px-2 py-0.5 rounded-full text-xs font-medium shadow-sm">
+                      Popular
+                    </span>
+                  )}
+                  <CardHeader className="p-4 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${pkg.popular ? 'bg-accent/10' : 'bg-secondary'
+                        }`}>
+                        <pkg.icon className={`w-5 h-5 ${pkg.popular ? 'text-accent' : 'text-primary'
+                          }`} />
+                      </div>
+                      <div className="min-w-0">
+                        <CardTitle className="font-heading text-sm leading-tight">
+                          {pkg.name}
+                        </CardTitle>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0 flex flex-col flex-1">
+                    <div className="mb-2 text-center">
+                      <span className="font-heading text-lg text-primary">
+                        {pkg.price}
+                      </span>
+                    </div>
+                    <div className="flex-1 flex items-center min-h-[3.5rem]">
+                      <p className="text-muted-foreground text-xs leading-relaxed text-center w-full">
+                        {pkg.tagline}
+                      </p>
+                    </div>
+                    <div className="pt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedBundle(pkg)}
+                        className="w-full text-primary border-primary hover:bg-primary/10 text-xs"
                       >
-                        {pkg.popular && (
-                          <span className="absolute z-10 -top-3 left-6 bg-accent text-accent-foreground px-3 py-1 rounded-full text-xs font-medium shadow-sm">
-                            Popular
-                          </span>
-                        )}
-                        <CardHeader className="p-4 pb-3">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${pkg.popular ? 'bg-accent/10' : 'bg-secondary'
-                              }`}>
-                              <pkg.icon className={`w-5 h-5 ${pkg.popular ? 'text-accent' : 'text-primary'
-                                }`} />
-                            </div>
-                            <div className="min-w-0">
-                              <CardTitle className="font-heading text-base leading-tight">
-                                {pkg.name}
-                              </CardTitle>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="p-4 pt-0 flex flex-col flex-1">
-                          <div className="mb-2 text-center">
-                            <span className="font-heading text-xl text-primary">
-                              {pkg.price}
-                            </span>
-                          </div>
-                          <div className="flex-1 flex items-center min-h-[4.5rem]">
-                            <p className="text-muted-foreground text-sm leading-relaxed text-center w-full">
-                              {pkg.tagline}
-                            </p>
-                          </div>
-                          <div className="pt-3">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setSelectedBundle(pkg)}
-                              className="w-full text-primary border-primary hover:bg-primary/10"
-                            >
-                              View What's Included
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </CarouselItem>
-                  ))}
-                </CarouselContent>
-                <CarouselPrevious className="-left-4 h-10 w-10 border-2 border-primary/30 bg-white hover:bg-primary hover:text-white" />
-                <CarouselNext className="-right-4 h-10 w-10 border-2 border-primary/30 bg-white hover:bg-primary hover:text-white" />
-              </Carousel>
+                        View What's Included
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
 
-            {/* Mobile - Grid layout in popup */}
+            {/* Mobile - Stacked cards */}
             <div className="md:hidden space-y-3 py-4">
               {allPackages.map((pkg, index) => (
                 <Card
