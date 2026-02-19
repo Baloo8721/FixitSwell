@@ -14,11 +14,11 @@ const HeroSection = () => {
         </h1>
 
         <p className="text-body-lg text-muted-foreground mb-4 max-w-2xl mx-auto text-balance">
-          <span className="font-semibold text-foreground"> Your Neighborhood Handyman </span> — From Maintenance to Repairs, Tech help, Turnovers & Projects Big or Small. Done right, done kindly—by someone who truly cares.
+          <span className="font-semibold text-foreground"> Your Neighborhood Handyman </span> — From Furniture Assembly, Mounting & Hanging, to Maintenance, Repairs, Tech Help, To-Do Lists & Property Turnovers. Any Project, Big or Small. Done right, done kindly — by someone who truly cares.
         </p>
 
         <div className="flex flex-wrap justify-center gap-2 mb-8">
-          {["Mobile Home Communities", "Residential", "Property Managers", "Commercial & Rentals"].map((type, index) => (
+          {["Residential", "Mobile Homes", "Senior Living", "Rental Properties"].map((type, index) => (
             <span key={index} className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-3 py-1.5 rounded-full text-sm font-medium">
               <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
               {type}

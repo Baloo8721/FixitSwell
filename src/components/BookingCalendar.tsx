@@ -1116,145 +1116,14 @@ const BookingCalendar = () => {
                   </div>
                 </div>
 
-                {/* Value Packages Dropdown */}
-                <div className="space-y-3 pt-5 border-t-2 border-amber-300/30">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <h4 className="font-heading text-xl text-foreground flex items-center gap-2">
-                        <Package className="w-5 h-5 text-accent" />
-                        Value Packages
-                      </h4>
-                      <p className="text-muted-foreground text-base mt-1">
-                        Bundled services at discounted rates
-                      </p>
-                    </div>
-                    <div className="relative w-full sm:w-auto" ref={packagesDropdownRef}>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setPackagesDropdownOpen(!packagesDropdownOpen);
-                          setServicesDropdownOpen(false);
-                          setPlansDropdownOpen(false);
-                        }}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white border-2 border-accent/30 hover:border-accent hover:bg-accent/5 text-lg px-5 py-4 h-auto"
-                      >
-                        <Plus className="w-5 h-5 text-accent" />
-                        <span>Add Package</span>
-                        <ChevronDown className={`w-4 h-4 transition-transform ${packagesDropdownOpen ? 'rotate-180' : ''}`} />
-                      </Button>
-                      
-                      {/* Packages Dropdown */}
-                      {packagesDropdownOpen && (
-                        <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-full sm:w-96 bg-white border-2 border-border rounded-xl shadow-xl z-50 overflow-hidden">
-                          <div className="max-h-72 overflow-y-auto">
-                            {packageServices.length > 0 ? (
-                              packageServices.map((pkg) => (
-                                <button
-                                  key={pkg.id}
-                                  type="button"
-                                  onClick={() => handleAddService(pkg)}
-                                  disabled={isServiceSelected(pkg.id)}
-                                  className={`w-full text-left px-4 py-4 hover:bg-accent/5 transition-colors border-b border-border last:border-b-0 ${
-                                    isServiceSelected(pkg.id) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''
-                                  }`}
-                                >
-                                  <div className="flex justify-between items-start mb-1">
-                                    <span className="text-base font-medium">{pkg.name}</span>
-                                  </div>
-                                  {pkg.description && (
-                                    <p className="text-sm text-muted-foreground">{pkg.description}</p>
-                                  )}
-                                </button>
-                              ))
-                            ) : (
-                              <div className="px-4 py-6 text-center text-muted-foreground">
-                                No packages available
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Monthly Plans Dropdown */}
-                <div className="space-y-3 pt-5 border-t-2 border-amber-300/30">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <h4 className="font-heading text-xl text-foreground flex items-center gap-2">
-                        <CalendarCheck className="w-5 h-5 text-trust" />
-                        Monthly Plans
-                      </h4>
-                      <p className="text-muted-foreground text-base mt-1">
-                        Regular monthly visits with ongoing support
-                      </p>
-                    </div>
-                    <div className="relative w-full sm:w-auto" ref={plansDropdownRef}>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setPlansDropdownOpen(!plansDropdownOpen);
-                          setServicesDropdownOpen(false);
-                          setPackagesDropdownOpen(false);
-                        }}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white border-2 border-trust/30 hover:border-trust hover:bg-trust/5 text-lg px-5 py-4 h-auto"
-                      >
-                        <Plus className="w-5 h-5 text-trust" />
-                        <span>Add Plan</span>
-                        <ChevronDown className={`w-4 h-4 transition-transform ${plansDropdownOpen ? 'rotate-180' : ''}`} />
-                      </Button>
-                      
-                      {/* Plans Dropdown */}
-                      {plansDropdownOpen && (
-                        <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-full sm:w-96 bg-white border-2 border-border rounded-xl shadow-xl z-50 overflow-hidden">
-                          <div className="max-h-72 overflow-y-auto">
-                            {monthlyPlans.length > 0 ? (
-                              monthlyPlans.map((plan) => {
-                                const isCustomPlan = plan.id === 'monthly-custom';
-                                return (
-                                  <button
-                                    key={plan.id}
-                                    type="button"
-                                    onClick={() => handleAddPlan(plan)}
-                                    disabled={isServiceSelected(plan.id)}
-                                    className={`w-full text-left px-4 py-4 hover:bg-trust/5 transition-colors border-b border-border last:border-b-0 ${
-                                      isServiceSelected(plan.id) ? 'opacity-50 cursor-not-allowed bg-gray-50' : ''
-                                    } ${isCustomPlan ? 'bg-blue-50/50' : ''}`}
-                                  >
-                                    <div className="flex justify-between items-start mb-1">
-                                      <span className="text-base font-medium">
-                                        {isCustomPlan ? 'Custom Monthly Plan' : plan.name}
-                                      </span>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground mb-1">
-                                      {isCustomPlan 
-                                        ? "Pick your own services — we'll call with pricing"
-                                        : plan.description
-                                      }
-                                    </p>
-                                  </button>
-                                );
-                              })
-                            ) : (
-                              <div className="px-4 py-6 text-center text-muted-foreground">
-                                No plans available
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
                 {/* Custom Notes */}
                 <div className="pt-5 border-t-2 border-amber-300/30">
-                  <Label htmlFor="custom-notes" className="text-lg text-foreground font-medium block mb-2">
+                  <Label htmlFor="custom-notes" className="text-lg text-foreground font-medium block mb-1">
                     Tell us what you need — describe your project or request:
                   </Label>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Interested in bundled packages or monthly plans? Let us know here!
+                  </p>
                   <Textarea
                     id="custom-notes"
                     value={bookingData.customNotes}

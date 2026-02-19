@@ -37,17 +37,13 @@ const AboutUsOverlay = ({ open, onOpenChange }: AboutUsOverlayProps) => {
               Meet Your Home Helpers
             </h3>
             <p className="text-lg text-muted-foreground leading-relaxed mb-4">
-              We're a <span className="text-primary font-semibold">family-owned business</span> with 
-              deep roots in this community. Owned and operated by 
-              <span className="text-primary font-semibold"> a former medic and handyman</span>, alongside 
-              <span className="text-primary font-semibold"> his brother-in-law — a multi-tradesman 
-              with over 30 years of hands-on experience</span>.
+              We specialize in serving <span className="text-primary font-semibold">seniors, mobile home communities, and everyday homeowners</span> who just need honest, affordable help — without the runaround.
+            </p>
+            <p className="text-lg text-muted-foreground leading-relaxed mb-4">
+              Whether it's assembling furniture, mounting a TV, or knocking out a to-do list that's been sitting too long — <span className="text-primary font-semibold">no job is too small</span>. We show up, we do it right, and we treat your home with respect.
             </p>
             <p className="text-lg text-muted-foreground leading-relaxed">
-              We're local. Our family lives here — in fact, 
-              <span className="text-primary font-semibold"> we have multiple family 
-              members who live in this community</span>. This isn't just a business — 
-              it's our way of giving back to the neighbors we care about.
+              As a <span className="text-primary font-semibold">former medic</span>, I've always been drawn to helping people who need it most. That hasn't changed — it just looks a little different now.
             </p>
           </div>
 
@@ -65,8 +61,8 @@ const AboutUsOverlay = ({ open, onOpenChange }: AboutUsOverlayProps) => {
               <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-3">
                 <Wrench className="w-6 h-6 text-primary" />
               </div>
-              <h4 className="font-heading text-base text-foreground mb-1">Experienced</h4>
-              <p className="text-sm text-muted-foreground">30+ years of hands-on work</p>
+              <h4 className="font-heading text-base text-foreground mb-1">Affordable</h4>
+              <p className="text-sm text-muted-foreground">Fair pricing, no surprises</p>
             </div>
             
             <div className="bg-card border border-border rounded-xl p-4 text-center">
@@ -74,7 +70,7 @@ const AboutUsOverlay = ({ open, onOpenChange }: AboutUsOverlayProps) => {
                 <Users className="w-6 h-6 text-accent" />
               </div>
               <h4 className="font-heading text-base text-foreground mb-1">Local</h4>
-              <p className="text-sm text-muted-foreground">Family ties to the community</p>
+              <p className="text-sm text-muted-foreground">Hillsborough/Pasco</p>
             </div>
             
             <div className="bg-card border border-border rounded-xl p-4 text-center">

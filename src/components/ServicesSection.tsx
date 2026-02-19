@@ -619,7 +619,7 @@ const ServicesSection = () => {
           Services We Provide
         </h2>
         <p className="text-center text-muted-foreground mb-12 max-w-2xl mx-auto">
-          No surprises. All work stays within safe, appropriate limits — Repairs, Cosmetic fixes, Maintenance, To-Do lists, Helpful support & More. <span className="font-semibold text-foreground">We work with all budgets — contact us for a Free quote.</span>
+          No surprises, no upselling. All work stays within safe, appropriate limits — we handle the jobs others overlook, big or small. <span className="font-semibold text-foreground">We work with all budgets — contact us for a Free quote.</span>
         </p>
 
         <Accordion type="single" collapsible className="space-y-4">
@@ -681,21 +681,21 @@ const ServicesSection = () => {
 
           <Tabs defaultValue="mobile-home" className="w-full">
             <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-8 h-auto p-1">
-              <TabsTrigger value="commercial" className="flex items-center gap-2 py-3 text-xs sm:text-sm data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
-                <Building2 className="w-4 h-4 hidden sm:block" />
-                <span>Commercial & Rental</span>
+              <TabsTrigger value="residential" className="flex items-center gap-2 py-3 text-xs sm:text-sm data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
+                <HomeIcon className="w-4 h-4 hidden sm:block" />
+                <span>Residential</span>
               </TabsTrigger>
               <TabsTrigger value="mobile-home" className="flex items-center gap-2 py-3 text-xs sm:text-sm data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
                 <Home className="w-4 h-4 hidden sm:block" />
                 <span>Mobile Homes</span>
               </TabsTrigger>
-              <TabsTrigger value="residential" className="flex items-center gap-2 py-3 text-xs sm:text-sm data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
-                <HomeIcon className="w-4 h-4 hidden sm:block" />
-                <span>Residential</span>
-              </TabsTrigger>
               <TabsTrigger value="senior" className="flex items-center gap-2 py-3 text-xs sm:text-sm data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
                 <UserCheck className="w-4 h-4 hidden sm:block" />
                 <span>Senior Living</span>
+              </TabsTrigger>
+              <TabsTrigger value="rental" className="flex items-center gap-2 py-3 text-xs sm:text-sm data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
+                <Building2 className="w-4 h-4 hidden sm:block" />
+                <span>Rental Properties</span>
               </TabsTrigger>
             </TabsList>
 
@@ -724,17 +724,17 @@ const ServicesSection = () => {
               </div>
             </TabsContent>
 
-            {/* Commercial Tab - contact for quote */}
-            <TabsContent value="commercial" className="mt-0">
+            {/* Rental Properties Tab - contact for quote */}
+            <TabsContent value="rental" className="mt-0">
               <div className="bg-card rounded-xl p-8 text-center">
                 <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Building2 className="w-8 h-8 text-primary" />
                 </div>
                 <h3 className="font-heading text-xl text-foreground mb-2">
-                  Commercial & Rental Properties
+                  Rental Properties
                 </h3>
                 <p className="text-muted-foreground mb-2 max-w-md mx-auto">
-                  We serve commercial properties, rental turnovers, and property management companies.
+                  We serve rental turnovers, property management companies, and landlords.
                 </p>
                 <p className="text-foreground font-medium mb-6">
                   Contact us for a custom quote tailored to your property needs.
