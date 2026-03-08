@@ -13,9 +13,28 @@ const HeroSection = () => {
           Reliable Help for Every Home & Property
         </h1>
 
-        <p className="text-body-lg text-muted-foreground mb-4 max-w-2xl mx-auto text-balance">
-          <span className="font-semibold text-foreground"> Your Neighborhood Handyman </span> — From Furniture Assembly, Mounting & Hanging, to Maintenance, Repairs, Tech Help, To-Do Lists & Property Turnovers. Any Project, Big or Small. Done right, done kindly — by someone who truly cares.
-        </p>
+        <div className="text-body-lg text-muted-foreground mb-4 max-w-2xl mx-auto text-center">
+          <p className="font-semibold text-foreground mb-2">Your Neighborhood Handyman —</p>
+          <div className="space-y-1 text-muted-foreground flex flex-col items-center">
+            <p className="inline-flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0" aria-hidden />
+              Furniture Assembly & Mounting
+            </p>
+            <p className="inline-flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0" aria-hidden />
+              Home Maintenance, Repairs & Upgrades
+            </p>
+            <p className="inline-flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0" aria-hidden />
+              Rental Property Turnovers
+            </p>
+            <p className="inline-flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0" aria-hidden />
+              Projects Big or Small
+            </p>
+          </div>
+          <p className="mt-3 font-semibold text-foreground">Done Right, Done Kindly — Because Your Home Matters.</p>
+        </div>
 
         <div className="flex flex-wrap justify-center gap-2 mb-8">
           {["Residential", "Mobile Homes", "Senior Living", "Rental Properties"].map((type, index) => (
