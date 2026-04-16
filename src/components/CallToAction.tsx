@@ -1,4 +1,4 @@
-import { Phone, MessageCircle, Clock, MapPin, Mail } from "lucide-react";
+import { Phone, MessageCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ContactForm from "./ContactForm";
 import AboutUsOverlay from "./AboutUsOverlay";
@@ -45,19 +45,15 @@ const CallToAction = () => {
           </Button>
         </div>
 
-        {/* Info badges */}
-        <div className="flex flex-wrap justify-center gap-4 md:gap-8 mb-10">
-          <div className="flex flex-col items-center gap-1 text-primary-foreground/80">
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              <span>Mon–Fri: 8:30 AM – 2:30 PM</span>
-            </div>
-            <span className="text-sm text-primary-foreground/60">Sat & Sun: Contact us</span>
-          </div>
-          <div className="flex items-center gap-2 text-primary-foreground/80">
-            <MapPin className="w-5 h-5" />
-            <span>Lakeshore Villas, Tampa FL</span>
-          </div>
+        {/* Email link */}
+        <div className="text-center mb-8">
+          <a 
+            href="mailto:FixitSwell@gmail.com" 
+            className="inline-flex items-center gap-2 text-primary-foreground/80 hover:text-primary-foreground transition-colors"
+          >
+            <Mail className="w-5 h-5" />
+            <span className="underline">FixitSwell@gmail.com</span>
+          </a>
         </div>
 
         {/* Divider - scroll target for message links */}
@@ -74,15 +70,8 @@ const CallToAction = () => {
           <ContactForm />
         </div>
 
-        {/* Email link */}
+        {/* Footer notes */}
         <div className="text-center mt-8">
-          <a 
-            href="mailto:FixitSwell@gmail.com" 
-            className="inline-flex items-center gap-2 text-primary-foreground/80 hover:text-primary-foreground transition-colors"
-          >
-            <Mail className="w-5 h-5" />
-            <span className="underline">FixitSwell@gmail.com</span>
-          </a>
           <p className="text-primary-foreground/70 text-sm mt-3">
             Locally owned, family-run business
           </p>

@@ -46,11 +46,11 @@ const SpecialPackages = () => {
 
             <div className="flex flex-row items-center justify-center gap-4 mb-4">
               <div className="bg-card border-2 border-accent rounded-lg px-4 py-3 text-center min-w-[140px]">
-                <span className="font-heading text-2xl text-accent">25% OFF</span>
+                <span className="font-heading text-2xl text-accent">15% OFF</span>
                 <p className="text-muted-foreground text-xs mt-0.5">Your next service</p>
               </div>
               <div className="bg-card border-2 border-primary rounded-lg px-4 py-3 text-center min-w-[140px]">
-                <span className="font-heading text-2xl text-primary">25% OFF</span>
+                <span className="font-heading text-2xl text-primary">15% OFF</span>
                 <p className="text-muted-foreground text-xs mt-0.5">Their first service</p>
               </div>
             </div>

@@ -12,6 +12,8 @@ const Footer = () => {
           <p className="text-sm text-muted-foreground">
             © {new Date().getFullYear()} FixitSwell. All rights reserved.
           </p>
+          <p className="text-sm text-muted-foreground mt-2">FixitSwell@gmail.com</p>
+          <p className="text-sm text-muted-foreground">813-738-1655</p>
         </div>
       </div>
     </footer>
