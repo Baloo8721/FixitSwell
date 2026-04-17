@@ -681,19 +681,19 @@ const ServicesSection = () => {
 
           <Tabs defaultValue="mobile-home" className="w-full">
             <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-8 h-auto p-1">
-              <TabsTrigger value="residential" className="flex items-center gap-2 py-3 text-xs sm:text-sm data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
+              <TabsTrigger value="residential" className="flex items-center gap-2 py-3 text-sm sm:text-base data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
                 <HomeIcon className="w-4 h-4 hidden sm:block" />
                 <span>Residential</span>
               </TabsTrigger>
-              <TabsTrigger value="mobile-home" className="flex items-center gap-2 py-3 text-xs sm:text-sm data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
+              <TabsTrigger value="mobile-home" className="flex items-center gap-2 py-3 text-sm sm:text-base data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
                 <Home className="w-4 h-4 hidden sm:block" />
                 <span>Mobile Homes</span>
               </TabsTrigger>
-              <TabsTrigger value="senior" className="flex items-center gap-2 py-3 text-xs sm:text-sm data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
+              <TabsTrigger value="senior" className="flex items-center gap-2 py-3 text-sm sm:text-base data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
                 <UserCheck className="w-4 h-4 hidden sm:block" />
                 <span>Senior Living</span>
               </TabsTrigger>
-              <TabsTrigger value="rental" className="flex items-center gap-2 py-3 text-xs sm:text-sm data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
+              <TabsTrigger value="rental" className="flex items-center gap-2 py-3 text-sm sm:text-base data-[state=active]:bg-accent data-[state=active]:text-accent-foreground">
                 <Building2 className="w-4 h-4 hidden sm:block" />
                 <span>Rental Properties</span>
               </TabsTrigger>

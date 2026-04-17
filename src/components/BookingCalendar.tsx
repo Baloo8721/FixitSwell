@@ -874,6 +874,9 @@ const BookingCalendar = () => {
                         {format(bookingData.date, 'EEEE, MMMM d')}
                       </p>
                       <p className="text-sm text-muted-foreground">Pick a start time:</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Selected time is your preferred window; we'll follow up to confirm.
+                      </p>
                     </div>
 
                     {isLoading ? (
@@ -1453,7 +1456,7 @@ const BookingCalendar = () => {
               ) : (
                 <>
                   <Send className="w-5 h-5 mr-2" />
-                  Confirm Booking
+                  Send Booking Request
                 </>
               )}
             </Button>

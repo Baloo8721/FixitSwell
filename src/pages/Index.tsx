@@ -35,10 +35,10 @@ const Index = () => {
                   Easy Online Booking
                 </span>
                 <h2 className="font-heading text-heading-md text-foreground">
-                  Schedule Your Appointment
+                  Request Your Appointment
                 </h2>
                 <p className="text-muted-foreground mt-3 max-w-xl mx-auto text-lg">
-                  Pick a date and time that works for you. It's simple — just like it should be.
+                  Choose your preferred date and time. We'll follow up to confirm and finalize your appointment.
                 </p>
               </div>
               
