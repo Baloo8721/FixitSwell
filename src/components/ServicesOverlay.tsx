@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from "react";
-import { ClipboardList, CalendarDays, Phone, MessageSquare, Mail } from "lucide-react";
+import { ClipboardList, CalendarDays, Phone, MessageSquare, Mail, Info } from "lucide-react";
+import AboutUsOverlay from "@/components/AboutUsOverlay";
 import {
   Dialog,
   DialogContent,
@@ -131,6 +132,8 @@ const serviceCategories = [
 type ServicesOverlayContextType = {
   open: boolean;
   setOpen: (open: boolean) => void;
+  aboutOpen: boolean;
+  setAboutOpen: (open: boolean) => void;
 };
 
 const ServicesOverlayContext = createContext<ServicesOverlayContextType | null>(null);
@@ -145,20 +148,28 @@ export const useServicesOverlay = () => {
 
 export const ServicesOverlayProvider = ({ children }: { children: ReactNode }) => {
   const [open, setOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   return (
-    <ServicesOverlayContext.Provider value={{ open, setOpen }}>
+    <ServicesOverlayContext.Provider value={{ open, setOpen, aboutOpen, setAboutOpen }}>
       {children}
 
-      {/* Floating button */}
+      {/* Floating button - opens About Us */}
       <button
-        onClick={() => setOpen(true)}
+        onClick={() => setAboutOpen(true)}
         className="fixed bottom-6 right-6 z-50 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition-all hover:scale-105 flex flex-col items-center justify-center px-3 py-2 gap-0.5"
-        aria-label="View all services"
+        aria-label="About Us"
       >
-        <ClipboardList className="w-5 h-5" />
-        <span className="text-[9px] font-medium leading-tight">All Services</span>
+        <Info className="w-5 h-5" />
+        <span className="text-[9px] font-medium leading-tight">About/Services</span>
       </button>
+
+      {/* About Us Overlay with All Services button */}
+      <AboutUsOverlay
+        open={aboutOpen}
+        onOpenChange={setAboutOpen}
+        onOpenServices={() => setOpen(true)}
+      />
 
       {/* Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>

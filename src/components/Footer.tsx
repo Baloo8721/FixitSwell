@@ -14,6 +14,7 @@ const Footer = () => {
           </p>
           <p className="text-sm text-muted-foreground mt-2">FixitSwell@gmail.com</p>
           <p className="text-sm text-muted-foreground">813-738-1655</p>
+          <p className="text-sm text-muted-foreground mt-1">Licensed & Insured</p>
         </div>
       </div>
     </footer>

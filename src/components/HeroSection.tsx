@@ -15,24 +15,23 @@ const HeroSection = () => {
 
         <div className="text-body-lg text-muted-foreground mb-4 max-w-2xl mx-auto text-center">
           <p className="font-semibold text-foreground mb-3">Your Neighborhood Handyman —</p>
-          <ul className="space-y-2 text-muted-foreground">
-            <li className="flex items-start justify-center gap-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0 mt-1.5" aria-hidden />
-              <span>Furniture Assembly & Mounting</span>
-            </li>
-            <li className="flex items-start justify-center gap-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0 mt-1.5" aria-hidden />
-              <span>Home Maintenance, To-Do Lists, Repairs & Upgrades</span>
-            </li>
-            <li className="flex items-start justify-center gap-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0 mt-1.5" aria-hidden />
-              <span>Rental Property Turnovers</span>
-            </li>
-            <li className="flex items-start justify-center gap-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0 mt-1.5" aria-hidden />
-              <span>Projects Big or Small</span>
-            </li>
-          </ul>
+          <div className="space-y-2">
+            <div className="inline-flex items-center justify-center bg-card text-foreground px-4 py-2 rounded-full text-base font-medium shadow-sm border border-border">
+              Furniture Assembly
+            </div>
+            <div className="inline-flex items-center justify-center bg-card text-foreground px-4 py-2 rounded-full text-base font-medium shadow-sm border border-border">
+              Home Maintenance & To-Do Lists
+            </div>
+            <div className="inline-flex items-center justify-center bg-card text-foreground px-4 py-2 rounded-full text-base font-medium shadow-sm border border-border">
+              Repairs & Upgrades
+            </div>
+            <div className="inline-flex items-center justify-center bg-card text-foreground px-4 py-2 rounded-full text-base font-medium shadow-sm border border-border">
+              Rental Property Turnovers
+            </div>
+            <div className="inline-flex items-center justify-center bg-card text-foreground px-4 py-2 rounded-full text-base font-medium shadow-sm border border-border">
+              Projects Big or Small
+            </div>
+          </div>
           <p className="mt-4 font-semibold text-foreground">Done Right, Done Kindly — Because Your Home Matters.</p>
         </div>
 

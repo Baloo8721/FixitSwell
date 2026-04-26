@@ -1,13 +1,14 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Heart, Shield, Users, Wrench, CalendarDays, Phone, MessageSquare, Mail } from "lucide-react";
+import { Heart, Shield, Users, Wrench, CalendarDays, Phone, MessageSquare, Mail, ClipboardList } from "lucide-react";
 import logo from "@/assets/Final logo site .png";
 
 interface AboutUsOverlayProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onOpenServices?: () => void;
 }
 
-const AboutUsOverlay = ({ open, onOpenChange }: AboutUsOverlayProps) => {
+const AboutUsOverlay = ({ open, onOpenChange, onOpenServices }: AboutUsOverlayProps) => {
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -82,6 +83,20 @@ const AboutUsOverlay = ({ open, onOpenChange }: AboutUsOverlayProps) => {
             </div>
           </div>
 
+          {/* All Services Button */}
+          {onOpenServices && (
+            <button
+              onClick={() => {
+                onOpenServices();
+                onOpenChange(false);
+              }}
+              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-full text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <ClipboardList className="w-4 h-4" />
+              View All Services
+            </button>
+          )}
+
           {/* Closing Statement */}
           <div className="bg-primary/5 rounded-xl p-6 border border-primary/20">
             <p className="text-xl text-foreground font-heading italic">
@@ -91,6 +106,9 @@ const AboutUsOverlay = ({ open, onOpenChange }: AboutUsOverlayProps) => {
               — The FixitSwell Family
             </p>
           </div>
+
+          {/* Licensed & Insured */}
+          <p className="text-sm text-muted-foreground text-center">Licensed & Insured</p>
 
           {/* Action links */}
           <div className="border-t border-border pt-4 mt-2">
