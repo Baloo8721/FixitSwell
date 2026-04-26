@@ -1,4 +1,4 @@
-import { Heart, Clock, MessageCircle, DollarSign, ShieldCheck, BadgeCheck, Wrench } from "lucide-react";
+import { Heart, Clock, DollarSign, ShieldCheck, BadgeCheck, Wrench } from "lucide-react";
 
 const trustPoints = [
   {
@@ -7,15 +7,11 @@ const trustPoints = [
   },
   {
     icon: Wrench,
-    text: "Years of hands-on experience helping with everyday home tasks, repairs, and tech support",
+    text: "Years of hands-on experience helping with everyday home tasks, projects, repairs, maitenance and support",
   },
   {
     icon: Clock,
     text: "Patient and never rushing",
-  },
-  {
-    icon: MessageCircle,
-    text: "No confusing tech talk — clear, simple explanations",
   },
   {
     icon: DollarSign,

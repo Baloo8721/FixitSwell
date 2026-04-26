@@ -14,26 +14,26 @@ const HeroSection = () => {
         </h1>
 
         <div className="text-body-lg text-muted-foreground mb-4 max-w-2xl mx-auto text-center">
-          <p className="font-semibold text-foreground mb-2">Your Neighborhood Handyman —</p>
-          <div className="space-y-1 text-muted-foreground flex flex-col items-center">
-            <p className="inline-flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0" aria-hidden />
-              Furniture Assembly & Mounting
-            </p>
-            <p className="inline-flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0" aria-hidden />
-              Home Maintenance, Repairs & Upgrades
-            </p>
-            <p className="inline-flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0" aria-hidden />
-              Rental Property Turnovers
-            </p>
-            <p className="inline-flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0" aria-hidden />
-              Projects Big or Small
-            </p>
-          </div>
-          <p className="mt-3 font-semibold text-foreground">Done Right, Done Kindly — Because Your Home Matters.</p>
+          <p className="font-semibold text-foreground mb-3">Your Neighborhood Handyman —</p>
+          <ul className="space-y-2 text-muted-foreground">
+            <li className="flex items-start justify-center gap-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0 mt-1.5" aria-hidden />
+              <span>Furniture Assembly & Mounting</span>
+            </li>
+            <li className="flex items-start justify-center gap-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0 mt-1.5" aria-hidden />
+              <span>Home Maintenance, To-Do Lists, Repairs & Upgrades</span>
+            </li>
+            <li className="flex items-start justify-center gap-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0 mt-1.5" aria-hidden />
+              <span>Rental Property Turnovers</span>
+            </li>
+            <li className="flex items-start justify-center gap-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-foreground shrink-0 mt-1.5" aria-hidden />
+              <span>Projects Big or Small</span>
+            </li>
+          </ul>
+          <p className="mt-4 font-semibold text-foreground">Done Right, Done Kindly — Because Your Home Matters.</p>
         </div>
 
         <div className="flex flex-wrap justify-center gap-2 mb-8">
