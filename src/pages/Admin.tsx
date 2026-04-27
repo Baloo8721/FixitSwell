@@ -80,12 +80,14 @@ import {
   Play,
   Square,
   Timer,
+  Edit,
   Edit2,
   Lock,
   LogOut,
   Eye,
   EyeOff,
-  ChevronRight
+  ChevronRight,
+  Save
 } from "lucide-react";
 import { format, parseISO, isToday, isTomorrow, isPast } from "date-fns";
 import { supabase } from "@/lib/supabase";
@@ -3532,7 +3534,7 @@ Questions? Call us anytime.
                                 {/* Add New Note */}
                                 <div className="flex flex-col sm:flex-row gap-2">
                                   <Input
-                                    className="flex-1 min-w-0"
+                                    className="flex-1 min-w-0 text-sm"
                                     placeholder="Add a note..."
                                     value={newNoteContent[booking.id] || ''}
                                     onChange={(e) => setNewNoteContent(prev => ({ 
@@ -3545,7 +3547,6 @@ Questions? Call us anytime.
                                         handleAddNote(booking.id);
                                       }
                                     }}
-                                    className="text-sm"
                                   />
                                   {/* Voice Recording Button */}
                                   <Button
@@ -3610,7 +3611,7 @@ Questions? Call us anytime.
                                 {/* Add New Suggestion */}
                                 <div className="flex flex-col sm:flex-row gap-2">
                                   <Input
-                                    className="flex-1 min-w-0"
+                                    className="flex-1 min-w-0 text-sm"
                                     placeholder="Add future repair suggestion..."
                                     value={newRepairContent[booking.id] || ''}
                                     onChange={(e) => setNewRepairContent(prev => ({ 
@@ -3623,7 +3624,6 @@ Questions? Call us anytime.
                                         handleAddFutureRepair(booking.id);
                                       }
                                     }}
-                                    className="text-sm"
                                   />
                                   <Button
                                     size="sm"

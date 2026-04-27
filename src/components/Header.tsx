@@ -3,10 +3,12 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import logo from "@/assets/Final logo site .png";
 import AboutUsOverlay from "@/components/AboutUsOverlay";
+import { useServicesOverlay } from "@/components/ServicesOverlay";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const servicesOverlay = useServicesOverlay();
 
   const navLinks = [
     { href: "#services", label: "Services" },
@@ -115,7 +117,11 @@ const Header = () => {
         </div>
       </header>
       
-      <AboutUsOverlay open={isAboutOpen} onOpenChange={setIsAboutOpen} />
+      <AboutUsOverlay 
+        open={isAboutOpen} 
+        onOpenChange={setIsAboutOpen} 
+        onOpenServices={() => servicesOverlay?.setOpen(true)}
+      />
     </>
   );
 };

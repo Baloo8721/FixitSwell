@@ -38,10 +38,13 @@ const AboutUsOverlay = ({ open, onOpenChange, onOpenServices }: AboutUsOverlayPr
               Meet Your Home Helpers
             </h3>
             <p className="text-lg text-muted-foreground leading-relaxed mb-4">
-              We specialize in serving <span className="text-primary font-semibold">seniors, mobile home communities, and everyday homeowners</span> who just need honest, affordable help — without the runaround.
+              We specialize in serving <span className="text-primary font-semibold">Residential homeowners</span>, <span className="text-primary font-semibold">Senior living</span>, and <span className="text-primary font-semibold">Mobile home communities</span>, while also providing <span className="text-primary font-semibold">rental property turnovers</span> and handyman services for <span className="text-primary font-semibold">Commercial businesses</span>.
             </p>
             <p className="text-lg text-muted-foreground leading-relaxed mb-4">
-              Whether it's assembling furniture, mounting a TV, or knocking out a to-do list that's been sitting too long — <span className="text-primary font-semibold">no job is too small</span>. We show up, we do it right, and we treat your home with respect.
+              Whether you're a neighbor in need of a hand or a professional managing a rental, we provide honest, affordable help — without the runaround.
+            </p>
+            <p className="text-lg text-muted-foreground leading-relaxed mb-4">
+              From assembling furniture, mounting a TV, or knocking out a to-do list that's been sitting too long — <span className="text-primary font-semibold">no job is too small</span>. We show up, we do it right, and we treat your home with respect.
             </p>
             <p className="text-lg text-muted-foreground leading-relaxed">
               As a <span className="text-primary font-semibold">former medic</span>, I've always been drawn to helping people who need it most. That hasn't changed — it just looks a little different now.

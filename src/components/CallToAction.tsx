@@ -2,10 +2,12 @@ import { Phone, MessageCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ContactForm from "./ContactForm";
 import AboutUsOverlay from "./AboutUsOverlay";
+import { useServicesOverlay } from "./ServicesOverlay";
 import { useState } from "react";
 
 const CallToAction = () => {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const servicesOverlay = useServicesOverlay();
 
   return (
     <section id="contact" className="py-section-lg px-4 bg-primary">
@@ -84,7 +86,11 @@ const CallToAction = () => {
         </div>
       </div>
 
-      <AboutUsOverlay open={isAboutOpen} onOpenChange={setIsAboutOpen} />
+      <AboutUsOverlay 
+        open={isAboutOpen} 
+        onOpenChange={setIsAboutOpen} 
+        onOpenServices={() => servicesOverlay?.setOpen(true)}
+      />
     </section>
   );
 };
