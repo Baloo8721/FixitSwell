@@ -2560,7 +2560,7 @@ export async function getSupplyStats(): Promise<{
 }
 
 export async function addBookingSupply(
-  bookingId: string,
+  bookingId: string | null,
   item: string,
   cost: number,
   quantity: number = 1,

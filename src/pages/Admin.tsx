@@ -21,6 +21,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
@@ -296,6 +297,9 @@ const Admin = () => {
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeUploadBookingId, setActiveUploadBookingId] = useState<string | null>(null);
+  const [showAddSupplyForm, setShowAddSupplyForm] = useState(false);
+  const [adminSupplyBookingId, setAdminSupplyBookingId] = useState('');
+  const [showGeneralInventory, setShowGeneralInventory] = useState(false);
   
   // Manual booking modal state
   const [showNewBooking, setShowNewBooking] = useState(false);
@@ -958,7 +962,7 @@ const Admin = () => {
     loadClients();
   };
 
-  const handleAddSupply = async (bookingId: string) => {
+  const handleAddSupply = async (bookingId: string | null) => {
     const cost = parseFloat(newSupply.cost);
     const quantity = parseInt(newSupply.quantity) || 1;
     
@@ -987,7 +991,11 @@ const Admin = () => {
     } else {
       setNewSupply({ item: '', cost: '', quantity: '1', notes: '', receipt_number: '', store_name: '' });
       setAddingSupply(null);
-      loadSupplies(bookingId);
+      if (bookingId) {
+        loadSupplies(bookingId);
+      } else {
+        loadMasterSupplies();
+      }
     }
   };
 
@@ -5232,6 +5240,84 @@ Questions? Call us anytime.
           </CardHeader>
           {showMasterSupplies && (
             <CardContent className="pt-0 space-y-4">
+              {/* Add Supply Form */}
+              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-sm">Add New Supply</h4>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowAddSupplyForm(!showAddSupplyForm)}
+                  >
+                    {showAddSupplyForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4 mr-1" />}
+                    {showAddSupplyForm ? 'Cancel' : 'Add'}
+                  </Button>
+                </div>
+                {showAddSupplyForm && (
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs">Select Booking (Optional)</Label>
+                      <Select value={adminSupplyBookingId || "general"} onValueChange={(v) => setAdminSupplyBookingId(v === "general" ? "" : v)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="General/Inventory (no booking)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="general">General/Inventory (no booking)</SelectItem>
+                          {bookings.map(b => (
+                            <SelectItem key={b.id} value={b.id}>
+                              {b.client?.name} - {format(parseISO(b.date), 'MMM d')}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        placeholder="Item name"
+                        value={newSupply.item}
+                        onChange={(e) => setNewSupply(prev => ({ ...prev, item: e.target.value }))}
+                      />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="Cost"
+                        value={newSupply.cost}
+                        onChange={(e) => setNewSupply(prev => ({ ...prev, cost: e.target.value }))}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        placeholder="Quantity"
+                        type="number"
+                        value={newSupply.quantity}
+                        onChange={(e) => setNewSupply(prev => ({ ...prev, quantity: e.target.value }))}
+                      />
+                      <Input
+                        placeholder="Store (optional)"
+                        value={newSupply.store_name}
+                        onChange={(e) => setNewSupply(prev => ({ ...prev, store_name: e.target.value }))}
+                      />
+                    </div>
+                    <Input
+                      placeholder="Receipt # (optional)"
+                      value={newSupply.receipt_number}
+                      onChange={(e) => setNewSupply(prev => ({ ...prev, receipt_number: e.target.value }))}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        handleAddSupply(adminSupplyBookingId || null);
+                        setShowAddSupplyForm(false);
+                        setAdminSupplyBookingId('');
+                      }}
+                      disabled={!newSupply.item || !newSupply.cost}
+                    >
+                      Add Supply
+                    </Button>
+                  </div>
+                )}
+              </div>
+
               {/* Stats Bar */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="p-3 bg-amber-50 rounded-lg text-center">
@@ -5279,17 +5365,45 @@ Questions? Call us anytime.
                 {allSupplies.length > 0 ? (
                   <div className="space-y-2 max-h-80 overflow-y-auto">
                     {allSupplies.slice(0, 20).map(supply => (
-                      <div key={supply.id} className="p-3 bg-white border rounded-lg">
+                      <div 
+                        key={supply.id} 
+                        className={`p-3 bg-white border rounded-lg ${supply.booking_id ? 'cursor-pointer hover:bg-secondary/30 transition-colors' : 'cursor-pointer hover:bg-amber-50/50 transition-colors'}`}
+                        onClick={() => {
+                          if (supply.booking_id) {
+                            setExpandedBooking(supply.booking_id);
+                            // Scroll to the booking
+                            setTimeout(() => {
+                              document.getElementById(`booking-${supply.booking_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }, 100);
+                          } else {
+                            setShowGeneralInventory(true);
+                          }
+                        }}
+                      >
                         <div className="flex items-center justify-between">
-                          <div>
+                          <div className="flex-1">
                             <p className="font-medium text-sm">{supply.item}</p>
                             <p className="text-xs text-muted-foreground">
-                              {supply.booking?.client?.name || 'Unknown'} • {supply.booking?.date ? format(parseISO(supply.booking.date), 'MMM d, yyyy') : 'N/A'}
+                              {supply.booking?.client?.name || 'General Inventory'} • {supply.booking?.date ? format(parseISO(supply.booking.date), 'MMM d, yyyy') : 'No booking'}
                             </p>
                           </div>
-                          <div className="text-right">
-                            <p className="font-medium">${(supply.cost * supply.quantity).toFixed(2)}</p>
-                            <p className="text-xs text-muted-foreground">×{supply.quantity}</p>
+                          <div className="flex items-center gap-2">
+                            <div className="text-right">
+                              <p className="font-medium">${(supply.cost * supply.quantity).toFixed(2)}</p>
+                              <p className="text-xs text-muted-foreground">×{supply.quantity}</p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteSupply(supply.id, supply.booking_id || '');
+                                loadMasterSupplies();
+                              }}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
                           </div>
                         </div>
                         {supply.notes && (
@@ -5332,22 +5446,34 @@ Questions? Call us anytime.
             <CardContent className="pt-0 space-y-4">
               {/* Stats Bar */}
               <div className="flex flex-wrap gap-4 p-3 bg-green-50 rounded-lg text-sm">
-                <span className="flex items-center gap-1">
+                <button
+                  onClick={() => setSubscriptionFilter('active')}
+                  className={`flex items-center gap-1 cursor-pointer hover:bg-green-100 px-2 py-1 rounded transition-colors ${subscriptionFilter === 'active' ? 'bg-green-200 ring-2 ring-green-400' : ''}`}
+                >
                   <CheckCircle className="w-4 h-4 text-green-600" />
                   <strong>{subscriptionStats.activeCount}</strong> Active
-                </span>
-                <span className="flex items-center gap-1">
+                </button>
+                <button
+                  onClick={() => setSubscriptionFilter('paused')}
+                  className={`flex items-center gap-1 cursor-pointer hover:bg-yellow-100 px-2 py-1 rounded transition-colors ${subscriptionFilter === 'paused' ? 'bg-yellow-200 ring-2 ring-yellow-400' : ''}`}
+                >
                   <AlertCircle className="w-4 h-4 text-yellow-600" />
                   <strong>{subscriptionStats.pausedCount}</strong> Paused
-                </span>
-                <span className="flex items-center gap-1">
+                </button>
+                <button
+                  onClick={() => setSubscriptionFilter('cancelled')}
+                  className={`flex items-center gap-1 cursor-pointer hover:bg-red-100 px-2 py-1 rounded transition-colors ${subscriptionFilter === 'cancelled' ? 'bg-red-200 ring-2 ring-red-400' : ''}`}
+                >
                   <XCircle className="w-4 h-4 text-red-600" />
                   <strong>{subscriptionStats.cancelledCount}</strong> Cancelled
-                </span>
-                <span className="flex items-center gap-1 ml-auto">
+                </button>
+                <button
+                  onClick={() => setSubscriptionFilter('all')}
+                  className={`flex items-center gap-1 cursor-pointer hover:bg-gray-100 px-2 py-1 rounded transition-colors ml-auto ${subscriptionFilter === 'all' ? 'bg-gray-200 ring-2 ring-gray-400' : ''}`}
+                >
                   <TrendingUp className="w-4 h-4 text-green-600" />
                   <strong>${(subscriptionStats.monthlyRecurring / 100).toFixed(2)}</strong>/month recurring
-                </span>
+                </button>
               </div>
 
               {/* Filter & Actions */}
@@ -6811,6 +6937,120 @@ Questions? Call us anytime.
                   Open
                 </Button>
               </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* General Inventory Dialog */}
+      <Dialog open={showGeneralInventory} onOpenChange={setShowGeneralInventory}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-amber-600" />
+              General Inventory
+            </DialogTitle>
+            <DialogDescription>
+              Supplies and materials not associated with a specific booking
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Add Supply Form */}
+            <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-medium text-sm">Add New Supply</h4>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="Item name"
+                    value={newSupply.item}
+                    onChange={(e) => setNewSupply(prev => ({ ...prev, item: e.target.value }))}
+                  />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="Cost"
+                    value={newSupply.cost}
+                    onChange={(e) => setNewSupply(prev => ({ ...prev, cost: e.target.value }))}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="Quantity"
+                    type="number"
+                    value={newSupply.quantity}
+                    onChange={(e) => setNewSupply(prev => ({ ...prev, quantity: e.target.value }))}
+                  />
+                  <Input
+                    placeholder="Store (optional)"
+                    value={newSupply.store_name}
+                    onChange={(e) => setNewSupply(prev => ({ ...prev, store_name: e.target.value }))}
+                  />
+                </div>
+                <Input
+                  placeholder="Receipt # (optional)"
+                  value={newSupply.receipt_number}
+                  onChange={(e) => setNewSupply(prev => ({ ...prev, receipt_number: e.target.value }))}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    handleAddSupply(null);
+                    loadMasterSupplies();
+                  }}
+                  disabled={!newSupply.item || !newSupply.cost}
+                >
+                  Add Supply
+                </Button>
+              </div>
+            </div>
+
+            {/* General Inventory List */}
+            <div>
+              <h4 className="font-medium text-sm mb-2">All General Inventory Items</h4>
+              {allSupplies.filter(s => !s.booking_id).length > 0 ? (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {allSupplies.filter(s => !s.booking_id).map(supply => (
+                    <div key={supply.id} className="p-3 bg-white border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{supply.item}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {supply.store_name && <span className="mr-2">📍 {supply.store_name}</span>}
+                            {supply.purchase_date && <span>📅 {format(parseISO(supply.purchase_date as string), 'MMM d, yyyy')}</span>}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <p className="font-medium">${(supply.cost * supply.quantity).toFixed(2)}</p>
+                            <p className="text-xs text-muted-foreground">×{supply.quantity}</p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                            onClick={() => {
+                              handleDeleteSupply(supply.id, '');
+                              loadMasterSupplies();
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      {supply.notes && (
+                        <p className="text-xs text-muted-foreground mt-1 italic">{supply.notes}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No general inventory items yet. Add supplies above to build your inventory.
+                </p>
+              )}
             </div>
           </div>
         </DialogContent>
