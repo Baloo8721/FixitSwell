@@ -33,9 +33,9 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        # NOTE: Environment variables intentionally NOT set here - we use hardcoded fallbacks
+        # in supabase.ts which handle empty strings properly. The anon key is public/publishable
+        # and safe to include. Security is enforced by Row Level Security (RLS) policies.
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
