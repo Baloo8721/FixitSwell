@@ -1137,17 +1137,32 @@ const Admin = () => {
   };
 
   // Handle replying to a contact message
-  const handleSendReply = async (messageId: string) => {
+  const handleSendReply = async (msg: ContactMessage) => {
     if (!replyContent.trim()) return;
     
     setSendingReply(true);
-    const { error } = await replyToContactMessage(messageId, replyContent);
+    const { error } = await replyToContactMessage(msg.id, replyContent);
     setSendingReply(false);
     
     if (error) {
       toast({ title: "Error", description: "Failed to save reply", variant: "destructive" });
     } else {
       toast({ title: "Reply saved" });
+      
+      // Open Gmail compose with pre-filled email
+      if (msg.email) {
+        const subject = encodeURIComponent("Re: Your message to FixitSwell");
+        const body = encodeURIComponent(
+          `Hi ${msg.name},\n\n` +
+          `${replyContent}\n\n` +
+          `---\n` +
+          `Best regards,\n` +
+          `FixitSwell Team`
+        );
+        const mailtoLink = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(msg.email)}&su=${subject}&body=${body}`;
+        window.open(mailtoLink, '_blank');
+      }
+      
       setReplyingToMessage(null);
       setReplyContent('');
       loadContactMessages();
@@ -4880,11 +4895,11 @@ Questions? Call us anytime.
                                     <div className="flex gap-2">
                                       <Button 
                                         size="sm" 
-                                        onClick={() => handleSendReply(msg.id)}
+                                        onClick={() => handleSendReply(msg)}
                                         disabled={sendingReply || !replyContent.trim()}
                                       >
                                         {sendingReply ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                                        Save Reply
+                                        Send Reply
                                       </Button>
                                       <Button 
                                         size="sm" 

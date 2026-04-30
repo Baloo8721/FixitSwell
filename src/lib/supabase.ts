@@ -1,10 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
+import bcrypt from 'bcryptjs';
 
 // Supabase configuration
 // The anon key is designed to be public (also called "publishable key")
 // Security is enforced by RLS (Row Level Security) policies, not by hiding the key
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://pudvngvljwexztxntwnn.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1ZHZuZ3ZsandleHp0eG50d25uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxMTI4NDgsImV4cCI6MjA4MjY4ODg0OH0.SX_AcKMLx2N2eHHEu05itYDOwSBRHuS0f4fo7G8SSOY';
+// Credentials are loaded from environment variables for security
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables. Please check your .env file.');
+}
 
 // Stripe configuration (publishable key only - safe for frontend)
 export const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
@@ -91,6 +97,7 @@ export interface Booking {
   total_amount: number | null;
   google_event_id: string | null;
   manage_token: string;
+  token_expires_at: string | null;
   confirmed_at: string | null;
   started_at: string | null;
   completed_at: string | null;
@@ -696,6 +703,7 @@ export async function getBookingByToken(token: string): Promise<{
         )
       `)
       .eq('manage_token', token)
+      .or('token_expires_at.is.null,token_expires_at.gt.now()')
       .single();
 
     if (error) throw error;
@@ -707,9 +715,9 @@ export async function getBookingByToken(token: string): Promise<{
       services: booking.booking_services?.map((bs: { service: Service }) => bs.service) || []
     };
     
-    return { data: result, error: null };
+    return { data: result as any, error: null };
   } catch (error) {
-    console.error('Error fetching booking:', error);
+    console.error('Error fetching booking by token:', error);
     return { data: null, error: error as Error };
   }
 }
@@ -727,6 +735,7 @@ export interface SubscriptionWithDetails {
   next_billing_date: string | null;
   cancelled_at: string | null;
   manage_token: string;
+  token_expires_at: string | null;
   client: Client | null;
   plan: {
     id: string;
@@ -748,6 +757,7 @@ export async function getSubscriptionByToken(token: string): Promise<{
         plan:subscription_plans(id, name, description)
       `)
       .eq('manage_token', token)
+      .or('token_expires_at.is.null,token_expires_at.gt.now()')
       .single();
 
     if (error) throw error;
@@ -772,7 +782,8 @@ export async function updateSubscriptionStatusByToken(
     const { error } = await supabase
       .from('subscriptions')
       .update(updates)
-      .eq('manage_token', token);
+      .eq('manage_token', token)
+      .or('token_expires_at.is.null,token_expires_at.gt.now()');
     
     if (error) throw error;
     return { error: null };
@@ -795,7 +806,8 @@ export async function selectSubscriptionPaymentMethod(
     const { error } = await supabase
       .from('subscriptions')
       .update(updates)
-      .eq('manage_token', token);
+      .eq('manage_token', token)
+      .or('token_expires_at.is.null,token_expires_at.gt.now()');
     
     if (error) throw error;
     return { error: null };
@@ -1560,6 +1572,7 @@ export async function updateBookingByToken(
       .from('bookings')
       .select('id, date, time_slot')
       .eq('manage_token', token)
+      .or('token_expires_at.is.null,token_expires_at.gt.now()')
       .single();
 
     if (fetchError || !booking) {
@@ -1629,6 +1642,7 @@ export async function cancelBookingByToken(token: string): Promise<{ error: Erro
       .from('bookings')
       .select('id, status')
       .eq('manage_token', token)
+      .or('token_expires_at.is.null,token_expires_at.gt.now()')
       .single();
 
     if (fetchError || !booking) {
@@ -2132,6 +2146,7 @@ export async function addImagesToBookingByToken(
       .from('bookings')
       .select('id, images')
       .eq('manage_token', token)
+      .or('token_expires_at.is.null,token_expires_at.gt.now()')
       .single();
 
     if (fetchError || !booking) {
@@ -2163,6 +2178,7 @@ export async function removeImageFromBookingByToken(
       .from('bookings')
       .select('id, images')
       .eq('manage_token', token)
+      .or('token_expires_at.is.null,token_expires_at.gt.now()')
       .single();
 
     if (fetchError || !booking) {
@@ -2205,6 +2221,7 @@ export async function updateClientContactByToken(
       .from('bookings')
       .select('client_id')
       .eq('manage_token', token)
+      .or('token_expires_at.is.null,token_expires_at.gt.now()')
       .single();
 
     if (fetchError || !booking || !booking.client_id) {
@@ -2234,6 +2251,7 @@ export async function getClientBookingHistoryByToken(
       .from('bookings')
       .select('client_id')
       .eq('manage_token', token)
+      .or('token_expires_at.is.null,token_expires_at.gt.now()')
       .single();
 
     if (fetchError || !booking || !booking.client_id) {
@@ -2615,11 +2633,11 @@ export async function createPaymentIntent(
   type: 'invoice' | 'deposit' = 'invoice'
 ): Promise<{ clientSecret: string; amount: number } | null> {
   try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/create-payment`, {
+    const response = await fetch(`${supabaseUrl}/functions/v1/create-payment`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        'Authorization': `Bearer ${supabaseAnonKey}`
       },
       body: JSON.stringify({ bookingId, type })
     });
@@ -2641,11 +2659,11 @@ export async function createPaymentIntentByToken(
   type: 'invoice' | 'deposit' = 'invoice'
 ): Promise<{ clientSecret: string; amount: number } | null> {
   try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/create-payment`, {
+    const response = await fetch(`${supabaseUrl}/functions/v1/create-payment`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        'Authorization': `Bearer ${supabaseAnonKey}`
       },
       body: JSON.stringify({ token, type })
     });
@@ -3196,6 +3214,7 @@ export async function selectPaymentMethodByToken(
       .from('bookings')
       .select('id')
       .eq('manage_token', token)
+      .or('token_expires_at.is.null,token_expires_at.gt.now()')
       .single();
 
     if (fetchError || !booking) {
@@ -3787,13 +3806,21 @@ export async function createContractor(data: {
   owner_cut_percent?: number;
 }): Promise<{ data: Contractor | null; error: Error | null }> {
   try {
+    // Validate PIN length (minimum 6 characters)
+    if (data.pin_code.length < 6) {
+      return { data: null, error: new Error('PIN code must be at least 6 characters') };
+    }
+
+    // Hash the PIN before storing
+    const hashedPin = await bcrypt.hash(data.pin_code, 10);
+
     const { data: result, error } = await supabase
       .from('contractors')
       .insert([{
         name: data.name,
         phone: data.phone || null,
         email: data.email || null,
-        pin_code: data.pin_code,
+        pin_code: hashedPin,
         owner_cut_percent: data.owner_cut_percent ?? 10
       }])
       .select()
@@ -3839,14 +3866,26 @@ export async function deleteContractor(contractorId: string): Promise<{ error: E
 
 export async function verifyContractorPin(pin: string): Promise<{ data: Contractor | null; error: Error | null }> {
   try {
-    const { data, error } = await supabase
+    // Get all active contractors
+    const { data: contractors, error } = await supabase
       .from('contractors')
       .select('*')
-      .eq('pin_code', pin)
-      .eq('is_active', true)
-      .single();
+      .eq('is_active', true);
+    
     if (error) throw error;
-    return { data: data as Contractor, error: null };
+    if (!contractors || contractors.length === 0) {
+      return { data: null, error: new Error('No active contractors found') };
+    }
+
+    // Check each contractor's hashed PIN
+    for (const contractor of contractors) {
+      const isValid = await bcrypt.compare(pin, contractor.pin_code);
+      if (isValid) {
+        return { data: contractor as Contractor, error: null };
+      }
+    }
+
+    return { data: null, error: new Error('Invalid PIN') };
   } catch (error) {
     return { data: null, error: error as Error };
   }
