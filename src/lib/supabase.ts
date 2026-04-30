@@ -5,11 +5,16 @@ import bcrypt from 'bcryptjs';
 // The anon key is designed to be public (also called "publishable key")
 // Security is enforced by RLS (Row Level Security) policies, not by hiding the key
 // Credentials are loaded from environment variables for security, with fallback to hardcoded values
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://pudvngvljwexztxntwnn.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1ZHZuZ3ZsandleHp0eG50d25uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxMTI4NDgsImV4cCI6MjA4MjY4ODg0OH0.SX_AcKMLx2N2eHHEu05itYDOwSBRHuS0f4fo7G8SSOY';
+// IMPORTANT: Must handle empty strings from CI/CD env vars - empty string is truthy!
+const envUrl = import.meta.env.VITE_SUPABASE_URL;
+const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+const supabaseUrl = (envUrl && envUrl.trim() !== '') ? envUrl : 'https://pudvngvljwexztxntwnn.supabase.co';
+const supabaseAnonKey = (envKey && envKey.trim() !== '') ? envKey : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1ZHZuZ3ZsandleHp0eG50d25uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxMTI4NDgsImV4cCI6MjA4MjY4ODg0OH0.SX_AcKMLx2N2eHHEu05itYDOwSBRHuS0f4fo7G8SSOY';
 
 // Stripe configuration (publishable key only - safe for frontend)
-export const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
+const stripeKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+export const STRIPE_PUBLISHABLE_KEY = (stripeKey && stripeKey.trim() !== '') ? stripeKey : '';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 

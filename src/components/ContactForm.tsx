@@ -8,7 +8,8 @@ import { toast } from "@/hooks/use-toast";
 import { saveContactMessage } from "@/lib/supabase";
 
 // n8n webhook URL for contact form submissions (optional - for future notifications)
-const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_CONTACT_WEBHOOK || '';
+const n8nWebhook = import.meta.env.VITE_N8N_CONTACT_WEBHOOK;
+const N8N_WEBHOOK_URL = (n8nWebhook && n8nWebhook.trim() !== '') ? n8nWebhook : '';
 
 const ContactForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
