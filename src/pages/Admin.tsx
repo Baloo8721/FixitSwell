@@ -1151,13 +1151,16 @@ const Admin = () => {
       
       // Open Gmail compose with pre-filled email
       if (msg.email) {
-        const subject = encodeURIComponent("Re: Your message to FixitSwell");
+        const subject = encodeURIComponent(`Re: Your message to FixitSwell - ${msg.name}`);
         const body = encodeURIComponent(
           `Hi ${msg.name},\n\n` +
           `${replyContent}\n\n` +
           `---\n` +
           `Best regards,\n` +
-          `FixitSwell Team`
+          `FixitSwell Team\n\n` +
+          `--- Original Message ---\n` +
+          `> ${msg.message || '(No message)'}\n` +
+          `> Sent: ${format(parseISO(msg.created_at), 'MMM d, yyyy h:mm a')}`
         );
         const mailtoLink = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(msg.email)}&su=${subject}&body=${body}`;
         window.open(mailtoLink, '_blank');
